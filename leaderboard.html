@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passly - Leaderboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0a0a14;
+      color: white;
+      min-height: 100vh;
+    }
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 30px;
+      background: rgba(15,15,30,0.95);
+      border-bottom: 1px solid rgba(139,92,246,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .nav-logo {
+      font-size: 1.8rem;
+      font-weight: bold;
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-links { display: flex; gap: 25px; }
+    .nav-links a {
+      color: #b0b0c0;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s;
+      font-size: 0.95rem;
+    }
+    .nav-links a:hover { color: #a78bfa; }
+    .user-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(139,92,246,0.1);
+      padding: 8px 16px;
+      border-radius: 12px;
+    }
+    .user-avatar {
+      width: 35px;
+      height: 35px;
+      border-radius: 50%;
+      background: #8b5cf6;
+    }
+    .user-name { font-weight: 600; color: #c4b5fd; }
+    .main-content { padding: 30px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 2.5rem; margin-bottom: 30px; text-align: center; }
+    .leaderboard-section { margin-bottom: 40px; }
+    .section-title {
+      font-size: 1.5rem;
+      color: #a78bfa;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(20,20,40,0.6);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(139,92,246,0.2);
+    }
+    .leaderboard-table th {
+      background: rgba(139,92,246,0.2);
+      padding: 16px;
+      text-align: left;
+      color: #a78bfa;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .leaderboard-table td { padding: 16px; border-bottom: 1px solid rgba(139,92,246,0.1); }
+    .leaderboard-table tr:hover { background: rgba(139,92,246,0.05); }
+    .rank {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    .rank-1 { background: #ffd700; color: #000; }
+    .rank-2 { background: #c0c0c0; color: #000; }
+    .rank-3 { background: #cd7f32; color: #fff; }
+    .rank-other { background: rgba(139,92,246,0.2); color: #a78bfa; }
+    .player-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .player-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #8b5cf6;
+    }
+    .amount { font-weight: bold; color: #c4b5fd; }
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #a0a0b0;
+    }
+    @media (max-width: 768px) {
+      .navbar { flex-direction: column; gap: 15px; padding: 15px; }
+      .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
+      h1 { font-size: 1.8rem; }
+      .leaderboard-table th, .leaderboard-table td { padding: 12px; font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-logo">Passly</div>
+    <div class="nav-links">
+      <a href="/dashboard">🏠 Home</a>
+      <a href="/rooms">🚪 Rooms</a>
+      <a href="/leaderboard">🏆 Leaderboard</a>
+      <a href="/profile">👤 Profile</a>
+    </div>
+    <div class="user-box">
+      <div class="user-avatar" id="userAvatar"></div>
+      <span class="user-name" id="userName">Loading...</span>
+    </div>
+  </nav>
+
+  <div class="main-content">
+    <h1>🏆 Leaderboard</h1>
+
+    <div class="leaderboard-section">
+      <div class="section-title">💰 Top Receivers</div>
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Player</th>
+            <th>Robux Received</th>
+          </tr>
+        </thead>
+        <tbody id="receiversTable"></tbody>
+      </table>
+    </div>
+
+    <div class="leaderboard-section">
+      <div class="section-title">💸 Top Donors</div>
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Player</th>
+            <th>Robux Donated</th>
+          </tr>
+        </thead>
+        <tbody id="donorsTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function init() {
+      try {
+        const userRes = await fetch('/api/user');
+        if (!userRes.ok) { window.location.href = '/'; return; }
+        const userData = await userRes.json();
+        document.getElementById('userName').textContent = userData.username;
+        if (userData.avatarUrl) {
+          document.getElementById('userAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
+        }
+        loadLeaderboard();
+      } catch(e) { console.error(e); }
+    }
+
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch('/api/leaderboard');
+        const data = await res.json();
+        
+        const receiversTable = document.getElementById('receiversTable');
+        const donorsTable = document.getElementById('donorsTable');
+        
+        if (data.receivers.length === 0) {
+          receiversTable.innerHTML = '<tr><td colspan="3" class="empty-state">No data yet</td></tr>';
+        } else {
+          receiversTable.innerHTML = data.receivers.map((player, index) => {
+            let rankClass = 'rank-other';
+            let rankEmoji = '';
+            if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
+            else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
+            else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
+            
+            return `
+              <tr>
+                <td><span class="rank ${rankClass}">${rankEmoji || index + 1}</span></td>
+                <td>
+                  <div class="player-cell">
+                    <div class="player-avatar"></div>
+                    ${player.username}
+                  </div>
+                </td>
+                <td class="amount">${player.amount.toLocaleString()} Robux</td>
+              </tr>
+            `;
+          }).join('');
+        }
+        
+        if (data.donors.length === 0) {
+          donorsTable.innerHTML = '<tr><td colspan="3" class="empty-state">No data yet</td></tr>';
+        } else {
+          donorsTable.innerHTML = data.donors.map((player, index) => {
+            let rankClass = 'rank-other';
+            let rankEmoji = '';
+            if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
+            else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
+            else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
+            
+            return `
+              <tr>
+                <td><span class="rank ${rankClass}">${rankEmoji || index + 1}</span></td>
+                <td>
+                  <div class="player-cell">
+                    <div class="player-avatar"></div>
+                    ${player.username}
+                  </div>
+                </td>
+                <td class="amount">${player.amount.toLocaleString()} Robux</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch(e) { console.error(e); }
+    }
+
+    init();
+  </script>
+</body>
+</html>
