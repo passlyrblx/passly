@@ -73,7 +73,7 @@ app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html'))
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ========== OAUTH (fetch full Roblox profile) ==========
+// ========== OAUTH ==========
 app.get('/auth/roblox', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   oauthStates.set(state, Date.now());
@@ -128,12 +128,14 @@ app.get('/auth/roblox/callback', async (req, res) => {
         roomId: null,
         inQueue: false,
         donations: { received: 0, given: 0 },
+        board: [],                         // <-- board initialized
         createdAt: new Date().toISOString()
       };
     } else {
       users[userId].robloxUsername = robloxUsername;
       users[userId].robloxDisplayName = robloxDisplayName;
       users[userId].avatarUrl = avatarUrl;
+      // keep existing board if present
     }
     saveUsers();
 
@@ -150,7 +152,7 @@ app.get('/auth/roblox/callback', async (req, res) => {
   }
 });
 
-// ========== USER API ==========
+// ========== USER API (includes board) ==========
 app.get('/api/user', authenticateToken, (req, res) => {
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -166,7 +168,8 @@ app.get('/api/user', authenticateToken, (req, res) => {
     inQueue: user.inQueue,
     donations: user.donations,
     ad: ad || null,
-    customDisplayName: user.customDisplayName
+    customDisplayName: user.customDisplayName,
+    board: user.board || []            // <-- send board
   });
 });
 
@@ -184,6 +187,57 @@ app.post('/api/profile/update', authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
+// ========== BOARD ==========
+app.post('/api/board/add', authenticateToken, async (req, res) => {
+  const { assetId } = req.body;
+  if (!assetId) return res.status(400).json({ error: 'Asset ID required' });
+
+  const user = users[req.user.id];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  if (!user.board) user.board = [];
+
+  // Prevent duplicates
+  if (user.board.some(gp => gp.id === assetId)) {
+    return res.status(400).json({ error: 'Gamepass already on your board' });
+  }
+
+  // Verify ownership
+  try {
+    const check = await axios.get(`https://inventory.roblox.com/v1/users/${user.id}/items/GamePass/${assetId}`, { timeout: 5000 });
+    if (!check.data?.data?.length) {
+      return res.status(400).json({ error: 'You do not own this gamepass' });
+    }
+  } catch (e) {
+    return res.status(400).json({ error: 'Ownership verification failed' });
+  }
+
+  // Fetch name & price
+  let name = 'Gamepass';
+  let price = 0;
+  try {
+    const detailRes = await axios.get(`https://economy.roblox.com/v2/assets/${assetId}/details`, { timeout: 5000 });
+    if (detailRes.data) {
+      name = detailRes.data.Name || name;
+      price = detailRes.data.PriceInRobux || 0;
+    }
+  } catch (e) {}
+
+  user.board.push({ id: assetId, name, price });
+  saveUsers();
+  res.json({ success: true, board: user.board });
+});
+
+app.post('/api/board/remove', authenticateToken, (req, res) => {
+  const { assetId } = req.body;
+  const user = users[req.user.id];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user.board) user.board = [];
+  user.board = user.board.filter(gp => gp.id !== assetId);
+  saveUsers();
+  res.json({ success: true, board: user.board });
+});
+
 // ========== ROOMS ==========
 app.get('/api/rooms', (req, res) => res.json(Object.values(rooms)));
 
@@ -191,7 +245,6 @@ app.post('/api/rooms/create', authenticateToken, (req, res) => {
   const { name, desc, type } = req.body;
   if (!name) return res.status(400).json({ error: 'Room name required' });
 
-  // Prevent creating a new room if the user already has one
   const alreadyInRoom = Object.values(rooms).some(r =>
     r.createdBy === req.user.id || r.players.includes(req.user.id)
   );
@@ -328,7 +381,7 @@ app.post('/api/guest-login', (req, res) => {
   res.json({ username: `Guest#${guestNum}`, isGuest: true });
 });
 
-// ========== DEFAULT ROOMS (if none exist) ==========
+// ========== DEFAULT ROOMS ==========
 if (Object.keys(rooms).length === 0) {
   const defaultRooms = [
     { name: "Chill Donations", desc: "Relax and donate to small creators." },
