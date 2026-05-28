@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passly - Rooms</title>
+
+  <style>
+    body {
+      margin: 0;
+      background: #0b0b14;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      background: #141420;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      color: #8b5cf6;
+      text-decoration: none;
+    }
+
+    .create-room-btn {
+      background: #8b5cf6;
+      border: none;
+      color: white;
+      padding: 12px 18px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .hero {
+      padding: 25px;
+    }
+
+    .hero-title {
+      font-size: 48px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .hero-subtitle {
+      color: #aaaaaa;
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+
+    .rooms-container {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 800px;
+    }
+
+    .room-card {
+      background: #16161f;
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.4);
+    }
+
+    .room-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .room-name {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .room-type {
+      background: #242432;
+      color: #b3b3b3;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    .room-desc {
+      color: #aaaaaa;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .room-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .room-players {
+      color: #b3b3b3;
+    }
+
+    .room-btn {
+      background: #8b5cf6;
+      border: none;
+      color: white;
+      padding: 12px 18px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    /* POPUP OVERLAY & BOX */
+    .popup-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      z-index: 500;
+    }
+
+    .popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 330px;
+      background: #16161f;
+      border-radius: 18px;
+      padding: 25px;
+      display: none;
+      z-index: 1000;
+    }
+
+    .popup-title {
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    .popup input,
+    .popup textarea {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: #242432;
+      color: white;
+      font-size: 16px;
+      box-sizing: border-box;
+      margin-bottom: 15px;
+    }
+
+    .popup textarea {
+      height: 100px;
+      resize: none;
+    }
+
+    .type-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .type-btn {
+      flex: 1;
+      background: #242432;
+      border: none;
+      color: white;
+      padding: 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .active-type {
+      background: #8b5cf6;
+    }
+
+    .popup-create-btn {
+      width: 100%;
+      background: #8b5cf6;
+      border: none;
+      color: white;
+      padding: 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 17px;
+    }
+
+    /* ROOM LIVE PAGE */
+    .room-page {
+      display: none;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .room-page-top {
+      background: #16161f;
+      padding: 20px;
+      border-radius: 18px;
+      margin-bottom: 20px;
+    }
+
+    .room-page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .room-page-title {
+      font-size: 38px;
+      font-weight: bold;
+    }
+
+    .leave-room-btn {
+      background: #ef4444;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .room-page-desc {
+      color: #aaaaaa;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .chat-box {
+      background: #16161f;
+      border-radius: 18px;
+      padding: 20px;
+      height: 350px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+
+    .message {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .pfp {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      background: #8b5cf6;
+      flex-shrink: 0;
+    }
+
+    .message-content {
+      background: #242432;
+      padding: 12px;
+      border-radius: 12px;
+      width: 100%;
+    }
+
+    .username {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .message-text {
+      color: #d0d0d0;
+      line-height: 1.4;
+    }
+
+    /* BOOTH / BOARD VIEW INSIDE CHAT */
+    .booth-grid {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .booth-item {
+      background: #1c1c27;
+      border: 2px solid #8b5cf6; /* Can be changed later via shop settings */
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+      width: 80px;
+    }
+
+    .booth-val {
+      color: #4ade80;
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+
+    .booth-link {
+      background: #8b5cf6;
+      color: white;
+      text-decoration: none;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      display: block;
+    }
+
+    .chat-input-area {
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input {
+      flex: 1;
+      background: #242432;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      color: white;
+      font-size: 16px;
+    }
+
+    .send-btn, .show-board-btn {
+      background: #8b5cf6;
+      border: none;
+      color: white;
+      padding: 14px 20px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    @media(max-width:700px){
+      .hero-title { font-size:38px; }
+      .room-top, .room-bottom { flex-direction:column; align-items:flex-start; gap:12px; }
+      .room-btn { width:100%; }
+      .chat-input-area { flex-direction: column; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="navbar">
+    <a href="index.html" class="logo">Passly</a>
+    <button class="create-room-btn" onclick="openPopup()">+ Create Room</button>
+  </div>
+
+  <!-- ROOM SELECTION PAGE -->
+  <div id="roomsPage">
+    <div class="hero">
+      <div class="hero-title">Public & Private Rooms</div>
+      <div class="hero-subtitle">Chat with creators, discover donation spaces, and pitch your booth.</div>
+    </div>
+
+    <div class="rooms-container" id="roomsContainer">
+      
+      <!-- Public Room -->
+      <div class="room-card">
+        <div class="room-top">
+          <div class="room-name">Chill Donations</div>
+          <div class="room-type">Public</div>
+        </div>
+        <div class="room-desc">Relax and donate to small creators.</div>
+        <div class="room-bottom">
+          <div class="room-players">12 / 18 Players</div>
+          <button class="room-btn" onclick="joinRoom('Chill Donations', 'Relax and donate to small creators.', 'Public')">Join Room</button>
+        </div>
+      </div>
+
+      <!-- Private Room -->
+      <div class="room-card">
+        <div class="room-top">
+          <div class="room-name">Secret Devs Only</div>
+          <div class="room-type">Private</div>
+        </div>
+        <div class="room-desc">Password protected workspace. (Password: 1234)</div>
+        <div class="room-bottom">
+          <div class="room-players">3 / 18 Players</div>
+          <button class="room-btn" onclick="joinRoom('Secret Devs Only', 'Password protected workspace.', 'Private', '1234')">Join Room</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- INDIVIDUAL LIVE CHAT ROOM PAGE -->
+  <div class="room-page" id="roomPage">
+    <div class="room-page-top">
+      <div class="room-page-header">
+        <div class="room-page-title" id="roomPageTitle">Room Title</div>
+        <button class="leave-room-btn" onclick="leaveRoom()">Exit Room</button>
+      </div>
+      <div class="room-page-desc" id="roomPageDesc">Room description goes here.</div>
+    </div>
+
+    <div class="chat-box" id="chatBox">
+      <div class="message">
+        <div class="pfp"></div>
+        <div class="message-content">
+          <div class="username">System</div>
+          <div class="message-text">Welcome to the Passly Room. Keep it friendly!</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="Send a message...">
+      <button class="show-board-btn" onclick="showBoard()">🎪 Show Board</button>
+      <button class="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <!-- CREATE ROOM POPUP -->
+  <div class="popup-overlay" id="overlay" onclick="closePopup()"></div>
+  <div class="popup" id="popup">
+    <div class="popup-title">Create Room</div>
+    <input type="text" id="roomName" placeholder="Room Name">
+    <textarea id="roomDesc" placeholder="Room Description"></textarea>
+    
+    <div class="type-buttons">
+      <button class="type-btn active-type" id="publicBtn" onclick="selectType('Public')">Public</button>
+      <button class="type-btn" id="privateBtn" onclick="selectType('Private')">Private</button>
+    </div>
+    
+    <input type="password" id="roomPass" placeholder="Room ID/Password (If Private)" style="display:none;">
+    <button class="popup-create-btn" onclick="createRoom()">Create Room</button>
+  </div>
+
+  <script>
+    let selectedType = "Public";
+    let currentRoom = null;
+    let boardCooldown = false;
+
+    function openPopup() {
+      document.getElementById("popup").style.display = "block";
+      document.getElementById("overlay").style.display = "block";
+    }
+
+    function closePopup() {
+      document.getElementById("popup").style.display = "none";
+      document.getElementById("overlay").style.display = "none";
+    }
+
+    function selectType(type) {
+      selectedType = type;
+      document.getElementById("publicBtn").classList.remove("active-type");
+      document.getElementById("privateBtn").classList.remove("active-type");
+      
+      const passInput = document.getElementById("roomPass");
+      if(type === "Public") {
+        document.getElementById("publicBtn").classList.add("active-type");
+        passInput.style.display = "none";
+      } else {
+        document.getElementById("privateBtn").classList.add("active-type");
+        passInput.style.display = "block";
+      }
+    }
+
+    function createRoom() {
+      let name = document.getElementById("roomName").value.trim();
+      let desc = document.getElementById("roomDesc").value.trim() || "A custom Passly room.";
+      let pass = document.getElementById("roomPass").value.trim();
+
+      if(!name) { alert("Please enter a room name"); return; }
+      if(selectedType === "Private" && !pass) { alert("Private rooms need a joining Password"); return; }
+
+      let card = document.createElement("div");
+      card.className = "room-card";
+      card.innerHTML = `
+        <div class="room-top">
+          <div class="room-name">${name}</div>
+          <div class="room-type">${selectedType}</div>
+        </div>
+        <div class="room-desc">${desc}</div>
+        <div class="room-bottom">
+          <div class="room-players">1 / 18 Players</div>
+          <button class="room-btn">Join Room</button>
+        </div>
+      `;
+
+      card.querySelector(".room-btn").onclick = function() {
+        joinRoom(name, desc, selectedType, pass);
+      };
+
+      document.getElementById("roomsContainer").prepend(card);
+      closePopup();
+      joinRoom(name, desc, selectedType, pass);
+    }
+
+    function joinRoom(name, desc, type, password) {
+      if(type === "Private") {
+        let entry = prompt("This room is Private. Enter the Room Password/ID to join:");
+        if (entry !== password) {
+          alert("Incorrect Password!");
+          return;
+        }
+      }
+
+      currentRoom = name;
+      document.getElementById("roomsPage").style.display = "none";
+      document.getElementById("roomPage").style.display = "block";
+      document.getElementById("roomPageTitle").innerText = name;
+      document.getElementById("roomPageDesc").innerText = desc;
+    }
+
+    function leaveRoom() {
+      currentRoom = null;
+      document.getElementById("roomsPage").style.display = "block";
+      document.getElementById("roomPage").style.display = "none";
+    }
+
+    function sendMessage() {
+      let input = document.getElementById("chatInput");
+      let text = input.value.trim();
+      if(!text) return;
+
+      let chatBox = document.getElementById("chatBox");
+      let msg = document.createElement("div");
+      msg.className = "message";
+      msg.innerHTML = `
+        <div class="pfp"></div>
+        <div class="message-content">
+          <div class="username">Player</div>
+          <div class="message-text">${text}</div>
+        </div>
+      `;
+      chatBox.appendChild(msg);
+      input.value = "";
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function showBoard() {
+      if(boardCooldown) {
+        alert("Please wait 20 seconds before showcasing your board again.");
+        return;
+      }
+
+      boardCooldown = true;
+      let chatBox = document.getElementById("chatBox");
+      let msg = document.createElement("div");
+      msg.className = "message";
+
+      // Mocking up a showcase board. Later, we link these buttons to their real Roblox gamepasses.
+      msg.innerHTML = `
+        <div class="pfp" style="background:#4ade80;"></div>
+        <div class="message-content">
+          <div class="username" style="color:#4ade80;">Player's Active Booth</div>
+          <div class="message-text">💸 Click a button below to support me directly on Roblox!</div>
+          <div class="booth-grid">
+            <div class="booth-item"><div class="booth-val">R$ 5</div><a href="#" target="_blank" class="booth-link">Donate</a></div>
+            <div class="booth-item"><div class="booth-val">R$ 20</div><a href="#" target="_blank" class="booth-link">Donate</a></div>
+            <div class="booth-item"><div class="booth-val">R$ 100</div><a href="#" target="_blank" class="booth-link">Donate</a></div>
+            <div class="booth-item"><div class="booth-val">R$ 500</div><a href="#" target="_blank" class="booth-link">Donate</a></div>
+          </div>
+        </div>
+      `;
+
+      chatBox.appendChild(msg);
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      setTimeout(() => { boardCooldown = false; }, 20000);
+    }
+  </script>
+</body>
+</html>
