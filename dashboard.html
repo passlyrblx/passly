@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passly - Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0a0a14;
+      color: white;
+      min-height: 100vh;
+    }
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 30px;
+      background: rgba(15,15,30,0.95);
+      border-bottom: 1px solid rgba(139,92,246,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .nav-logo {
+      font-size: 1.8rem;
+      font-weight: bold;
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-links { display: flex; gap: 25px; }
+    .nav-links a {
+      color: #b0b0c0;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s;
+      font-size: 0.95rem;
+    }
+    .nav-links a:hover { color: #a78bfa; }
+    .user-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(139,92,246,0.1);
+      padding: 8px 16px;
+      border-radius: 12px;
+    }
+    .user-avatar {
+      width: 35px;
+      height: 35px;
+      border-radius: 50%;
+      background: #8b5cf6;
+    }
+    .user-name { font-weight: 600; color: #c4b5fd; }
+    .blimp-container {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 350px;
+    }
+    .blimp {
+      background: linear-gradient(135deg, rgba(30,30,50,0.95), rgba(20,20,40,0.95));
+      border: 2px solid #ffd700;
+      border-radius: 16px;
+      padding: 16px 20px;
+      box-shadow: 0 8px 25px rgba(255,215,0,0.2);
+      animation: slideIn 0.5s ease-out, fadeOut 0.5s ease-in 3s forwards;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      backdrop-filter: blur(10px);
+    }
+    .blimp-icon { font-size: 1.8rem; }
+    .blimp-text { font-size: 0.9rem; line-height: 1.4; }
+    .blimp-text strong { color: #ffd700; }
+    @keyframes slideIn {
+      from { transform: translateX(100px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; transform: translateY(-20px); }
+    }
+    .main-content { padding: 30px; max-width: 1200px; margin: 0 auto; }
+    .welcome-section { margin-bottom: 40px; }
+    .welcome-section h1 { font-size: 2.5rem; margin-bottom: 10px; }
+    .username-highlight {
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .stat-card {
+      background: rgba(20,20,40,0.6);
+      border-radius: 16px;
+      padding: 25px;
+      border: 1px solid rgba(139,92,246,0.2);
+      transition: transform 0.3s;
+    }
+    .stat-card:hover { transform: translateY(-5px); }
+    .stat-value { font-size: 2rem; font-weight: bold; color: #c4b5fd; }
+    .stat-label { color: #a0a0b0; margin-top: 5px; font-size: 0.9rem; }
+    .current-room {
+      background: rgba(20,20,40,0.6);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 30px;
+      border: 1px solid rgba(139,92,246,0.2);
+    }
+    .current-room h3 { color: #a78bfa; margin-bottom: 8px; }
+    .quick-actions { display: flex; gap: 15px; flex-wrap: wrap; }
+    .action-btn {
+      padding: 14px 28px;
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.3);
+      border-radius: 12px;
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 1rem;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .action-btn:hover {
+      background: rgba(139,92,246,0.25);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(139,92,246,0.2);
+    }
+    .logout-btn { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
+    .logout-btn:hover { background: rgba(239,68,68,0.25); }
+    .ad-cloud {
+      position: fixed;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30,30,50,0.95);
+      border: 2px solid #8b5cf6;
+      border-radius: 20px;
+      padding: 20px 35px;
+      z-index: 300;
+      box-shadow: 0 10px 40px rgba(139,92,246,0.3);
+      text-align: center;
+      font-size: 1.1rem;
+      backdrop-filter: blur(10px);
+      animation: cloudDown 10s linear forwards;
+      cursor: pointer;
+    }
+    @keyframes cloudDown {
+      0% { top: -100px; opacity: 0; }
+      10% { top: 30px; opacity: 1; }
+      90% { top: 80vh; opacity: 1; }
+      100% { top: 100vh; opacity: 0; }
+    }
+    .ad-cloud:hover { border-color: #a78bfa; box-shadow: 0 10px 40px rgba(139,92,246,0.5); }
+    @media (max-width: 768px) {
+      .navbar { flex-direction: column; gap: 15px; padding: 15px; }
+      .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
+      .welcome-section h1 { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-logo">Passly</div>
+    <div class="nav-links">
+      <a href="/dashboard">🏠 Home</a>
+      <a href="/rooms">🚪 Rooms</a>
+      <a href="/leaderboard">🏆 Leaderboard</a>
+      <a href="/profile">👤 Profile</a>
+    </div>
+    <div class="user-box">
+      <div class="user-avatar" id="userAvatar"></div>
+      <span class="user-name" id="userName">Loading...</span>
+    </div>
+  </nav>
+
+  <div class="blimp-container" id="blimpContainer"></div>
+  <div id="adContainer"></div>
+
+  <div class="main-content">
+    <div class="welcome-section">
+      <h1>Welcome back, <span class="username-highlight" id="dashUsername">Player</span>! 👋</h1>
+      <p style="color: #a0a0b0; margin-top: 5px;">Your donation hub is ready</p>
+    </div>
+
+    <div class="current-room">
+      <h3>📍 Current Room</h3>
+      <p id="currentRoomDisplay" style="color: #b0b0c0;">Not in any room</p>
+      <p id="queueStatus" style="color: #fbbf24; margin-top: 5px; display: none;"></p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="totalReceived">0</div>
+        <div class="stat-label">💰 Total Robux Received</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalGiven">0</div>
+        <div class="stat-label">💸 Total Robux Given</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="adStatusText">No Ad</div>
+        <div class="stat-label">📢 Advertisement Status</div>
+      </div>
+    </div>
+
+    <div class="quick-actions">
+      <a href="/rooms" class="action-btn">🚪 Browse Rooms</a>
+      <a href="/leaderboard" class="action-btn">🏆 View Leaderboard</a>
+      <a href="/profile" class="action-btn">👤 Edit Profile</a>
+      <button class="action-btn logout-btn" onclick="logout()">🚪 Logout</button>
+    </div>
+  </div>
+
+  <script>
+    let userData = null;
+
+    async function loadDashboard() {
+      try {
+        const response = await fetch('/api/user');
+        if (!response.ok) {
+          window.location.href = '/';
+          return;
+        }
+        userData = await response.json();
+        
+        document.getElementById('dashUsername').textContent = userData.displayName || userData.username;
+        document.getElementById('userName').textContent = userData.username;
+        
+        if (userData.avatarUrl) {
+          document.getElementById('userAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
+        }
+        
+        document.getElementById('totalReceived').textContent = userData.donations.received.toLocaleString();
+        document.getElementById('totalGiven').textContent = userData.donations.given.toLocaleString();
+        
+        if (userData.ad && userData.ad.active) {
+          document.getElementById('adStatusText').textContent = `${userData.ad.showsLeft} shows left`;
+          startAdDisplay();
+        }
+        
+        if (userData.roomId) {
+          document.getElementById('currentRoomDisplay').textContent = 'You are in a room';
+          if (userData.inQueue) {
+            document.getElementById('queueStatus').style.display = 'block';
+            document.getElementById('queueStatus').textContent = '⏳ You are in queue';
+          }
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    function startAdDisplay() {
+      if (userData.ad && userData.ad.active && userData.ad.showsLeft > 0) {
+        displayAdCloud();
+      }
+    }
+
+    function displayAdCloud() {
+      if (!userData.ad || userData.ad.showsLeft <= 0) return;
+      
+      const cloud = document.createElement('div');
+      cloud.className = 'ad-cloud';
+      cloud.innerHTML = `
+        🎯 <strong>${userData.displayName || userData.username}'s Board</strong><br>
+        <span style="font-size:0.9rem; color:#a78bfa;">Click to visit and donate!</span>
+      `;
+      cloud.onclick = function() {
+        window.open(`https://www.roblox.com/users/${userData.id}/profile`, '_blank');
+      };
+      
+      document.getElementById('adContainer').appendChild(cloud);
+      userData.ad.showsLeft--;
+      
+      setTimeout(() => cloud.remove(), 10500);
+      
+      if (userData.ad.showsLeft > 0) {
+        setTimeout(() => displayAdCloud(), 10000);
+      } else {
+        userData.ad.active = false;
+        document.getElementById('adStatusText').textContent = 'No Ad';
+      }
+    }
+
+    function simulateDonation() {
+      const donors = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey'];
+      const amounts = [100, 500, 1000, 5000, 10000];
+      const donor = donors[Math.floor(Math.random() * donors.length)];
+      const amount = amounts[Math.floor(Math.random() * amounts.length)];
+      
+      const blimp = document.createElement('div');
+      blimp.className = 'blimp';
+      blimp.innerHTML = `
+        <div class="blimp-icon">💰</div>
+        <div class="blimp-text">
+          <strong>${donor}</strong> donated <strong>${amount.toLocaleString()} Robux</strong> to <strong>${userData.username}</strong>
+        </div>
+      `;
+      
+      document.getElementById('blimpContainer').appendChild(blimp);
+      setTimeout(() => { if (blimp.parentElement) blimp.remove(); }, 3500);
+    }
+
+    async function logout() {
+      await fetch('/logout', { method: 'POST' });
+      window.location.href = '/';
+    }
+
+    loadDashboard();
+    setInterval(simulateDonation, 15000);
+    setTimeout(simulateDonation, 3000);
+  </script>
+</body>
+</html>
