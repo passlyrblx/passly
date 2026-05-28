@@ -220,7 +220,6 @@
     let token = localStorage.getItem('passly_token');
     let userData = null;
 
-    // No debug – silently extract token from URL hash if present
     (function() {
       const hash = window.location.hash;
       if (hash && hash.includes('token=')) {
@@ -262,7 +261,6 @@
           }
         }
 
-        // Update UI
         document.getElementById('dashUsername').textContent = userData.displayName || userData.username;
         document.getElementById('userName').textContent = userData.displayName || userData.username;
 
@@ -274,23 +272,19 @@
           document.getElementById('loginPrompt').style.display = 'none';
         }
 
-        // Avatar
         if (userData.avatarUrl) {
           document.getElementById('userAvatar').style.backgroundImage = `url(${userData.avatarUrl})`;
           document.getElementById('userAvatar').style.backgroundSize = 'cover';
         }
 
-        // Stats
         document.getElementById('totalReceived').textContent = (userData.donations?.received || 0).toLocaleString();
         document.getElementById('totalGiven').textContent = (userData.donations?.given || 0).toLocaleString();
 
-        // Ad status
         if (userData.ad && userData.ad.active) {
           document.getElementById('adStatusText').textContent = `${userData.ad.showsLeft} shows left`;
           startAdDisplay();
         }
 
-        // Room info
         if (userData.roomId) {
           document.getElementById('currentRoomDisplay').textContent = 'You are in a room';
           if (userData.inQueue) {
@@ -299,7 +293,6 @@
           }
         }
 
-        // Load ads periodically
         loadAds();
         setInterval(loadAds, 30000);
       } catch (e) {
@@ -309,18 +302,26 @@
 
     function startAdDisplay() {
       if (userData.ad && userData.ad.active && userData.ad.showsLeft > 0) {
-        showAdCloud({ userId: userData.id, username: userData.displayName || userData.username });
+        showAdCloud(userData.ad);
       }
     }
 
     function showAdCloud(ad) {
       const cloud = document.createElement('div');
       cloud.className = 'ad-cloud';
+
+      // Link directly to gamepass if available, otherwise to profile
+      let adLink = `https://www.roblox.com/users/${ad.userId}/profile`;
+      if (ad.gamepassId) {
+        adLink = `https://www.roblox.com/game-pass/${ad.gamepassId}`;
+      }
+
       cloud.innerHTML = `
-        🎯 <strong>${ad.username}</strong>'s Board<br>
-        <span style="font-size:0.9rem; color:#a78bfa;">Click to visit and donate!</span>
+        🎯 <strong>${ad.username || 'Player'}</strong>'s Board<br>
+        <span style="font-size:0.9rem; color:#a78bfa;">Click to donate!</span>
       `;
-      cloud.onclick = () => window.open(`https://www.roblox.com/users/${ad.userId}/profile`, '_blank');
+      cloud.onclick = () => window.open(adLink, '_blank');
+
       document.getElementById('adContainer').appendChild(cloud);
       setTimeout(() => cloud.remove(), 10500);
     }
