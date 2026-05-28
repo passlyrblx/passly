@@ -95,6 +95,10 @@
     .ad-mini-board-item:hover { background: #16a34a; }
     .ad-message-text { font-style: italic; color: #ffd700; margin-top: 4px; }
 
+    /* Verify button inside player board */
+    .verify-donate-btn { background: #f59e0b; color: white; border: none; border-radius: 8px; padding: 4px 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
+    .verify-donate-btn:hover { background: #d97706; }
+
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -225,26 +229,31 @@
     <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
   </div>
 
-  <!-- Donate Modal -->
-  <div class="modal" id="donateModal">
-    <h2>💝 Donate to Player</h2>
-    <p style="color:#a0a0b0; margin-bottom:15px;">Donating to: <strong id="donatePlayerName" style="color:#c4b5fd;"></strong></p>
-    <select id="gamepassSelect">
-      <option value="">Select Gamepass...</option>
-      <option value="1862184808">5,000 Robux Gamepass</option>
-      <option value="1860026243">10,000 Robux Gamepass</option>
-    </select>
-    <button class="modal-btn" onclick="processDonation()">💸 Confirm Donation</button>
-    <div id="donateStatus" style="margin-top:10px; text-align:center;"></div>
-    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeDonateModal()">Cancel</button>
+  <!-- Player Board Modal (for donations) -->
+  <div class="modal" id="playerBoardModal">
+    <h2 id="playerBoardTitle">🎁 Player's Board</h2>
+    <div id="playerBoardAvatar" style="width:60px; height:60px; border-radius:50%; margin:0 auto 10px; background-size:cover;"></div>
+    <p id="playerBoardName" style="color:#a78bfa; text-align:center;"></p>
+    <div class="board-gamepass-grid" id="playerBoardGrid"></div>
+    <div id="playerBoardStatus" style="margin-top:10px; text-align:center; font-size:0.9rem;"></div>
+    <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
   </div>
   <script>
     const socket = io();
     let token = localStorage.getItem('passly_token');
+    (function() {
+      if (!token && window.location.hash.includes('token=')) {
+        const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
+        localStorage.setItem('passly_token', tokenPart);
+        token = tokenPart;
+        history.replaceState(null, null, ' ');
+      }
+    })();
     let userData = null;
     let currentRoom = null;
     let roomType = 'Public';
-    let selectedReceiver = null;
+    let selectedReceiverId = null;
+    let selectedReceiverName = '';
     let lastAdCheck = Date.now();
     let adPollInterval = null;
     let localStream = null;
@@ -364,11 +373,6 @@
       document.getElementById('createModal').style.display = 'none';
     }
 
-    function closeDonateModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('donateModal').style.display = 'none';
-    }
-
     function closeBoardModal() {
       document.getElementById('modalOverlay').style.display = 'none';
       document.getElementById('boardModal').style.display = 'none';
@@ -377,6 +381,11 @@
     function closeAdModal() {
       document.getElementById('modalOverlay').style.display = 'none';
       document.getElementById('adModal').style.display = 'none';
+    }
+
+    function closePlayerBoardModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      document.getElementById('playerBoardModal').style.display = 'none';
     }
 
     function openAdModal() {
@@ -523,7 +532,6 @@
       else mutedUsers.delete(userId);
     }
 
-    // Override voice reception to respect mute list
     socket.off('voice-data');
     socket.on('voice-data', (data) => {
       if (mutedUsers.has(data.userId)) return;
@@ -582,35 +590,70 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    // ---------- DONATIONS ----------
-    function openDonate(playerId) {
-      selectedReceiver = playerId;
-      document.getElementById('donatePlayerName').textContent = 'Player';
-      document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('donateModal').style.display = 'block';
+    // ---------- NEW DONATION FLOW ----------
+    async function openDonate(playerId) {
+      if (!token) { alert('Login required'); return; }
+      selectedReceiverId = playerId;
+      try {
+        const res = await fetch(`/api/user/${playerId}/board`, {
+          headers: authHeaders()
+        });
+        if (!res.ok) {
+          alert('Could not load player board.');
+          return;
+        }
+        const data = await res.json();
+        selectedReceiverName = data.displayName || 'Player';
+        document.getElementById('playerBoardTitle').textContent = `🎁 ${selectedReceiverName}'s Board`;
+        document.getElementById('playerBoardName').textContent = selectedReceiverName;
+        if (data.avatarUrl) {
+          document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
+        } else {
+          document.getElementById('playerBoardAvatar').style.backgroundImage = '';
+        }
+
+        const board = data.board || [];
+        const grid = document.getElementById('playerBoardGrid');
+        if (board.length === 0) {
+          grid.innerHTML = '<p style="color:#a0a0b0;">This player has no gamepasses added.</p>';
+        } else {
+          grid.innerHTML = board.map(gp => `
+            <div class="board-gamepass-btn" style="position:relative;">
+              <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price}</span>
+              <span class="board-gamepass-name" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">${gp.name}</span>
+              <button class="verify-donate-btn" onclick="verifyDonation('${gp.id}', ${gp.price})">Verify Purchase</button>
+            </div>
+          `).join('');
+        }
+
+        document.getElementById('playerBoardStatus').textContent = '';
+        document.getElementById('modalOverlay').style.display = 'block';
+        document.getElementById('playerBoardModal').style.display = 'block';
+      } catch (e) {
+        alert('Error loading player board.');
+      }
     }
 
-    async function processDonation() {
-      if (!token) return alert('Login required');
-      const gamepassId = document.getElementById('gamepassSelect').value;
-      if (!gamepassId) {
-        document.getElementById('donateStatus').innerHTML = '<span style="color:#f87171;">Select a gamepass!</span>';
-        return;
-      }
-      const amount = gamepassId === '1862184808' ? 5000 : 10000;
-      document.getElementById('donateStatus').innerHTML = '<span style="color:#fbbf24;">Verifying...</span>';
-      const res = await fetch('/api/donate', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ receiverId: selectedReceiver, gamepassId, amount })
-      });
-      const data = await res.json();
-      if (data.success) {
-        document.getElementById('donateStatus').innerHTML = '<span style="color:#4ade80;">✅ Donation successful!</span>';
-        addChatMessage('💰 Donation!', data.message, '#ffd700');
-        setTimeout(closeDonateModal, 2000);
-      } else {
-        document.getElementById('donateStatus').innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+    async function verifyDonation(gamepassId, price) {
+      if (!token) { alert('Login required'); return; }
+      const statusDiv = document.getElementById('playerBoardStatus');
+      statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
+      try {
+        const res = await fetch('/api/donate', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ receiverId: selectedReceiverId, gamepassId, amount: price })
+        });
+        const data = await res.json();
+        if (data.success) {
+          statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Donation successful!</span>';
+          addChatMessage('💰 Donation!', data.message, '#ffd700');
+          setTimeout(closePlayerBoardModal, 2000);
+        } else {
+          statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+        }
+      } catch (e) {
+        statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying donation.</span>';
       }
     }
 
