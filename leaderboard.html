@@ -100,23 +100,10 @@
     .rank-2 { background: #c0c0c0; color: #000; }
     .rank-3 { background: #cd7f32; color: #fff; }
     .rank-other { background: rgba(139,92,246,0.2); color: #a78bfa; }
-    .player-cell {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .player-avatar {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: #8b5cf6;
-    }
+    .player-cell { display: flex; align-items: center; gap: 10px; }
+    .player-avatar { width: 30px; height: 30px; border-radius: 50%; background: #8b5cf6; }
     .amount { font-weight: bold; color: #c4b5fd; }
-    .empty-state {
-      text-align: center;
-      padding: 40px;
-      color: #a0a0b0;
-    }
+    .empty-state { text-align: center; padding: 40px; color: #a0a0b0; }
     @media (max-width: 768px) {
       .navbar { flex-direction: column; gap: 15px; padding: 15px; }
       .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
@@ -173,77 +160,68 @@
   </div>
 
   <script>
+    // Get current user info for navbar (guest or logged in)
     async function init() {
-      try {
-        const userRes = await fetch('/api/user');
-        if (!userRes.ok) { window.location.href = '/'; return; }
-        const userData = await userRes.json();
-        document.getElementById('userName').textContent = userData.username;
-        if (userData.avatarUrl) {
-          document.getElementById('userAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
-        }
-        loadLeaderboard();
-      } catch(e) { console.error(e); }
+      let username = 'Guest';
+      let avatarUrl = '';
+      const token = localStorage.getItem('passly_token');
+      if (token) {
+        try {
+          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
+          if (res.ok) {
+            const data = await res.json();
+            username = data.username;
+            avatarUrl = data.avatarUrl;
+          }
+        } catch (e) {}
+      } else {
+        const guest = JSON.parse(localStorage.getItem('passly_user') || '{}');
+        username = guest.username || 'Guest#' + Math.floor(10000+Math.random()*90000);
+      }
+      document.getElementById('userName').textContent = username;
+      if (avatarUrl) {
+        document.getElementById('userAvatar').style.background = `url(${avatarUrl}) center/cover`;
+      }
+
+      loadLeaderboard();
     }
 
     async function loadLeaderboard() {
       try {
         const res = await fetch('/api/leaderboard');
         const data = await res.json();
-        
-        const receiversTable = document.getElementById('receiversTable');
-        const donorsTable = document.getElementById('donorsTable');
-        
-        if (data.receivers.length === 0) {
-          receiversTable.innerHTML = '<tr><td colspan="3" class="empty-state">No data yet</td></tr>';
-        } else {
-          receiversTable.innerHTML = data.receivers.map((player, index) => {
-            let rankClass = 'rank-other';
-            let rankEmoji = '';
-            if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
-            else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
-            else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
-            
-            return `
-              <tr>
-                <td><span class="rank ${rankClass}">${rankEmoji || index + 1}</span></td>
-                <td>
-                  <div class="player-cell">
-                    <div class="player-avatar"></div>
-                    ${player.username}
-                  </div>
-                </td>
-                <td class="amount">${player.amount.toLocaleString()} Robux</td>
-              </tr>
-            `;
-          }).join('');
-        }
-        
-        if (data.donors.length === 0) {
-          donorsTable.innerHTML = '<tr><td colspan="3" class="empty-state">No data yet</td></tr>';
-        } else {
-          donorsTable.innerHTML = data.donors.map((player, index) => {
-            let rankClass = 'rank-other';
-            let rankEmoji = '';
-            if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
-            else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
-            else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
-            
-            return `
-              <tr>
-                <td><span class="rank ${rankClass}">${rankEmoji || index + 1}</span></td>
-                <td>
-                  <div class="player-cell">
-                    <div class="player-avatar"></div>
-                    ${player.username}
-                  </div>
-                </td>
-                <td class="amount">${player.amount.toLocaleString()} Robux</td>
-              </tr>
-            `;
-          }).join('');
-        }
-      } catch(e) { console.error(e); }
+        renderTable('receiversTable', data.receivers);
+        renderTable('donorsTable', data.donors);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderTable(tableId, players) {
+      const table = document.getElementById(tableId);
+      if (!players || players.length === 0) {
+        table.innerHTML = '<tr><td colspan="3" class="empty-state">No data yet</td></tr>';
+        return;
+      }
+      table.innerHTML = players.map((player, index) => {
+        let rankClass = 'rank-other';
+        let rankEmoji = '';
+        if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
+        else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
+        else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
+        return `
+          <tr>
+            <td><span class="rank ${rankClass}">${rankEmoji || index + 1}</span></td>
+            <td>
+              <div class="player-cell">
+                <div class="player-avatar"></div>
+                ${player.username}
+              </div>
+            </td>
+            <td class="amount">${player.amount.toLocaleString()} Robux</td>
+          </tr>
+        `;
+      }).join('');
     }
 
     init();
