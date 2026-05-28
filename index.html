@@ -17,26 +17,32 @@
       position: relative;
       overflow: hidden;
     }
+
+    /* Your custom background image */
     .bg-image {
       position: absolute;
       inset: 0;
-      background: url('https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=1920&q=80') center/cover no-repeat;
-      opacity: 0.15;
+      /* 👇 Direct link to your ImgBB image */
+      background: url('https://i.ibb.co/whGL4zhg/1000039438.jpg') center/cover no-repeat;
+      opacity: 0.15;       /* adjust to make background more/less visible */
       filter: blur(3px);
       z-index: 0;
     }
+
     .bg-overlay {
       position: absolute;
       inset: 0;
       background: radial-gradient(circle at center, rgba(139, 92, 246, 0.1), transparent 70%);
       z-index: 1;
     }
+
     .container {
       position: relative;
       z-index: 2;
       width: 90%;
       max-width: 500px;
-      background: rgba(20, 20, 35, 0.85);
+      /* lowered opacity so background shows through */
+      background: rgba(20, 20, 35, 0.55);
       backdrop-filter: blur(20px);
       border-radius: 24px;
       padding: 40px 30px;
@@ -44,6 +50,7 @@
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
       text-align: center;
     }
+
     .logo {
       font-size: 3rem;
       font-weight: 800;
@@ -52,6 +59,7 @@
       -webkit-text-fill-color: transparent;
       margin-bottom: 10px;
     }
+
     .tagline {
       color: #a78bfa;
       font-size: 0.9rem;
@@ -59,6 +67,7 @@
       letter-spacing: 2px;
       text-transform: uppercase;
     }
+
     .description {
       color: #b0b0c0;
       line-height: 1.7;
@@ -70,7 +79,9 @@
       border-radius: 16px;
       border-left: 3px solid #8b5cf6;
     }
+
     .description strong { color: #c4b5fd; }
+
     .btn {
       display: block;
       width: 100%;
@@ -83,23 +94,28 @@
       cursor: pointer;
       transition: all 0.3s;
     }
+
     .btn-roblox {
       background: linear-gradient(135deg, #8b5cf6, #7c3aed);
       color: white;
     }
+
     .btn-roblox:hover {
       transform: translateY(-2px);
       box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3);
     }
+
     .btn-guest {
       background: rgba(139, 92, 246, 0.15);
       border: 1px solid rgba(139, 92, 246, 0.3);
       color: white;
     }
+
     .btn-guest:hover {
       background: rgba(139, 92, 246, 0.25);
       transform: translateY(-2px);
     }
+
     .features {
       display: flex;
       justify-content: center;
@@ -107,6 +123,7 @@
       margin-top: 25px;
       flex-wrap: wrap;
     }
+
     .feature {
       display: flex;
       align-items: center;
@@ -114,6 +131,7 @@
       color: #a0a0b0;
       font-size: 0.85rem;
     }
+
     .feature-icon {
       width: 30px;
       height: 30px;
@@ -123,6 +141,7 @@
       align-items: center;
       justify-content: center;
     }
+
     @media (max-width: 600px) {
       .container { padding: 25px 20px; }
       .logo { font-size: 2.2rem; }
@@ -169,26 +188,12 @@
   </div>
 
   <script>
-    // Continue as guest – create a local guest user object
     async function continueAsGuest() {
       try {
-        const res = await fetch('/api/guest-login', { method: 'POST' });
-        const data = await res.json();
-        localStorage.setItem('passly_user', JSON.stringify({
-          username: data.username,
-          isGuest: true
-        }));
-      } catch (e) {
-        // If server is down, still create a guest
-        localStorage.setItem('passly_user', JSON.stringify({
-          username: 'Guest#' + Math.floor(10000 + Math.random() * 90000),
-          isGuest: true
-        }));
-      }
+        await fetch('/api/guest-login', { method: 'POST' });
+      } catch (e) {}
       window.location.href = '/dashboard';
     }
-
-    // Roblox OAuth login
     function loginRoblox() {
       window.location.href = '/auth/roblox';
     }
