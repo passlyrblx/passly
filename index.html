@@ -138,12 +138,15 @@
     <div class="tagline">Donations Never Stop</div>
 
     <div class="description">
-      <strong>Welcome to Passly!</strong><br><br>
-      Keep your Roblox donations alive even after May 29.
-      Create rooms, chat with players, show your donation board,
-      and receive Robux – all in one place.<br><br>
-      👤 You can explore as a guest, but to donate, show your board,
-      or advertise, you'll need to log in with Roblox.
+      <strong>Thanks for choosing Passly!</strong><br><br>
+      With recent changes affecting games like PLS DONATE after May 29, 
+      I created this platform to keep the community alive. Here you can:<br><br>
+      🏠 <strong>Create & Join Rooms</strong> — like Roblox servers<br>
+      💬 <strong>Chat & Voice Chat</strong> with other players<br>
+      🎁 <strong>Show Your Board</strong> — display your gamepass for donations<br>
+      💰 <strong>Receive Donations</strong> — get notified when someone donates<br>
+      📢 <strong>Advertise</strong> — promote your board to everyone<br><br>
+      <strong>Login now and keep your donations flowing!</strong>
     </div>
 
     <button class="btn btn-roblox" onclick="loginRoblox()">🔐 Login with Roblox</button>
@@ -166,11 +169,22 @@
   </div>
 
   <script>
-    // Continue as guest – simple session creation
+    // Continue as guest – create a local guest user object
     async function continueAsGuest() {
       try {
-        await fetch('/api/guest-login', { method: 'POST' });
-      } catch (e) {}
+        const res = await fetch('/api/guest-login', { method: 'POST' });
+        const data = await res.json();
+        localStorage.setItem('passly_user', JSON.stringify({
+          username: data.username,
+          isGuest: true
+        }));
+      } catch (e) {
+        // If server is down, still create a guest
+        localStorage.setItem('passly_user', JSON.stringify({
+          username: 'Guest#' + Math.floor(10000 + Math.random() * 90000),
+          isGuest: true
+        }));
+      }
       window.location.href = '/dashboard';
     }
 
