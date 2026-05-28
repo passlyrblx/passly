@@ -65,8 +65,14 @@
     .board-gamepass-btn:hover { background:#16a34a; transform:scale(1.03); }
     .board-gamepass-amount { font-size:1.5rem; }
     .board-gamepass-name { font-size:0.8rem; opacity:0.9; }
-    .ad-link-btn { margin-top:15px; background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#fbbf24; padding:10px 18px; border-radius:10px; cursor:pointer; font-weight:600; }
-    .ad-link-btn:hover { background:rgba(245,158,11,0.3); }
+    .ad-buttons { display:flex; gap:15px; margin-top:15px; }
+    .ad-btn { flex:1; padding:16px; background:rgba(139,92,246,0.2); border:2px solid rgba(139,92,246,0.3); border-radius:14px; color:white; cursor:pointer; transition:all 0.3s; text-align:center; }
+    .ad-btn:hover { background:rgba(139,92,246,0.3); border-color:#8b5cf6; transform:translateY(-2px); }
+    .ad-btn .tier { font-size:1.4rem; font-weight:bold; color:#c4b5fd; display:block; }
+    .ad-btn .shows { font-size:0.85rem; color:#a78bfa; display:block; margin-top:5px; }
+    .loading-spinner { text-align:center; padding:20px; }
+    .spinner { border:4px solid rgba(139,92,246,0.2); border-top:4px solid #8b5cf6; border-radius:50%; width:40px; height:40px; animation:spin 0.8s linear infinite; margin:0 auto; }
+    @keyframes spin { to { transform:rotate(360deg); } }
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -116,7 +122,7 @@
       <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
       <div class="player-list" id="playerList"></div>
       <button class="create-btn" style="margin-bottom:15px;" onclick="requireLoginThen(showBoard)">🎁 Show My Board</button>
-      <a href="/profile" class="ad-link-btn" style="display:inline-block; margin-left:10px;">📢 Buy Ad</a>
+      <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="requireLoginThen(openAdModal)">📢 Advertise Board</button>
       <div class="queue-box" id="queueBox">
         ⏳ You are in queue position #<span id="queuePos">1</span>
         <button onclick="leaveQueue()" style="margin-left:10px; background:#ef4444; border:none; color:white; padding:6px 14px; border-radius:8px; cursor:pointer;">Leave Queue</button>
@@ -151,13 +157,31 @@
     <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
   </div>
 
-  <!-- Board Modal (Show Gamepasses) -->
+  <!-- Board Modal -->
   <div class="modal" id="boardModal">
-    <h2 id="boardModalTitle">🎁 My Board</h2>
+    <h2>🎁 My Board</h2>
     <div id="boardLoading">Loading gamepasses...</div>
     <div class="board-gamepass-grid" id="boardGamepassGrid"></div>
     <div id="boardError" style="color:#f87171; display:none;">Could not load gamepasses.</div>
     <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closeBoardModal()">Close</button>
+  </div>
+
+  <!-- Advertise Modal -->
+  <div class="modal" id="adModal">
+    <h2>📢 Advertise Your Board</h2>
+    <p style="color:#a0a0b0; margin-bottom:20px;">Your donation board will float across everyone's screen. Choose a tier:</p>
+    <div class="ad-buttons">
+      <button class="ad-btn" onclick="purchaseAdFromRoom('5k')">
+        <span class="tier">5,000 Robux</span>
+        <span class="shows">1 Display</span>
+      </button>
+      <button class="ad-btn" onclick="purchaseAdFromRoom('10k')">
+        <span class="tier">10,000 Robux</span>
+        <span class="shows">3 Displays</span>
+      </button>
+    </div>
+    <div id="adPurchaseStatus" style="margin-top:15px;"></div>
+    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
   </div>
 
   <!-- Donate Modal -->
@@ -173,7 +197,6 @@
     <div id="donateStatus" style="margin-top:10px; text-align:center;"></div>
     <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeDonateModal()">Cancel</button>
   </div>
-
   <script>
     let token = localStorage.getItem('passly_token');
     let userData = null;
@@ -277,6 +300,7 @@
     }
 
     function openCreateModal() {
+      if (!userData) return;
       if (userData.roomId) {
         alert('You are already in a room. Leave it before creating a new one.');
         return;
@@ -298,6 +322,17 @@
     function closeBoardModal() {
       document.getElementById('modalOverlay').style.display = 'none';
       document.getElementById('boardModal').style.display = 'none';
+    }
+
+    function closeAdModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      document.getElementById('adModal').style.display = 'none';
+    }
+
+    function openAdModal() {
+      document.getElementById('modalOverlay').style.display = 'block';
+      document.getElementById('adModal').style.display = 'block';
+      document.getElementById('adPurchaseStatus').innerHTML = '';
     }
 
     function setType(type) {
@@ -333,7 +368,6 @@
       document.getElementById('viewRoomDesc').textContent = room.desc || '';
       document.getElementById('queueBox').style.display = 'none';
 
-      // Show room ID for ALL rooms (public or private)
       const idDisplay = document.getElementById('roomIdDisplay');
       idDisplay.style.display = 'inline-block';
       idDisplay.innerHTML = `🔒 Room ID: <strong>${room.id}</strong> (share to invite)`;
@@ -414,10 +448,9 @@
       input.value = '';
     }
 
-    // ============ SHOW BOARD – FETCH GAMEPASSES & DISPLAY ============
+    // ========== SHOW BOARD ==========
     async function showBoard() {
       if (!userData || !userData.id) return;
-      const userId = userData.id;
       document.getElementById('modalOverlay').style.display = 'block';
       document.getElementById('boardModal').style.display = 'block';
       document.getElementById('boardLoading').style.display = 'block';
@@ -425,43 +458,36 @@
       document.getElementById('boardError').style.display = 'none';
 
       try {
-        // 1. Get all gamepasses owned by this user
-        const inventoryRes = await fetch(`https://inventory.roblox.com/v1/users/${userId}/items/GamePass?limit=100`);
-        const inventoryData = await inventoryRes.json();
-        const gamepassIds = (inventoryData.data || []).map(item => item.assetId || item.id);
+        const invRes = await fetch(`https://inventory.roblox.com/v1/users/${userData.id}/items/GamePass?limit=100`);
+        const invData = await invRes.json();
+        const ids = (invData.data || []).map(i => i.assetId || i.id);
 
-        if (gamepassIds.length === 0) {
+        if (ids.length === 0) {
           document.getElementById('boardLoading').style.display = 'none';
-          document.getElementById('boardGamepassGrid').innerHTML = '<p style="color:#a0a0b0;">You don't own any gamepasses.</p>';
+          document.getElementById('boardGamepassGrid').innerHTML = '<p style="color:#a0a0b0;">You don\'t own any gamepasses.</p>';
           return;
         }
 
-        // 2. Fetch details for each gamepass (name and price)
-        const gamepassDetails = [];
-        for (const gpId of gamepassIds) {
+        const details = [];
+        for (const gpId of ids) {
           try {
-            const detailRes = await fetch(`https://economy.roblox.com/v2/game-pass/${gpId}/game-pass-product-info`);
-            if (detailRes.ok) {
-              const detail = await detailRes.json();
-              gamepassDetails.push({
-                id: gpId,
-                name: detail.Name || 'Gamepass',
-                price: detail.PriceInRobux || 0
-              });
+            const dRes = await fetch(`https://economy.roblox.com/v2/game-pass/${gpId}/game-pass-product-info`);
+            if (dRes.ok) {
+              const d = await dRes.json();
+              details.push({ id: gpId, name: d.Name || 'Gamepass', price: d.PriceInRobux || 0 });
             }
-          } catch (e) { /* skip if error */ }
+          } catch (e) {}
         }
 
-        // 3. Display as green buttons
         const grid = document.getElementById('boardGamepassGrid');
-        grid.innerHTML = gamepassDetails.map(gp => `
+        grid.innerHTML = details.map(gp => `
           <button class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">
             <span class="board-gamepass-amount">R$ ${gp.price}</span>
             <span class="board-gamepass-name">${gp.name}</span>
           </button>
         `).join('');
 
-        if (gamepassDetails.length === 0) {
+        if (details.length === 0) {
           grid.innerHTML = '<p style="color:#a0a0b0;">Could not load gamepass details.</p>';
         }
 
@@ -469,6 +495,34 @@
       } catch (err) {
         document.getElementById('boardLoading').style.display = 'none';
         document.getElementById('boardError').style.display = 'block';
+      }
+    }
+
+    // ========== ADVERTISE FROM ROOM ==========
+    async function purchaseAdFromRoom(tier) {
+      if (!token) {
+        alert('Login required');
+        return;
+      }
+
+      const statusDiv = document.getElementById('adPurchaseStatus');
+      statusDiv.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="color:#fbbf24;">Verifying your gamepass…</p></div>';
+
+      try {
+        const res = await fetch('/api/purchase-ad', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ tier })
+        });
+        const data = await res.json();
+        if (data.success) {
+          statusDiv.innerHTML = '<p style="color:#4ade80;">✅ Ad purchased successfully! It will appear on dashboards soon.</p>';
+          userData.ad = data.ad;
+        } else {
+          statusDiv.innerHTML = `<p style="color:#f87171;">❌ ${data.error}</p>`;
+        }
+      } catch (e) {
+        statusDiv.innerHTML = '<p style="color:#f87171;">❌ Error purchasing ad. Please try again.</p>';
       }
     }
 
