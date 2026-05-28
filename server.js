@@ -9,12 +9,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 
-// Ensure data folder exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
   fs.mkdirSync(path.join(__dirname, 'data'));
 }
 
-// JSON "database"
 const DB_USERS = path.join(__dirname, 'data', 'users.json');
 const DB_ROOMS = path.join(__dirname, 'data', 'rooms.json');
 const DB_DONATIONS = path.join(__dirname, 'data', 'donations.json');
@@ -44,28 +42,23 @@ const ROBLOX_CONFIG = {
   redirectUri: process.env.ROBLOX_REDIRECT_URI || 'http://localhost:3000/auth/roblox/callback',
   authUrl: 'https://apis.roblox.com/oauth/v1/authorize',
   tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
-  userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo'
+  userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo',
+  usersApi: 'https://users.roblox.com/v1/users'   // for username/avatar
 };
 
-const GAMEPASSES = {
-  '5k': process.env.GAMEPASS_5K,
-  '10k': process.env.GAMEPASS_10K
-};
+const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K };
 
-// In-memory state store for OAuth
 const oauthStates = new Map();
 setInterval(() => {
-  const now = Date.now();
   for (const [key, time] of oauthStates) {
-    if (now - time > 600000) oauthStates.delete(key);
+    if (Date.now() - time > 600000) oauthStates.delete(key);
   }
 }, 60000);
 
-// JWT middleware
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No token provided' });
+  if (!token) return res.status(401).json({ error: 'No token' });
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid token' });
     req.user = user;
@@ -80,7 +73,7 @@ app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html'))
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ========== OAUTH (with user info debugging) ==========
+// ========== OAUTH ==========
 app.get('/auth/roblox', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   oauthStates.set(state, Date.now());
@@ -97,9 +90,7 @@ app.get('/auth/roblox', (req, res) => {
 app.get('/auth/roblox/callback', async (req, res) => {
   const { code, state, error } = req.query;
   if (error === 'access_denied') return res.send('<h1>Authorization Denied</h1><a href="/">Try again</a>');
-  if (!state || !oauthStates.has(state)) {
-    return res.status(403).send(`<h1>Invalid State</h1><a href="/">Go back</a>`);
-  }
+  if (!state || !oauthStates.has(state)) return res.status(403).send('<h1>Invalid State</h1><a href="/">Go back</a>');
   oauthStates.delete(state);
   if (!code) return res.redirect('/?error=no_code');
 
@@ -115,23 +106,25 @@ app.get('/auth/roblox/callback', async (req, res) => {
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
 
-    // Fetch user info
-    const userRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
+    // Get user ID from userinfo endpoint (only sub is returned with openid)
+    const userInfoRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
       headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
     });
+    const userId = userInfoRes.data.sub;
+    if (!userId) throw new Error('No user ID returned');
 
-    const rb = userRes.data;
-    console.log('[USERINFO]', JSON.stringify(rb, null, 2));  // see exact data in logs
+    // Fetch full profile from Roblox public users API
+    const profileRes = await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`);
+    const profile = profileRes.data;
+    const robloxUsername = profile.name || 'Player';
+    const robloxDisplayName = profile.displayName || robloxUsername;
+    // Construct avatar URL (headshot thumbnail)
+    const avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
 
-    // Extract fields safely
-    const robloxUsername = rb.name || rb.preferred_username || 'Player';
-    const robloxDisplayName = rb.nickname || robloxUsername;
-    const avatarUrl = rb.picture || '';
-
-    // Store user
-    if (!users[rb.sub]) {
-      users[rb.sub] = {
-        id: rb.sub,
+    // Save/update user in JSON database
+    if (!users[userId]) {
+      users[userId] = {
+        id: userId,
         robloxUsername,
         robloxDisplayName,
         customDisplayName: null,
@@ -143,24 +136,24 @@ app.get('/auth/roblox/callback', async (req, res) => {
         createdAt: new Date().toISOString()
       };
     } else {
-      // Update on each login
-      users[rb.sub].robloxUsername = robloxUsername;
-      users[rb.sub].robloxDisplayName = robloxDisplayName;
-      users[rb.sub].avatarUrl = avatarUrl;
+      users[userId].robloxUsername = robloxUsername;
+      users[userId].robloxDisplayName = robloxDisplayName;
+      users[userId].avatarUrl = avatarUrl;
     }
     saveUsers();
 
-    // Create JWT
-    const displayName = users[rb.sub].customDisplayName || robloxDisplayName;
+    // JWT payload
+    const displayName = users[userId].customDisplayName || robloxDisplayName;
     const token = jwt.sign(
-      { id: rb.sub, username: robloxUsername, displayName, avatarUrl },
+      { id: userId, username: robloxUsername, displayName, avatarUrl },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+
     res.redirect(`/dashboard#token=${token}`);
   } catch (err) {
-    console.error('[OAUTH ERROR]', err.response?.data || err.message);
-    res.send(`<h1>OAuth Error</h1><pre>${JSON.stringify(err.response?.data || err.message)}</pre><a href="/">Try again</a>`);
+    console.error('OAuth error:', err.response?.data || err.message);
+    res.send('<h1>Login Failed</h1><p>Could not fetch your Roblox profile. Please try again.</p><a href="/">Go back</a>');
   }
 });
 
@@ -218,7 +211,6 @@ app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   const room = rooms[req.params.roomId];
   if (!room) return res.status(404).json({ error: 'Room not found' });
   const userId = req.user.id;
-  // Leave previous room if any
   if (users[userId]?.roomId && rooms[users[userId].roomId]) {
     const old = rooms[users[userId].roomId];
     old.players = old.players.filter(id => id !== userId);
@@ -228,18 +220,14 @@ app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(userId)) {
       room.queue.push(userId);
-      users[userId].roomId = room.id;
-      users[userId].inQueue = true;
-      saveUsers();
-      saveRooms();
+      users[userId].roomId = room.id; users[userId].inQueue = true;
+      saveUsers(); saveRooms();
       return res.json({ queued: true, position: room.queue.length });
     }
   }
   room.players.push(userId);
-  users[userId].roomId = room.id;
-  users[userId].inQueue = false;
-  saveUsers();
-  saveRooms();
+  users[userId].roomId = room.id; users[userId].inQueue = false;
+  saveUsers(); saveRooms();
   res.json({ success: true, room });
 });
 
@@ -252,11 +240,7 @@ app.post('/api/rooms/leave', authenticateToken, (req, res) => {
     if (room.queue.length && room.players.length < room.maxPlayers) room.players.push(room.queue.shift());
     saveRooms();
   }
-  if (users[userId]) {
-    users[userId].roomId = null;
-    users[userId].inQueue = false;
-    saveUsers();
-  }
+  if (users[userId]) { users[userId].roomId = null; users[userId].inQueue = false; saveUsers(); }
   res.json({ success: true });
 });
 
@@ -291,9 +275,7 @@ app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   const { tier } = req.body;
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
-  if (Object.values(ads).some(a => a.userId===user.id && a.active)) {
-    return res.status(400).json({ error: 'Delete existing ad first' });
-  }
+  if (Object.values(ads).some(a => a.userId===user.id && a.active)) return res.status(400).json({ error: 'Delete existing ad first' });
   const gpId = GAMEPASSES[tier];
   if (!gpId) return res.status(400).json({ error: 'Invalid tier' });
   try {
@@ -302,44 +284,29 @@ app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   } catch(e) { return res.status(400).json({ error: 'Verification failed' }); }
   const adId = crypto.randomBytes(8).toString('hex');
   ads[adId] = {
-    id: adId,
-    userId: user.id,
-    username: user.robloxUsername,
-    tier: parseInt(tier.replace('k', '000')),
-    gamepassId: gpId,
-    showsLeft: tier==='5k'?1:3,
-    active: true,
-    purchasedAt: new Date().toISOString()
+    id: adId, userId: user.id, username: user.robloxUsername,
+    tier: parseInt(tier.replace('k', '000')), gamepassId: gpId,
+    showsLeft: tier==='5k'?1:3, active: true, purchasedAt: new Date().toISOString()
   };
   saveAds();
   res.json({ success: true, ad: ads[adId] });
 });
 
 app.post('/api/delete-ad', authenticateToken, (req, res) => {
-  for (const k in ads) {
-    if (ads[k].userId === req.user.id) {
-      delete ads[k];
-      saveAds();
-      return res.json({ success: true });
-    }
-  }
-  res.json({ success: true, message: 'No ad found' });
+  for (const k in ads) if (ads[k].userId === req.user.id) { delete ads[k]; saveAds(); return res.json({success:true}); }
+  res.json({ success: true });
 });
 
-app.get('/api/ads', (req, res) => {
-  res.json(Object.values(ads).filter(a => a.active && a.showsLeft>0));
-});
+app.get('/api/ads', (req, res) => res.json(Object.values(ads).filter(a => a.active && a.showsLeft>0)));
 
-// ========== LEADERBOARD ==========
 app.get('/api/leaderboard', (req, res) => {
-  const allUsers = Object.values(users);
+  const all = Object.values(users);
   res.json({
-    receivers: allUsers.sort((a,b)=>b.donations.received-a.donations.received).slice(0,10).map(u=>({username:u.robloxUsername,amount:u.donations.received})),
-    donors: allUsers.sort((a,b)=>b.donations.given-a.donations.given).slice(0,10).map(u=>({username:u.robloxUsername,amount:u.donations.given}))
+    receivers: all.sort((a,b)=>b.donations.received-a.donations.received).slice(0,10).map(u=>({username:u.robloxUsername,amount:u.donations.received})),
+    donors: all.sort((a,b)=>b.donations.given-a.donations.given).slice(0,10).map(u=>({username:u.robloxUsername,amount:u.donations.given}))
   });
 });
 
-// ========== GUEST ==========
 app.post('/api/guest-login', (req, res) => {
   const guestNum = Math.floor(10000 + Math.random() * 90000);
   res.json({ username: `Guest#${guestNum}`, isGuest: true });
