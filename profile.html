@@ -290,36 +290,81 @@
   </div>
 
   <script>
+    // Token & user data
+    let token = localStorage.getItem('passly_token');
     let userData = null;
 
+    function authHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      return headers;
+    }
+
+    // Guest check – if not logged in, show prompt and don't proceed
+    function requireLogin(callback) {
+      if (!token) {
+        document.getElementById('loginPrompt').style.display = 'block';
+        if (confirm('You need to log in with Roblox to do this. Go to login?')) {
+          window.location.href = '/auth/roblox';
+        }
+        return;
+      }
+      callback();
+    }
+
     async function init() {
-      try {
-        const res = await fetch('/api/user');
-        userData = await res.json();
-        document.getElementById('userName').textContent = userData.username;
-        document.getElementById('profileName').textContent = userData.username;
+      // Try to get user data from API if token exists
+      if (token) {
+        try {
+          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
+          if (res.ok) {
+            userData = await res.json();
+            userData.isGuest = false;
+            document.getElementById('loginPrompt').style.display = 'none';
+          } else {
+            // Token invalid
+            localStorage.removeItem('passly_token');
+            token = null;
+          }
+        } catch (e) {}
+      }
 
-        if (userData.isGuest) {
-          document.getElementById('guestBadge').style.display = 'inline-block';
-          document.getElementById('loginPrompt').style.display = 'block';
-          // disable inputs if guest? We'll allow viewing but saving will prompt.
+      // If no token or invalid, load guest data
+      if (!userData) {
+        const guest = JSON.parse(localStorage.getItem('passly_user') || '{}');
+        if (!guest.username) {
+          // Create fresh guest
+          try {
+            const res = await fetch('/api/guest-login', { method: 'POST' });
+            const data = await res.json();
+            localStorage.setItem('passly_user', JSON.stringify(data));
+            userData = { ...data, isGuest: true };
+          } catch (e) {
+            userData = { username: 'Guest#' + Math.floor(10000+Math.random()*90000), isGuest: true };
+          }
+        } else {
+          userData = { ...guest, isGuest: true };
         }
+        document.getElementById('guestBadge').style.display = 'inline-block';
+        document.getElementById('loginPrompt').style.display = 'block';
+      }
 
-        if (userData.avatarUrl) {
-          document.getElementById('userAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
-          document.getElementById('profileAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
-        }
+      // Update UI
+      document.getElementById('userName').textContent = userData.username;
+      document.getElementById('profileName').textContent = userData.username;
+      if (userData.avatarUrl) {
+        document.getElementById('userAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
+        document.getElementById('profileAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
+      }
 
-        // Set existing profile settings if available
-        if (userData.profile) {
-          document.getElementById('showBooth').value = userData.profile.showBooth.toString();
-          document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online';
-          document.getElementById('showRoomId').value = userData.profile.showRoomId.toString();
-          updateStatusPreview();
-        }
-
-        updateAdUI();
-      } catch(e) {}
+      // Profile settings (if user is logged in, prefill from server data)
+      if (userData.profile) {
+        document.getElementById('showBooth').value = userData.profile.showBooth.toString();
+        document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online';
+        document.getElementById('showRoomId').value = userData.profile.showRoomId.toString();
+      }
+      updateStatusPreview();
+      updateAdUI();
     }
 
     function updateStatusPreview() {
@@ -336,38 +381,30 @@
       }
     }
 
-    function requireLogin(callback) {
-      if (userData && userData.isGuest) {
-        if (confirm('You need to log in with Roblox to do this. Go to login?')) {
-          window.location.href = '/auth/roblox';
-        }
-        return;
-      }
-      callback();
-    }
-
     async function saveProfile() {
+      if (!token) return;
       const showBooth = document.getElementById('showBooth').value === 'true';
       const statusDot = document.getElementById('statusDotSelect').value;
       const showRoomId = document.getElementById('showRoomId').value === 'true';
 
       await fetch('/api/profile/update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ showBooth, statusDot, showRoomId })
       });
 
-      userData.profile = { showBooth, statusDot, showRoomId };
+      if (userData) userData.profile = { showBooth, statusDot, showRoomId };
       const msg = document.getElementById('saveMessage');
       msg.style.display = 'block';
       setTimeout(() => msg.style.display = 'none', 3000);
     }
 
     async function purchaseAd(tier) {
+      if (!token) return;
       try {
         const res = await fetch('/api/purchase-ad', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders(),
           body: JSON.stringify({ tier })
         });
         const data = await res.json();
@@ -378,14 +415,18 @@
         } else {
           alert(data.error || 'Purchase failed. Make sure you own the gamepass!');
         }
-      } catch(e) {
+      } catch (e) {
         alert('Error purchasing ad.');
       }
     }
 
     async function deleteAd() {
+      if (!token) return;
       if (!confirm('Delete your current ad?')) return;
-      await fetch('/api/delete-ad', { method: 'POST' });
+      await fetch('/api/delete-ad', {
+        method: 'POST',
+        headers: authHeaders()
+      });
       userData.ad = null;
       updateAdUI();
     }
