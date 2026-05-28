@@ -1,5 +1,5 @@
 const express = require('express');
-const session = require('express-session');
+const cookieSession = require('cookie-session');
 const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
@@ -18,7 +18,6 @@ const DB_USERS = path.join(__dirname, 'data', 'users.json');
 const DB_ROOMS = path.join(__dirname, 'data', 'rooms.json');
 const DB_DONATIONS = path.join(__dirname, 'data', 'donations.json');
 const DB_ADS = path.join(__dirname, 'data', 'ads.json');
-const DB_SESSIONS = path.join(__dirname, 'data', 'sessions.json');
 
 function readJSON(filePath) {
   try {
@@ -35,60 +34,34 @@ let users = readJSON(DB_USERS);
 let rooms = readJSON(DB_ROOMS);
 let donations = readJSON(DB_DONATIONS);
 let ads = readJSON(DB_ADS);
-let sessions = readJSON(DB_SESSIONS);
 
 function saveUsers() { writeJSON(DB_USERS, users); }
 function saveRooms() { writeJSON(DB_ROOMS, rooms); }
 function saveDonations() { writeJSON(DB_DONATIONS, donations); }
 function saveAds() { writeJSON(DB_ADS, ads); }
-function saveSessions() { writeJSON(DB_SESSIONS, sessions); }
 
 // Trust proxy for Render
 app.set('trust proxy', 1);
 
-// Simple session middleware
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'passly-secret-key-2024',
-  resave: true,
-  saveUninitialized: true,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  }
+// Cookie session – stores session in browser cookie
+app.use(cookieSession({
+  name: 'passly_session',
+  keys: [process.env.SESSION_SECRET || 'passly-secret-key-2024'],
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  secure: process.env.NODE_ENV === 'production',
+  httpOnly: true,
+  sameSite: 'lax'
 }));
-
-// Load session from file on startup
-app.use((req, res, next) => {
-  const sessionId = req.sessionID;
-  if (sessions[sessionId] && sessions[sessionId].user) {
-    if (!req.session.user) {
-      req.session.user = sessions[sessionId].user;
-    }
-  }
-  next();
-});
-
-// Save session to file
-app.use((req, res, next) => {
-  const originalEnd = res.end;
-  res.end = function() {
-    if (req.session && req.session.user) {
-      sessions[req.sessionID] = {
-        user: req.session.user,
-        lastAccess: Date.now()
-      };
-      saveSessions();
-    }
-    originalEnd.apply(res, arguments);
-  };
-  next();
-});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname)));
+
+// Make user object available in templates (if needed)
+app.use((req, res, next) => {
+  res.locals.user = req.session.user || null;
+  next();
+});
 
 const captchaStore = new Map();
 
@@ -126,21 +99,6 @@ function cleanExpiredDonations() {
   if (changed) saveDonations();
 }
 setInterval(cleanExpiredDonations, 60000);
-
-// Clean old sessions (older than 7 days)
-function cleanSessions() {
-  const now = Date.now();
-  const sevenDays = 7 * 24 * 60 * 60 * 1000;
-  let changed = false;
-  for (const key in sessions) {
-    if (sessions[key].lastAccess && (now - sessions[key].lastAccess) > sevenDays) {
-      delete sessions[key];
-      changed = true;
-    }
-  }
-  if (changed) saveSessions();
-}
-setInterval(cleanSessions, 3600000);
 
 // ============ PAGES ============
 
@@ -227,12 +185,13 @@ app.get('/auth/roblox', (req, res) => {
 app.get('/auth/roblox/callback', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
   
+  // If user denied authorization
   if (oauthError === 'access_denied') {
     return res.send(`
       <html><body style="background:#0a0a14;color:white;font-family:Arial;text-align:center;padding:50px;">
         <h1 style="color:#f87171;">❌ Authorization Denied</h1>
         <p>You need to authorize Passly to access your Roblox account.</p>
-        <a href="/" style="color:#8b5cf6;">Try Again</a>
+        <a href="/" style="color:#8b5cf6;font-size:1.2rem;">← Try Again</a>
       </body></html>
     `);
   }
@@ -246,6 +205,7 @@ app.get('/auth/roblox/callback', async (req, res) => {
   }
   
   try {
+    // Exchange code for token
     const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl, 
       new URLSearchParams({
         client_id: ROBLOX_CONFIG.clientId,
@@ -256,12 +216,14 @@ app.get('/auth/roblox/callback', async (req, res) => {
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
     
+    // Get user info
     const userRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
       headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
     });
     
     const rbUser = userRes.data;
     
+    // Save/update user in database
     let user = users[rbUser.sub];
     if (!user) {
       user = {
@@ -275,31 +237,25 @@ app.get('/auth/roblox/callback', async (req, res) => {
         donations: { received: 0, given: 0 },
         createdAt: new Date().toISOString()
       };
+    } else {
+      // Update info on each login
+      user.username = rbUser.name || user.username;
+      user.displayName = rbUser.nickname || user.displayName;
+      user.avatarUrl = rbUser.picture || user.avatarUrl;
     }
     
     users[rbUser.sub] = user;
     saveUsers();
     
+    // Set session in cookie (automatically signed and sent to browser)
     req.session.user = {
       id: user.id,
       username: user.username,
       avatarUrl: user.avatarUrl
     };
     
-    // Save session immediately
-    sessions[req.sessionID] = {
-      user: req.session.user,
-      lastAccess: Date.now()
-    };
-    saveSessions();
-    
-    req.session.save((err) => {
-      if (err) {
-        console.error('Session save error:', err);
-        return res.redirect('/?error=session_error');
-      }
-      res.redirect('/dashboard');
-    });
+    // Redirect to dashboard – cookie will be sent automatically
+    res.redirect('/dashboard');
     
   } catch (error) {
     console.error('OAuth Error:', error.response?.data || error.message);
@@ -379,6 +335,7 @@ app.post('/api/rooms/join/:roomId', (req, res) => {
   const user = users[req.session.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
   
+  // Leave current room
   if (user.roomId && rooms[user.roomId]) {
     const oldRoom = rooms[user.roomId];
     oldRoom.players = oldRoom.players.filter(id => id !== user.id);
@@ -388,6 +345,7 @@ app.post('/api/rooms/join/:roomId', (req, res) => {
     }
   }
   
+  // Check capacity
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(user.id)) {
       room.queue.push(user.id);
@@ -565,12 +523,8 @@ app.get('/api/leaderboard', (req, res) => {
 // ============ LOGOUT ============
 
 app.post('/logout', (req, res) => {
-  delete sessions[req.sessionID];
-  saveSessions();
-  req.session.destroy(() => {
-    res.clearCookie('connect.sid');
-    res.json({ success: true });
-  });
+  req.session = null; // Clear cookie session
+  res.json({ success: true });
 });
 
 app.listen(PORT, () => {
