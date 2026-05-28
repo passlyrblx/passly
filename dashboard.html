@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,7 +39,7 @@
     .logout-btn:hover { background:rgba(239,68,68,0.25); }
     .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin-top:20px; text-align:center; display:none; }
 
-    /* ---- Zig-zag floating cloud ---- */
+    /* Zig-zag cloud */
     .ad-cloud {
       position: fixed;
       top: -100px;
@@ -198,7 +197,7 @@
         document.getElementById('totalGiven').textContent = (userData.donations?.given || 0).toLocaleString();
 
         if (userData.ad && userData.ad.active) {
-          document.getElementById('adStatusText').textContent = `${userData.ad.showsLeft} shows left`;
+          document.getElementById('adStatusText').textContent = `${userData.ad.showsLeft} clouds left`;
           startAdDisplay();
         }
 
@@ -241,11 +240,12 @@
       cloud.innerHTML = `
         🎯 <strong>${ad.username || 'Player'}</strong>'s Board<br>
         <span style="font-size:0.9rem; color:#a78bfa;">Click to donate!</span>
+        ${ad.message ? `<p style="color:#ffd700; font-style:italic;">"${ad.message}"</p>` : ''}
       `;
       cloud.onclick = () => window.open(adLink, '_blank');
 
       document.getElementById('adContainer').appendChild(cloud);
-      setTimeout(() => cloud.remove(), 12500); // slightly longer than animation
+      setTimeout(() => cloud.remove(), 12500);
     }
 
     async function loadAds() {
