@@ -77,14 +77,24 @@
     .loading-spinner { text-align:center; padding:20px; }
     .spinner { border:4px solid rgba(139,92,246,0.2); border-top:4px solid #8b5cf6; border-radius:50%; width:40px; height:40px; animation:spin 0.8s linear infinite; margin:0 auto; }
     @keyframes spin { to { transform:rotate(360deg); } }
-    .voice-controls { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
-    .voice-btn { padding:10px 20px; background:#22c55e; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:bold; display:flex; align-items:center; gap:8px; }
-    .voice-btn.muted { background:#ef4444; }
+
+    /* Voice & Mute Controls */
+    .voice-controls { display:flex; gap:10px; align-items:center; margin-bottom:15px; flex-wrap:wrap; }
+    .voice-btn { padding:10px 20px; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:bold; display:flex; align-items:center; gap:8px; }
+    .voice-btn.speak { background:#22c55e; }
+    .voice-btn.speak.active { background:#16a34a; }
+    .voice-btn.mute { background:#f59e0b; }
+    .voice-btn.mute.active { background:#d97706; }
+    .mute-popup { position:absolute; background:rgba(20,20,40,0.98); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; z-index:50; min-width:200px; display:none; }
+    .mute-popup .player-mute-row { display:flex; align-items:center; gap:10px; padding:5px 0; }
+    .mute-popup label { cursor:pointer; }
+
     .ad-msg .msg-content { background: linear-gradient(135deg, #3b2f1e, #5a4a2c) !important; border: 2px solid #ffd700 !important; box-shadow: 0 0 12px rgba(255, 215, 0, 0.3); }
     .ad-msg .msg-username { color: #ffd700 !important; }
     .ad-mini-board { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .ad-mini-board-item { background: #22c55e; color: white; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
     .ad-mini-board-item:hover { background: #16a34a; }
+
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -133,12 +143,20 @@
       <p class="room-view-desc" id="viewRoomDesc"></p>
       <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
       <div class="player-list" id="playerList"></div>
+
+      <!-- Voice & Mute Controls -->
       <div class="voice-controls">
-        <button class="voice-btn muted" id="micButton" onclick="toggleMic()">🎤 Unmute</button>
-        <span style="color:#a0a0b0; font-size:0.9rem;">Click to speak</span>
+        <button class="voice-btn speak" id="speakButton" onclick="toggleSpeak()">🎤 Speak</button>
+        <div style="position:relative;">
+          <button class="voice-btn mute" id="muteButton" onclick="toggleMutePopup()">🔇 Mute</button>
+          <div class="mute-popup" id="mutePopup"></div>
+        </div>
       </div>
+
       <button class="create-btn" style="margin-bottom:15px;" onclick="requireLoginThen(showBoard)">🎁 Show My Board</button>
+      <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="requireLoginThen(sendBoardToChat)">📤 Send Board to Chat</button>
       <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="requireLoginThen(openAdModal)">📢 Advertise Board</button>
+
       <div class="queue-box" id="queueBox">
         ⏳ You are in queue position #<span id="queuePos">1</span>
         <button onclick="leaveQueue()" style="margin-left:10px; background:#ef4444; border:none; color:white; padding:6px 14px; border-radius:8px; cursor:pointer;">Leave Queue</button>
@@ -229,12 +247,11 @@
     let lastAdCheck = Date.now();
     let adPollInterval = null;
     let localStream = null;
-    let isMuted = true;
+    let isSpeaking = false;        // Mic state
+    let mutedUsers = new Set();    // Set of userIds to mute
 
     socket.emit('authenticate', token);
-    socket.on('authenticated', (data) => {
-      // nothing needed here
-    });
+    socket.on('authenticated', (data) => {});
 
     function authHeaders() {
       const h = { 'Content-Type': 'application/json' };
@@ -404,6 +421,7 @@
       document.getElementById('roomIdDisplay').style.display = 'inline-block';
       document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room.id}</strong> (share to invite)`;
 
+      // Player list
       const playerList = document.getElementById('playerList');
       playerList.innerHTML = room.players.map(playerId => {
         const isMe = (userData.id && playerId === userData.id);
@@ -416,26 +434,24 @@
         `;
       }).join('');
 
+      // Voice join
       socket.emit('join-room', room.id);
-
       if (adPollInterval) clearInterval(adPollInterval);
       lastAdCheck = Date.now();
       checkAdBroadcasts();
       adPollInterval = setInterval(checkAdBroadcasts, 10000);
 
-      isMuted = true;
-      updateMicButton();
+      // Reset mute list and UI
+      mutedUsers.clear();
+      updateMutePopup();
     }
 
-    function updateMicButton() {
-      const btn = document.getElementById('micButton');
-      btn.textContent = isMuted ? '🎤 Unmute' : '🔇 Mute';
-      btn.className = 'voice-btn' + (isMuted ? ' muted' : '');
-    }
-
-    async function toggleMic() {
+    // ---------- SPEAK TOGGLE ----------
+    async function toggleSpeak() {
       if (!currentRoom) return;
-      if (isMuted) {
+      const btn = document.getElementById('speakButton');
+      if (!isSpeaking) {
+        // Start microphone
         try {
           localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
           const audioContext = new AudioContext();
@@ -444,7 +460,7 @@
           source.connect(processor);
           processor.connect(audioContext.destination);
           processor.onaudioprocess = (e) => {
-            if (isMuted || !currentRoom) return;
+            if (!isSpeaking || !currentRoom) return;
             const inputData = e.inputBuffer.getChannelData(0);
             const buffer = new Int16Array(inputData.length);
             for (let i = 0; i < inputData.length; i++) {
@@ -453,12 +469,14 @@
             socket.emit('voice-data', buffer.buffer);
           };
           window.currentAudioProcessor = processor;
-          isMuted = false;
+          isSpeaking = true;
+          btn.textContent = '🔇 Stop Speaking';
+          btn.classList.add('active');
         } catch (err) {
-          alert('Could not access microphone. Check permissions.');
-          return;
+          alert('Could not access microphone.');
         }
       } else {
+        // Stop microphone
         if (localStream) {
           localStream.getTracks().forEach(track => track.stop());
           localStream = null;
@@ -467,23 +485,70 @@
           window.currentAudioProcessor.disconnect();
           window.currentAudioProcessor = null;
         }
-        isMuted = true;
+        isSpeaking = false;
+        btn.textContent = '🎤 Speak';
+        btn.classList.remove('active');
       }
-      updateMicButton();
-      socket.emit('voice-mute', isMuted);
     }
 
+    // ---------- MUTE POPUP ----------
+    function toggleMutePopup() {
+      const popup = document.getElementById('mutePopup');
+      if (popup.style.display === 'block') {
+        popup.style.display = 'none';
+      } else {
+        updateMutePopup();
+        popup.style.display = 'block';
+      }
+    }
+
+    function updateMutePopup() {
+      const popup = document.getElementById('mutePopup');
+      if (!currentRoom) return;
+      const players = currentRoom.players || [];
+      popup.innerHTML = players.map(playerId => {
+        const isMe = (userData.id && playerId === userData.id);
+        const label = isMe ? 'You' : 'Player';
+        const checked = mutedUsers.has(playerId) ? 'checked' : '';
+        return `
+          <div class="player-mute-row">
+            <input type="checkbox" id="mute-${playerId}" ${checked} onchange="toggleMuteUser('${playerId}', this.checked)" ${isMe ? 'disabled' : ''}>
+            <label for="mute-${playerId}">${label}</label>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleMuteUser(userId, mute) {
+      if (mute) {
+        mutedUsers.add(userId);
+      } else {
+        mutedUsers.delete(userId);
+      }
+    }
+
+    // Override voice data reception to respect mute list
+    const originalVoiceHandler = socket.listeners('voice-data').pop();
+    socket.off('voice-data', originalVoiceHandler);
+    socket.on('voice-data', (data) => {
+      if (mutedUsers.has(data.userId)) return; // skip muted
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
+      const channel = buffer.getChannelData(0);
+      const int16Array = new Int16Array(data.audio);
+      for (let i = 0; i < int16Array.length; i++) {
+        channel[i] = int16Array[i] / 0x7FFF;
+      }
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      source.start();
+    });
+
+    // ---------- LEAVE ROOM ----------
     async function leaveRoom() {
       if (adPollInterval) clearInterval(adPollInterval);
-      if (localStream) {
-        localStream.getTracks().forEach(t => t.stop());
-        localStream = null;
-      }
-      if (window.currentAudioProcessor) {
-        window.currentAudioProcessor.disconnect();
-        window.currentAudioProcessor = null;
-      }
-      isMuted = true;
+      if (isSpeaking) toggleSpeak(); // stop mic
       socket.emit('leave-room');
       await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
       currentRoom = null;
@@ -494,6 +559,7 @@
 
     async function leaveQueue() { await leaveRoom(); }
 
+    // ---------- CHAT ----------
     function sendMessage() {
       const input = document.getElementById('chatInput');
       const msg = input.value.trim();
@@ -503,7 +569,7 @@
     }
 
     socket.on('chat-message', (data) => {
-      addChatMessage(data.username, data.message, '#a78bfa');
+      addChatMessage(data.username, data.message);
     });
 
     function addChatMessage(username, text, color='#a78bfa', extraClass='') {
@@ -521,22 +587,7 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    socket.on('voice-data', (data) => {
-      if (isMuted) return;
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
-      const channel = buffer.getChannelData(0);
-      const int16Array = new Int16Array(data.audio);
-      for (let i = 0; i < int16Array.length; i++) {
-        channel[i] = int16Array[i] / 0x7FFF;
-      }
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioCtx.destination);
-      source.start();
-    });
-
-    // ---------- Donations ----------
+    // ---------- DONATIONS ----------
     function openDonate(playerId) {
       selectedReceiver = playerId;
       document.getElementById('donatePlayerName').textContent = 'Player';
@@ -568,7 +619,7 @@
       }
     }
 
-    // ---------- Board ----------
+    // ---------- BOARD ----------
     function renderBoard() {
       const grid = document.getElementById('boardGamepassGrid');
       const board = userData.board || [];
@@ -640,7 +691,22 @@
       document.getElementById('boardModal').style.display = 'block';
     }
 
-    // ---------- Ad broadcasts ----------
+    // ---------- SEND BOARD TO CHAT ----------
+    function sendBoardToChat() {
+      if (!userData || !currentRoom) return;
+      const board = userData.board || [];
+      if (board.length === 0) {
+        alert('Your board is empty. Add gamepasses first.');
+        return;
+      }
+      const boardItems = board.map(gp => 
+        `<span class="ad-mini-board-item" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price} ${gp.name}</span>`
+      ).join('');
+      const content = `<div><strong>🎁 ${userData.displayName || userData.username}'s Board</strong><div class="ad-mini-board">${boardItems}</div></div>`;
+      socket.emit('chat-message', content); // send as chat message
+    }
+
+    // ---------- AD BROADCASTS ----------
     async function checkAdBroadcasts() {
       if (!currentRoom || !currentRoom.id) return;
       try {
@@ -662,7 +728,7 @@
       } catch (e) {}
     }
 
-    // ---------- Purchase ad ----------
+    // ---------- PURCHASE AD ----------
     async function purchaseAdFromRoom(tier) {
       if (!token) {
         alert('Login required');
