@@ -88,7 +88,7 @@ app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html'))
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ========== OAUTH (unchanged) ==========
+// ========== OAUTH ==========
 app.get('/auth/roblox', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   oauthStates.set(state, Date.now());
@@ -179,10 +179,8 @@ app.post('/api/profile/update', authenticateToken, (req, res) => {
 app.get('/api/search', (req, res) => {
   const query = (req.query.username || '').toLowerCase().trim();
   if (!query) return res.status(400).json({ error: 'Username required' });
-
   const found = Object.values(users).find(u => u.robloxUsername && u.robloxUsername.toLowerCase() === query);
   if (!found) return res.json({ error: 'User not found' });
-
   const showBoard = found.profile?.showBooth !== false;
   res.json({
     id: found.id,
@@ -190,6 +188,19 @@ app.get('/api/search', (req, res) => {
     displayName: found.customDisplayName || found.robloxDisplayName,
     avatarUrl: found.avatarUrl,
     board: showBoard ? (found.board || []) : []
+  });
+});
+
+// ========== PUBLIC BOARD ==========
+app.get('/api/user/:userId/board', authenticateToken, (req, res) => {
+  const user = users[req.params.userId];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const showBoard = user.profile?.showBooth !== false;
+  res.json({
+    id: user.id,
+    displayName: user.customDisplayName || user.robloxDisplayName,
+    avatarUrl: user.avatarUrl,
+    board: showBoard ? (user.board || []) : []
   });
 });
 
@@ -308,7 +319,7 @@ app.get('/api/donations', (req, res) => {
   res.json(Object.values(donations));
 });
 
-// ========== ADS (updated) ==========
+// ========== ADS ==========
 function broadcastAd(ad) {
   const publicRoomIds = Object.keys(rooms).filter(id => rooms[id].type === 'Public');
   if (publicRoomIds.length === 0) return;
@@ -317,7 +328,6 @@ function broadcastAd(ad) {
   const selected = shuffled.slice(0, targetCount);
   const advertiser = users[ad.userId];
   if (!advertiser) return;
-
   selected.forEach(roomId => {
     if (!adBroadcasts[roomId]) adBroadcasts[roomId] = [];
     adBroadcasts[roomId].push({
@@ -355,11 +365,9 @@ app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   };
   ads[adId] = newAd;
   saveAds();
-
   broadcastAd(newAd);
   newAd.broadcastsLeft = 0;
   saveAds();
-
   res.json({ success: true, ad: newAd });
 });
 
