@@ -79,6 +79,15 @@
     }
     .profile-info h2 { font-size: 1.5rem; margin-bottom: 5px; }
     .profile-info p { color: #a0a0b0; font-size: 0.9rem; }
+    .guest-badge {
+      background: rgba(139,92,246,0.2);
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #a78bfa;
+      display: inline-block;
+      margin-top: 5px;
+    }
     .status-dot {
       display: inline-block;
       width: 12px;
@@ -88,9 +97,7 @@
     }
     .dot-online { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
     .dot-offline { background: #000; border: 1px solid #444; }
-    .settings-group {
-      margin-bottom: 25px;
-    }
+    .settings-group { margin-bottom: 25px; }
     .settings-label {
       display: block;
       color: #a78bfa;
@@ -181,6 +188,14 @@
       margin-top: 15px;
       display: none;
     }
+    .login-prompt {
+      background: rgba(139,92,246,0.1);
+      border: 1px solid rgba(139,92,246,0.3);
+      border-radius: 12px;
+      padding: 15px;
+      margin: 20px 0;
+      text-align: center;
+    }
     @media (max-width: 768px) {
       .navbar { flex-direction: column; gap: 15px; padding: 15px; }
       .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
@@ -212,11 +227,17 @@
         <div class="profile-avatar" id="profileAvatar"></div>
         <div class="profile-info">
           <h2 id="profileName">Loading...</h2>
+          <div id="guestBadge" class="guest-badge" style="display:none;">Guest</div>
           <p id="profileStatus">
             <span class="status-dot dot-online" id="statusDot"></span>
             <span id="statusText">Online</span>
           </p>
         </div>
+      </div>
+
+      <div id="loginPrompt" class="login-prompt" style="display:none;">
+        <p>🔐 <strong>Log in with Roblox</strong> to edit your profile and purchase ads.</p>
+        <button class="save-btn" onclick="window.location.href='/auth/roblox'" style="margin-top:10px;">Login with Roblox</button>
       </div>
 
       <div class="settings-group">
@@ -244,27 +265,27 @@
         </select>
       </div>
 
-      <button class="save-btn" onclick="saveProfile()">💾 Save Changes</button>
+      <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
       <div class="save-message" id="saveMessage">✅ Profile saved successfully!</div>
     </div>
 
     <div class="ad-section">
       <h2>📢 Advertise Your Board</h2>
       <p>Purchase an advertisement to show your donation board to all Passly users. Your ad will float across everyone's screen!</p>
-      
+
       <div class="ad-buttons">
-        <button class="ad-btn" onclick="purchaseAd('5k')">
+        <button class="ad-btn" onclick="requireLogin(() => purchaseAd('5k'))">
           <span class="tier">5,000 Robux</span>
           <span class="shows">1 Ad Display</span>
         </button>
-        <button class="ad-btn" onclick="purchaseAd('10k')">
+        <button class="ad-btn" onclick="requireLogin(() => purchaseAd('10k'))">
           <span class="tier">10,000 Robux</span>
           <span class="shows">3 Ad Displays</span>
         </button>
       </div>
 
       <div class="ad-status" id="adStatusBox"></div>
-      <button class="delete-ad-btn" id="deleteAdBtn" onclick="deleteAd()">🗑️ Delete Current Ad</button>
+      <button class="delete-ad-btn" id="deleteAdBtn" onclick="requireLogin(() => deleteAd())">🗑️ Delete Current Ad</button>
     </div>
   </div>
 
@@ -274,31 +295,37 @@
     async function init() {
       try {
         const res = await fetch('/api/user');
-        if (!res.ok) { window.location.href = '/'; return; }
         userData = await res.json();
-        
         document.getElementById('userName').textContent = userData.username;
-        document.getElementById('profileName').textContent = userData.displayName || userData.username;
-        
+        document.getElementById('profileName').textContent = userData.username;
+
+        if (userData.isGuest) {
+          document.getElementById('guestBadge').style.display = 'inline-block';
+          document.getElementById('loginPrompt').style.display = 'block';
+          // disable inputs if guest? We'll allow viewing but saving will prompt.
+        }
+
         if (userData.avatarUrl) {
           document.getElementById('userAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
           document.getElementById('profileAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
         }
-        
-        document.getElementById('showBooth').value = userData.profile.showBooth.toString();
-        document.getElementById('statusDotSelect').value = userData.profile.statusDot;
-        document.getElementById('showRoomId').value = userData.profile.showRoomId.toString();
-        
-        updateStatusPreview();
+
+        // Set existing profile settings if available
+        if (userData.profile) {
+          document.getElementById('showBooth').value = userData.profile.showBooth.toString();
+          document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online';
+          document.getElementById('showRoomId').value = userData.profile.showRoomId.toString();
+          updateStatusPreview();
+        }
+
         updateAdUI();
-      } catch(e) { console.error(e); }
+      } catch(e) {}
     }
 
     function updateStatusPreview() {
       const status = document.getElementById('statusDotSelect').value;
       const dot = document.getElementById('statusDot');
       const text = document.getElementById('statusText');
-      
       dot.className = 'status-dot';
       if (status === 'online') {
         dot.classList.add('dot-online');
@@ -309,65 +336,64 @@
       }
     }
 
+    function requireLogin(callback) {
+      if (userData && userData.isGuest) {
+        if (confirm('You need to log in with Roblox to do this. Go to login?')) {
+          window.location.href = '/auth/roblox';
+        }
+        return;
+      }
+      callback();
+    }
+
     async function saveProfile() {
       const showBooth = document.getElementById('showBooth').value === 'true';
       const statusDot = document.getElementById('statusDotSelect').value;
       const showRoomId = document.getElementById('showRoomId').value === 'true';
-      
+
       await fetch('/api/profile/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ showBooth, statusDot, showRoomId })
       });
-      
+
       userData.profile = { showBooth, statusDot, showRoomId };
-      
       const msg = document.getElementById('saveMessage');
       msg.style.display = 'block';
       setTimeout(() => msg.style.display = 'none', 3000);
     }
 
     async function purchaseAd(tier) {
-      if (userData.ad && userData.ad.active) {
-        alert('You already have an active ad. Delete it first!');
-        return;
-      }
-      
       try {
         const res = await fetch('/api/purchase-ad', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tier })
         });
-        
         const data = await res.json();
-        
         if (data.success) {
           userData.ad = data.ad;
-          alert('Ad purchased successfully! It will display soon.');
+          alert('Ad purchased successfully!');
           updateAdUI();
         } else {
           alert(data.error || 'Purchase failed. Make sure you own the gamepass!');
         }
       } catch(e) {
-        alert('Error purchasing ad. Try again.');
+        alert('Error purchasing ad.');
       }
     }
 
     async function deleteAd() {
-      if (!confirm('Delete your current ad? This cannot be undone.')) return;
-      
+      if (!confirm('Delete your current ad?')) return;
       await fetch('/api/delete-ad', { method: 'POST' });
       userData.ad = null;
       updateAdUI();
-      alert('Ad deleted! You can buy a new one.');
     }
 
     function updateAdUI() {
       const statusBox = document.getElementById('adStatusBox');
       const deleteBtn = document.getElementById('deleteAdBtn');
-      
-      if (userData.ad && userData.ad.active) {
+      if (userData?.ad && userData.ad.active) {
         statusBox.style.display = 'block';
         statusBox.innerHTML = `
           <strong>📢 Active Ad</strong><br>
