@@ -1,4 +1,6 @@
 const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
@@ -6,9 +8,15 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
+});
+
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 
+// Data folders
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
   fs.mkdirSync(path.join(__dirname, 'data'));
 }
@@ -34,7 +42,7 @@ function saveDonations() { writeJSON(DB_DONATIONS, donations); }
 function saveAds() { writeJSON(DB_ADS, ads); }
 function saveAdBroadcasts() { writeJSON(DB_ADBROADCASTS, adBroadcasts); }
 
-// Clean old broadcasts (10 min)
+// Clean old broadcasts
 setInterval(() => {
   const now = Date.now();
   for (const roomId in adBroadcasts) {
@@ -84,7 +92,7 @@ app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html'))
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ========== OAUTH (unchanged from previous full version) ==========
+// ========== OAUTH (unchanged) ==========
 app.get('/auth/roblox', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   oauthStates.set(state, Date.now());
@@ -145,7 +153,7 @@ app.get('/auth/roblox/callback', async (req, res) => {
   }
 });
 
-// ========== USER API (unchanged) ==========
+// ========== USER API ==========
 app.get('/api/user', authenticateToken, (req, res) => {
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -159,7 +167,6 @@ app.get('/api/user', authenticateToken, (req, res) => {
   });
 });
 
-app.post('/api/profile/update', authenticateToken, (req, res) => { /* unchanged */ });
 app.post('/api/profile/update', authenticateToken, (req, res) => {
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -172,33 +179,23 @@ app.post('/api/profile/update', authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
-// ========== BOARD (now accepts price) ==========
+// ========== BOARD (unchanged, still accepts price) ==========
 app.post('/api/board/add', authenticateToken, async (req, res) => {
   const { assetId, price } = req.body;
   if (!assetId || !price) return res.status(400).json({ error: 'Asset ID and Robux amount required' });
-
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (!user.board) user.board = [];
-
-  if (user.board.some(gp => gp.id === assetId)) {
-    return res.status(400).json({ error: 'Gamepass already on your board' });
-  }
-
-  // Verify ownership
+  if (user.board.some(gp => gp.id === assetId)) return res.status(400).json({ error: 'Gamepass already on board' });
   try {
     const check = await axios.get(`https://inventory.roblox.com/v1/users/${user.id}/items/GamePass/${assetId}`, { timeout: 5000 });
     if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
   } catch (e) { return res.status(400).json({ error: 'Ownership verification failed' }); }
-
-  // Use the price provided by the user
-  const name = 'Gamepass'; // Could optionally fetch name, but we'll skip to avoid "?"
-  user.board.push({ id: assetId, name, price: parseInt(price) });
+  user.board.push({ id: assetId, name: 'Gamepass', price: parseInt(price) });
   saveUsers();
   res.json({ success: true, board: user.board });
 });
 
-app.post('/api/board/remove', authenticateToken, (req, res) => { /* unchanged */ });
 app.post('/api/board/remove', authenticateToken, (req, res) => {
   const { assetId } = req.body;
   const user = users[req.user.id];
@@ -209,46 +206,88 @@ app.post('/api/board/remove', authenticateToken, (req, res) => {
   res.json({ success: true, board: user.board });
 });
 
-// ========== ROOMS (unchanged) ==========
+// ========== ROOMS (FIXED: creator auto-joins) ==========
 app.get('/api/rooms', (req, res) => res.json(Object.values(rooms)));
 
 app.post('/api/rooms/create', authenticateToken, (req, res) => {
   const { name, desc, type } = req.body;
   if (!name) return res.status(400).json({ error: 'Room name required' });
-  const alreadyInRoom = Object.values(rooms).some(r => r.createdBy === req.user.id || r.players.includes(req.user.id));
+
+  const alreadyInRoom = Object.values(rooms).some(r =>
+    r.createdBy === req.user.id || r.players.includes(req.user.id)
+  );
   if (alreadyInRoom) return res.status(400).json({ error: 'You must leave your current room first.' });
+
   const roomId = crypto.randomBytes(8).toString('hex');
-  rooms[roomId] = { id: roomId, name, desc: desc||'', type: type||'Public', players: [], queue: [], maxPlayers: 18, createdBy: req.user.id, createdAt: new Date().toISOString() };
+  const userId = req.user.id;
+  rooms[roomId] = {
+    id: roomId,
+    name,
+    desc: desc || '',
+    type: type || 'Public',
+    players: [userId],          // creator added automatically
+    queue: [],
+    maxPlayers: 18,
+    createdBy: userId,
+    createdAt: new Date().toISOString()
+  };
+
+  // Update user's roomId
+  if (users[userId]) {
+    users[userId].roomId = roomId;
+    users[userId].inQueue = false;
+    saveUsers();
+  }
+
   saveRooms();
   res.json(rooms[roomId]);
 });
 
-app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => { /* unchanged */ });
 app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   const room = rooms[req.params.roomId];
   if (!room) return res.status(404).json({ error: 'Room not found' });
   const userId = req.user.id;
-  if (users[userId]?.roomId && rooms[users[userId].roomId]) {
+
+  // Leave any previous room (if user.roomId is different)
+  if (users[userId]?.roomId && rooms[users[userId].roomId] && users[userId].roomId !== room.id) {
     const old = rooms[users[userId].roomId];
     old.players = old.players.filter(id => id !== userId);
     old.queue = old.queue.filter(id => id !== userId);
     if (old.queue.length && old.players.length < old.maxPlayers) old.players.push(old.queue.shift());
+    saveRooms();
   }
+
+  // Check if already in this room
+  if (room.players.includes(userId)) {
+    users[userId].roomId = room.id;
+    users[userId].inQueue = false;
+    saveUsers();
+    return res.json({ success: true, room });
+  }
+
+  // Capacity check with queue
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(userId)) {
       room.queue.push(userId);
-      users[userId].roomId = room.id; users[userId].inQueue = true;
-      saveUsers(); saveRooms();
+      users[userId].roomId = room.id;
+      users[userId].inQueue = true;
+      saveUsers();
+      saveRooms();
       return res.json({ queued: true, position: room.queue.length });
+    } else {
+      return res.json({ queued: true, position: room.queue.indexOf(userId) + 1 });
     }
   }
+
+  // Add to room
   room.players.push(userId);
-  users[userId].roomId = room.id; users[userId].inQueue = false;
-  saveUsers(); saveRooms();
+  users[userId].roomId = room.id;
+  users[userId].inQueue = false;
+  saveUsers();
+  saveRooms();
   res.json({ success: true, room });
 });
 
-app.post('/api/rooms/leave', authenticateToken, (req, res) => { /* unchanged */ });
 app.post('/api/rooms/leave', authenticateToken, (req, res) => {
   const userId = req.user.id;
   const room = rooms[users[userId]?.roomId];
@@ -258,14 +297,15 @@ app.post('/api/rooms/leave', authenticateToken, (req, res) => {
     if (room.queue.length && room.players.length < room.maxPlayers) room.players.push(room.queue.shift());
     saveRooms();
   }
-  if (users[userId]) { users[userId].roomId = null; users[userId].inQueue = false; saveUsers(); }
+  if (users[userId]) {
+    users[userId].roomId = null;
+    users[userId].inQueue = false;
+    saveUsers();
+  }
   res.json({ success: true });
 });
 
 // ========== DONATIONS (unchanged) ==========
-app.post('/api/donate', authenticateToken, async (req, res) => { /* unchanged */ });
-app.get('/api/donations', (req, res) => { /* unchanged */ });
-
 app.post('/api/donate', authenticateToken, async (req, res) => {
   const { receiverId, gamepassId, amount } = req.body;
   const donor = users[req.user.id];
@@ -291,18 +331,15 @@ app.get('/api/donations', (req, res) => {
   res.json(Object.values(donations));
 });
 
-// ========== ADS (with 100%/75% broadcast) ==========
+// ========== ADS (unchanged broadcasting logic) ==========
 function broadcastAd(ad, is10k = false) {
   const publicRoomIds = Object.keys(rooms).filter(id => rooms[id].type === 'Public');
   if (publicRoomIds.length === 0) return;
-
   const targetCount = is10k ? publicRoomIds.length : Math.ceil(publicRoomIds.length * 0.75);
   const shuffled = [...publicRoomIds].sort(() => Math.random() - 0.5);
   const selected = shuffled.slice(0, targetCount);
-
   const advertiser = users[ad.userId];
   if (!advertiser) return;
-
   selected.forEach(roomId => {
     if (!adBroadcasts[roomId]) adBroadcasts[roomId] = [];
     adBroadcasts[roomId].push({
@@ -319,14 +356,10 @@ function scheduleBroadcast(ad, delay) {
   setTimeout(() => {
     const currentAd = ads[ad.id];
     if (!currentAd || !currentAd.active || currentAd.showsLeft <= 0) return;
-
-    broadcastAd(currentAd, currentAd.tier === 10000); // 10k tier = 10000
+    broadcastAd(currentAd, currentAd.tier === 10000);
     currentAd.showsLeft--;
     saveAds();
-
-    if (currentAd.showsLeft > 0) {
-      scheduleBroadcast(currentAd, 10000);
-    }
+    if (currentAd.showsLeft > 0) scheduleBroadcast(currentAd, 10000);
   }, delay);
 }
 
@@ -335,36 +368,26 @@ app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (Object.values(ads).some(a => a.userId===user.id && a.active)) return res.status(400).json({ error: 'Delete existing ad first' });
-
   const gpId = GAMEPASSES[tier];
   if (!gpId) return res.status(400).json({ error: 'Invalid tier' });
-
   try {
     const check = await axios.get(`https://inventory.roblox.com/v1/users/${user.id}/items/GamePass/${gpId}`, { timeout: 5000 });
     if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
   } catch(e) { return res.status(400).json({ error: 'Verification failed' }); }
-
   const shows = tier === '5k' ? 1 : 3;
   const tierAmount = tier === '5k' ? 5000 : 10000;
   const adId = crypto.randomBytes(8).toString('hex');
   const newAd = {
     id: adId, userId: user.id, username: user.robloxUsername,
-    tier: tierAmount, gamepassId: gpId,
-    showsLeft: shows, active: true, purchasedAt: new Date().toISOString()
+    tier: tierAmount, gamepassId: gpId, showsLeft: shows, active: true,
+    purchasedAt: new Date().toISOString()
   };
   ads[adId] = newAd;
   saveAds();
-
-  // Immediate broadcast (10k = 100% rooms)
   broadcastAd(newAd, tierAmount === 10000);
   newAd.showsLeft--;
   saveAds();
-
-  // Schedule remaining shows
-  if (newAd.showsLeft > 0) {
-    scheduleBroadcast(newAd, 10000);
-  }
-
+  if (newAd.showsLeft > 0) scheduleBroadcast(newAd, 10000);
   res.json({ success: true, ad: newAd });
 });
 
@@ -376,14 +399,11 @@ app.post('/api/delete-ad', authenticateToken, (req, res) => {
 app.get('/api/ads', (req, res) => res.json(Object.values(ads).filter(a => a.active && a.showsLeft>0)));
 
 app.get('/api/rooms/:roomId/ad-broadcasts', (req, res) => {
-  const { roomId } = req.params;
   const since = parseInt(req.query.since) || 0;
-  const broadcasts = (adBroadcasts[roomId] || []).filter(b => b.timestamp > since);
-  res.json(broadcasts);
+  res.json((adBroadcasts[req.params.roomId] || []).filter(b => b.timestamp > since));
 });
 
-// ========== LEADERBOARD (unchanged) ==========
-app.get('/api/leaderboard', (req, res) => { /* unchanged */ });
+// ========== LEADERBOARD ==========
 app.get('/api/leaderboard', (req, res) => {
   const all = Object.values(users);
   res.json({
@@ -416,4 +436,78 @@ if (Object.keys(rooms).length === 0) {
   saveRooms();
 }
 
-app.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
+// ========== SOCKET.IO for real‑time chat + voice ==========
+io.on('connection', (socket) => {
+  let currentRoom = null;
+  let userId = null;
+  let username = 'Guest';
+
+  // Authenticate and join personal room
+  socket.on('authenticate', (token) => {
+    if (!token) {
+      userId = 'guest_' + Math.random().toString(36).substr(2, 9);
+      username = 'Guest#' + Math.floor(1000+Math.random()*9000);
+    } else {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = decoded.id;
+        username = decoded.displayName || decoded.username;
+      } catch (e) {
+        userId = 'invalid';
+      }
+    }
+    socket.emit('authenticated', { userId, username });
+  });
+
+  // Join a room's socket channel
+  socket.on('join-room', (roomId) => {
+    if (currentRoom) socket.leave(currentRoom);
+    socket.join(roomId);
+    currentRoom = roomId;
+    socket.to(roomId).emit('user-joined', { userId, username });
+  });
+
+  // Leave current room
+  socket.on('leave-room', () => {
+    if (currentRoom) {
+      socket.to(currentRoom).emit('user-left', { userId, username });
+      socket.leave(currentRoom);
+      currentRoom = null;
+    }
+  });
+
+  // Chat message
+  socket.on('chat-message', (msg) => {
+    if (!currentRoom) return;
+    io.to(currentRoom).emit('chat-message', {
+      userId,
+      username,
+      message: msg,
+      timestamp: Date.now()
+    });
+  });
+
+  // Voice data (simple broadcast, no mixing – just relay the audio chunks)
+  socket.on('voice-data', (audioChunk) => {
+    if (!currentRoom) return;
+    // Relay to everyone else in the room
+    socket.to(currentRoom).emit('voice-data', {
+      userId,
+      audio: audioChunk
+    });
+  });
+
+  // Voice mute status (optional)
+  socket.on('voice-mute', (muted) => {
+    if (!currentRoom) return;
+    socket.to(currentRoom).emit('voice-mute', { userId, muted });
+  });
+
+  socket.on('disconnect', () => {
+    if (currentRoom) {
+      socket.to(currentRoom).emit('user-left', { userId, username });
+    }
+  });
+});
+
+server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
