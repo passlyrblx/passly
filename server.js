@@ -1,6 +1,5 @@
 const express = require('express');
 const session = require('express-session');
-const FileStore = require('session-file-store')(session);
 const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
@@ -9,19 +8,17 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Create data directories
-const dirs = ['data', 'sessions'];
-dirs.forEach(dir => {
-  if (!fs.existsSync(path.join(__dirname, dir))) {
-    fs.mkdirSync(path.join(__dirname, dir));
-  }
-});
+// Create data directory
+if (!fs.existsSync(path.join(__dirname, 'data'))) {
+  fs.mkdirSync(path.join(__dirname, 'data'));
+}
 
 // JSON Database
 const DB_USERS = path.join(__dirname, 'data', 'users.json');
 const DB_ROOMS = path.join(__dirname, 'data', 'rooms.json');
 const DB_DONATIONS = path.join(__dirname, 'data', 'donations.json');
 const DB_ADS = path.join(__dirname, 'data', 'ads.json');
+const DB_SESSIONS = path.join(__dirname, 'data', 'sessions.json');
 
 function readJSON(filePath) {
   try {
@@ -38,42 +35,60 @@ let users = readJSON(DB_USERS);
 let rooms = readJSON(DB_ROOMS);
 let donations = readJSON(DB_DONATIONS);
 let ads = readJSON(DB_ADS);
+let sessions = readJSON(DB_SESSIONS);
 
 function saveUsers() { writeJSON(DB_USERS, users); }
 function saveRooms() { writeJSON(DB_ROOMS, rooms); }
 function saveDonations() { writeJSON(DB_DONATIONS, donations); }
 function saveAds() { writeJSON(DB_ADS, ads); }
+function saveSessions() { writeJSON(DB_SESSIONS, sessions); }
 
 // Trust proxy for Render
 app.set('trust proxy', 1);
 
-// Session with FILE STORE (survives restarts)
+// Simple session middleware
 app.use(session({
-  store: new FileStore({
-    path: path.join(__dirname, 'sessions'),
-    ttl: 86400,
-    retries: 0
-  }),
   secret: process.env.SESSION_SECRET || 'passly-secret-key-2024',
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000
   }
 }));
+
+// Load session from file on startup
+app.use((req, res, next) => {
+  const sessionId = req.sessionID;
+  if (sessions[sessionId] && sessions[sessionId].user) {
+    if (!req.session.user) {
+      req.session.user = sessions[sessionId].user;
+    }
+  }
+  next();
+});
+
+// Save session to file
+app.use((req, res, next) => {
+  const originalEnd = res.end;
+  res.end = function() {
+    if (req.session && req.session.user) {
+      sessions[req.sessionID] = {
+        user: req.session.user,
+        lastAccess: Date.now()
+      };
+      saveSessions();
+    }
+    originalEnd.apply(res, arguments);
+  };
+  next();
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname)));
-
-// Make user data available to all templates
-app.use((req, res, next) => {
-  res.locals.user = req.session.user || null;
-  next();
-});
 
 const captchaStore = new Map();
 
@@ -112,9 +127,23 @@ function cleanExpiredDonations() {
 }
 setInterval(cleanExpiredDonations, 60000);
 
+// Clean old sessions (older than 7 days)
+function cleanSessions() {
+  const now = Date.now();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  let changed = false;
+  for (const key in sessions) {
+    if (sessions[key].lastAccess && (now - sessions[key].lastAccess) > sevenDays) {
+      delete sessions[key];
+      changed = true;
+    }
+  }
+  if (changed) saveSessions();
+}
+setInterval(cleanSessions, 3600000);
+
 // ============ PAGES ============
 
-// Landing page - checks auth and redirects
 app.get('/', (req, res) => {
   if (req.session && req.session.user) {
     return res.redirect('/dashboard');
@@ -122,7 +151,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Protected pages
 function requireAuth(req, res, next) {
   if (req.session && req.session.user) {
     return next();
@@ -146,7 +174,7 @@ app.get('/profile', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'profile.html'));
 });
 
-// ============ API ROUTES ============
+// ============ API ============
 
 app.get('/api/captcha', (req, res) => {
   res.json(generateCaptcha());
@@ -167,7 +195,6 @@ app.post('/api/verify-captcha', (req, res) => {
   res.status(400).json({ error: 'Wrong answer' });
 });
 
-// Check auth status
 app.get('/api/check-auth', (req, res) => {
   if (req.session && req.session.user) {
     res.json({ authenticated: true, user: req.session.user });
@@ -176,7 +203,7 @@ app.get('/api/check-auth', (req, res) => {
   }
 });
 
-// ============ ROBLOX OAUTH ============
+// ============ OAUTH ============
 
 app.get('/auth/roblox', (req, res) => {
   if (!req.session.captchaVerified) {
@@ -200,13 +227,18 @@ app.get('/auth/roblox', (req, res) => {
 app.get('/auth/roblox/callback', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
   
-  // User denied authorization
   if (oauthError === 'access_denied') {
-    return res.redirect('/?error=authorization_denied');
+    return res.send(`
+      <html><body style="background:#0a0a14;color:white;font-family:Arial;text-align:center;padding:50px;">
+        <h1 style="color:#f87171;">❌ Authorization Denied</h1>
+        <p>You need to authorize Passly to access your Roblox account.</p>
+        <a href="/" style="color:#8b5cf6;">Try Again</a>
+      </body></html>
+    `);
   }
   
   if (state !== req.session.oauthState) {
-    return res.status(403).send('Invalid state parameter. <a href="/">Go back</a>');
+    return res.status(403).send('Invalid state. <a href="/">Go back</a>');
   }
   
   if (!code) {
@@ -214,7 +246,6 @@ app.get('/auth/roblox/callback', async (req, res) => {
   }
   
   try {
-    // Exchange code for token
     const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl, 
       new URLSearchParams({
         client_id: ROBLOX_CONFIG.clientId,
@@ -222,19 +253,15 @@ app.get('/auth/roblox/callback', async (req, res) => {
         grant_type: 'authorization_code',
         code
       }).toString(),
-      {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      }
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
     
-    // Get user info
     const userRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
       headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
     });
     
     const rbUser = userRes.data;
     
-    // Save/update user
     let user = users[rbUser.sub];
     if (!user) {
       user = {
@@ -253,18 +280,23 @@ app.get('/auth/roblox/callback', async (req, res) => {
     users[rbUser.sub] = user;
     saveUsers();
     
-    // Set session
     req.session.user = {
       id: user.id,
       username: user.username,
       avatarUrl: user.avatarUrl
     };
     
-    // Save session explicitly
+    // Save session immediately
+    sessions[req.sessionID] = {
+      user: req.session.user,
+      lastAccess: Date.now()
+    };
+    saveSessions();
+    
     req.session.save((err) => {
       if (err) {
         console.error('Session save error:', err);
-        return res.redirect('/?error=session_save_failed');
+        return res.redirect('/?error=session_error');
       }
       res.redirect('/dashboard');
     });
@@ -315,7 +347,7 @@ app.post('/api/profile/update', (req, res) => {
   res.json({ success: true });
 });
 
-// ============ ROOMS API ============
+// ============ ROOMS ============
 
 app.get('/api/rooms', (req, res) => {
   res.json(Object.values(rooms));
@@ -347,7 +379,6 @@ app.post('/api/rooms/join/:roomId', (req, res) => {
   const user = users[req.session.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  // Leave current room
   if (user.roomId && rooms[user.roomId]) {
     const oldRoom = rooms[user.roomId];
     oldRoom.players = oldRoom.players.filter(id => id !== user.id);
@@ -357,7 +388,6 @@ app.post('/api/rooms/join/:roomId', (req, res) => {
     }
   }
   
-  // Check capacity
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(user.id)) {
       room.queue.push(user.id);
@@ -409,8 +439,7 @@ app.get('/api/verify-ownership/:userId/:gamepassId', async (req, res) => {
       `https://inventory.roblox.com/v1/users/${req.params.userId}/items/GamePass/${req.params.gamepassId}`,
       { timeout: 5000 }
     );
-    const owns = response.data?.data?.length > 0;
-    res.json({ owns });
+    res.json({ owns: response.data?.data?.length > 0 });
   } catch (error) {
     res.json({ owns: false });
   }
@@ -425,7 +454,6 @@ app.post('/api/donate', async (req, res) => {
   
   if (!donor || !receiver) return res.status(404).json({ error: 'User not found' });
   
-  // Verify ownership
   try {
     const check = await axios.get(
       `https://inventory.roblox.com/v1/users/${donor.id}/items/GamePass/${gamepassId}`,
@@ -438,19 +466,17 @@ app.post('/api/donate', async (req, res) => {
     return res.status(400).json({ error: 'Verification failed' });
   }
   
-  // Check duplicate
   const recent = Object.values(donations).find(d => 
     d.donorId === donor.id && d.receiverId === receiverId && 
     d.gamepassId === gamepassId && (Date.now() - d.timestamp) < 300000
   );
-  if (recent) return res.status(400).json({ error: 'Wait 5 minutes before donating again' });
+  if (recent) return res.status(400).json({ error: 'Wait 5 minutes' });
   
   const donationId = crypto.randomBytes(8).toString('hex');
   donations[donationId] = {
     id: donationId, donorId: donor.id, donorName: donor.username,
     receiverId: receiver.id, receiverName: receiver.username,
-    gamepassId, amount: amount || 0,
-    timestamp: Date.now()
+    gamepassId, amount: amount || 0, timestamp: Date.now()
   };
   
   donor.donations.given += (amount || 0);
@@ -539,6 +565,8 @@ app.get('/api/leaderboard', (req, res) => {
 // ============ LOGOUT ============
 
 app.post('/logout', (req, res) => {
+  delete sessions[req.sessionID];
+  saveSessions();
   req.session.destroy(() => {
     res.clearCookie('connect.sid');
     res.json({ success: true });
