@@ -1,5 +1,5 @@
 const express = require('express');
-const session = require('express-session');
+const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
@@ -8,6 +8,10 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// JWT secret – keep it stable
+const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
+
+// Create data folder
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
   fs.mkdirSync(path.join(__dirname, 'data'));
 }
@@ -31,17 +35,8 @@ function saveDonations() { writeJSON(DB_DONATIONS, donations); }
 function saveAds() { writeJSON(DB_ADS, ads); }
 
 app.set('trust proxy', 1);
-
-// Session with FIXED secret
-app.use(session({
-  secret: 'passly-fixed-secret-2024',
-  resave: true,
-  saveUninitialized: true,
-  cookie: { secure: process.env.NODE_ENV==='production', httpOnly:true, sameSite:'lax', maxAge:7*24*60*60*1000 }
-}));
-
 app.use(express.json());
-app.use(express.urlencoded({extended:true}));
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname)));
 
 const ROBLOX_CONFIG = {
@@ -55,67 +50,44 @@ const ROBLOX_CONFIG = {
 
 const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K };
 
-// ========== GUEST USER SETUP ==========
-app.use((req, res, next) => {
-  if (!req.session.guestName) {
-    const guestNum = Math.floor(10000 + Math.random() * 90000);
-    req.session.guestName = `Guest#${guestNum}`;
-  }
-  // If not logged in via Roblox, ensure we have a guest session
-  if (!req.session.user) {
-    req.session.user = {
-      id: `guest_${req.sessionID}`,
-      username: req.session.guestName,
-      isGuest: true
-    };
-  }
-  next();
-});
+// ========== AUTH MIDDLEWARE ==========
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  if (!token) return res.status(401).json({ error: 'No token provided' });
 
-// ========== PAGES (no auth required) ==========
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    req.user = decoded;
+    next();
+  });
+}
+
+// ========== PAGES (no auth needed, pages handle token in frontend) ==========
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ========== API ==========
-app.get('/api/user', (req, res) => {
-  // Returns current user (guest or real)
-  const sessionUser = req.session.user;
-  if (!sessionUser) return res.json({ isGuest: true, username: req.session.guestName });
-  if (sessionUser.isGuest) {
-    return res.json({ isGuest: true, username: sessionUser.username });
-  }
-  const user = users[sessionUser.id];
-  if (!user) return res.json({ isGuest: true, username: sessionUser.username });
-  const ad = Object.values(ads).find(a => a.userId === user.id && a.active);
-  return res.json({
-    isGuest: false,
-    id: user.id,
-    username: user.username,
-    displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
-    profile: user.profile,
-    roomId: user.roomId,
-    inQueue: user.inQueue,
-    donations: user.donations,
-    ad: ad || null
-  });
+// ========== API: check token validity ==========
+app.get('/api/check-auth', authenticateToken, (req, res) => {
+  res.json({ authenticated: true, user: req.user });
 });
 
-app.get('/api/check-auth', (req, res) => {
-  const user = req.session.user;
-  if (user && !user.isGuest) {
-    return res.json({ authenticated: true, user });
-  }
-  res.json({ authenticated: false, guestName: req.session.guestName });
-});
-
-// ========== OAUTH (unchanged but now called from "Login" button) ==========
+// ========== OAUTH ==========
 app.get('/auth/roblox', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  req.session.oauthState = state;
+  // We'll pass state via cookie or query, but simpler: store in a short‑lived map
+  // Instead we can just send state as query and verify on callback.
+  // For simplicity we'll store in a global Map with a short expiry.
+  if (!global.oauthStates) global.oauthStates = new Map();
+  global.oauthStates.set(state, Date.now());
+  // Clean old states
+  for (const [key, time] of global.oauthStates) {
+    if (Date.now() - time > 600000) global.oauthStates.delete(key);
+  }
+
   const params = new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId,
     redirect_uri: ROBLOX_CONFIG.redirectUri,
@@ -129,25 +101,39 @@ app.get('/auth/roblox', (req, res) => {
 app.get('/auth/roblox/callback', async (req, res) => {
   const { code, state, error } = req.query;
   if (error === 'access_denied') return res.send('<h1>Authorization Denied</h1><a href="/">Go back</a>');
-  if (!state || state !== req.session.oauthState) return res.status(403).send('Invalid state');
+
+  if (!global.oauthStates || !global.oauthStates.has(state)) {
+    return res.status(403).send('Invalid state. <a href="/">Go back</a>');
+  }
+  global.oauthStates.delete(state);
+
   if (!code) return res.redirect('/');
+
   try {
     const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl,
-      new URLSearchParams({ client_id: ROBLOX_CONFIG.clientId, client_secret: ROBLOX_CONFIG.clientSecret, grant_type: 'authorization_code', code }).toString(),
+      new URLSearchParams({
+        client_id: ROBLOX_CONFIG.clientId,
+        client_secret: ROBLOX_CONFIG.clientSecret,
+        grant_type: 'authorization_code',
+        code
+      }).toString(),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
+
     const userRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
       headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
     });
+
     const rb = userRes.data;
     if (!users[rb.sub]) {
       users[rb.sub] = {
         id: rb.sub,
         username: rb.name || 'Player',
-        displayName: rb.nickname || rb.name,
+        displayName: rb.nickname || rb.name || 'Player',
         avatarUrl: rb.picture || '',
         profile: { showBooth: true, statusDot: 'online', showRoomId: true },
-        roomId: null, inQueue: false,
+        roomId: null,
+        inQueue: false,
         donations: { received: 0, given: 0 },
         createdAt: new Date().toISOString()
       };
@@ -157,44 +143,75 @@ app.get('/auth/roblox/callback', async (req, res) => {
       users[rb.sub].avatarUrl = rb.picture || users[rb.sub].avatarUrl;
     }
     saveUsers();
-    req.session.user = { id: rb.sub, username: users[rb.sub].username, avatarUrl: users[rb.sub].avatarUrl, isGuest: false };
-    req.session.save(() => res.redirect('/dashboard'));
+
+    // Create JWT
+    const tokenPayload = {
+      id: rb.sub,
+      username: users[rb.sub].username,
+      avatarUrl: users[rb.sub].avatarUrl
+    };
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' });
+
+    // Redirect to dashboard with token in URL hash (so it stays client‑side)
+    res.redirect(`/dashboard#token=${token}`);
   } catch (e) {
-    console.error(e);
+    console.error('OAuth error:', e.response?.data || e.message);
     res.redirect('/?error=oauth');
   }
 });
 
-// ========== GUEST LOGIN (just set session) ==========
-app.post('/api/guest-login', (req, res) => {
-  // Already set by middleware, but we can regenerate guest name if desired
-  const guestNum = Math.floor(10000 + Math.random() * 90000);
-  req.session.guestName = `Guest#${guestNum}`;
-  req.session.user = { id: `guest_${req.sessionID}`, username: req.session.guestName, isGuest: true };
-  res.json({ success: true, username: req.session.guestName });
+// ========== USER API (require token) ==========
+app.get('/api/user', authenticateToken, (req, res) => {
+  const user = users[req.user.id];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const ad = Object.values(ads).find(a => a.userId === user.id && a.active);
+  res.json({
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    profile: user.profile,
+    roomId: user.roomId,
+    inQueue: user.inQueue,
+    donations: user.donations,
+    ad: ad || null
+  });
 });
 
-// ========== PROTECTED ACTIONS (require real Roblox login) ==========
-function requireRealUser(req, res, next) {
-  if (req.session.user && !req.session.user.isGuest) return next();
-  res.status(401).json({ error: 'LOGIN_REQUIRED', message: 'Please log in with Roblox to perform this action.' });
-}
+app.post('/api/profile/update', authenticateToken, (req, res) => {
+  const user = users[req.user.id];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const { showBooth, statusDot, showRoomId } = req.body;
+  if (showBooth !== undefined) user.profile.showBooth = showBooth;
+  if (statusDot) user.profile.statusDot = statusDot;
+  if (showRoomId !== undefined) user.profile.showRoomId = showRoomId;
+  saveUsers();
+  res.json({ success: true });
+});
 
-app.post('/api/rooms/create', requireRealUser, (req, res) => {
+// ========== ROOMS ==========
+app.get('/api/rooms', (req, res) => res.json(Object.values(rooms)));
+
+app.post('/api/rooms/create', authenticateToken, (req, res) => {
   const { name, desc, type } = req.body;
+  if (!name) return res.status(400).json({ error: 'Room name required' });
   const roomId = crypto.randomBytes(8).toString('hex');
-  rooms[roomId] = { id: roomId, name, desc: desc||'', type: type||'Public', players:[], queue:[], maxPlayers:18, createdBy: req.session.user.id };
+  rooms[roomId] = {
+    id: roomId, name, desc: desc||'', type: type||'Public',
+    players: [], queue: [], maxPlayers: 18,
+    createdBy: req.user.id, createdAt: new Date().toISOString()
+  };
   saveRooms();
   res.json(rooms[roomId]);
 });
 
-app.post('/api/rooms/join/:roomId', (req, res) => {
+app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   const room = rooms[req.params.roomId];
   if (!room) return res.status(404).json({ error: 'Room not found' });
-  const userId = req.session.user.id;
+  const userId = req.user.id;
   // leave previous room
-  if (req.session.user.roomId && rooms[req.session.user.roomId]) {
-    const old = rooms[req.session.user.roomId];
+  if (users[userId]?.roomId && rooms[users[userId].roomId]) {
+    const old = rooms[users[userId].roomId];
     old.players = old.players.filter(id => id !== userId);
     old.queue = old.queue.filter(id => id !== userId);
     if (old.queue.length && old.players.length < old.maxPlayers) old.players.push(old.queue.shift());
@@ -202,33 +219,34 @@ app.post('/api/rooms/join/:roomId', (req, res) => {
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(userId)) {
       room.queue.push(userId);
+      if (users[userId]) { users[userId].roomId = room.id; users[userId].inQueue = true; saveUsers(); }
       saveRooms();
       return res.json({ queued: true, position: room.queue.length });
     }
   }
   room.players.push(userId);
+  if (users[userId]) { users[userId].roomId = room.id; users[userId].inQueue = false; saveUsers(); }
   saveRooms();
   res.json({ success: true, room });
 });
 
-app.post('/api/rooms/leave', (req, res) => {
-  const userId = req.session.user.id;
-  const room = rooms[req.session.user.roomId];
+app.post('/api/rooms/leave', authenticateToken, (req, res) => {
+  const userId = req.user.id;
+  const room = rooms[users[userId]?.roomId];
   if (room) {
     room.players = room.players.filter(id => id !== userId);
     room.queue = room.queue.filter(id => id !== userId);
     if (room.queue.length && room.players.length < room.maxPlayers) room.players.push(room.queue.shift());
     saveRooms();
   }
+  if (users[userId]) { users[userId].roomId = null; users[userId].inQueue = false; saveUsers(); }
   res.json({ success: true });
 });
 
-app.get('/api/rooms', (req, res) => res.json(Object.values(rooms)));
-
-// Donation requires Roblox login
-app.post('/api/donate', requireRealUser, async (req, res) => {
+// ========== DONATIONS ==========
+app.post('/api/donate', authenticateToken, async (req, res) => {
   const { receiverId, gamepassId, amount } = req.body;
-  const donor = users[req.session.user.id];
+  const donor = users[req.user.id];
   const receiver = users[receiverId];
   if (!donor || !receiver) return res.status(404).json({ error: 'User not found' });
   try {
@@ -251,9 +269,10 @@ app.get('/api/donations', (req, res) => {
   res.json(Object.values(donations));
 });
 
-app.post('/api/purchase-ad', requireRealUser, async (req, res) => {
+// ========== ADS ==========
+app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   const { tier } = req.body;
-  const user = users[req.session.user.id];
+  const user = users[req.user.id];
   if (Object.values(ads).some(a => a.userId===user.id && a.active)) return res.status(400).json({ error: 'Delete existing ad first' });
   const gpId = GAMEPASSES[tier];
   try {
@@ -266,8 +285,8 @@ app.post('/api/purchase-ad', requireRealUser, async (req, res) => {
   res.json({ success: true, ad: ads[adId] });
 });
 
-app.post('/api/delete-ad', requireRealUser, (req, res) => {
-  for (const k in ads) if (ads[k].userId === req.session.user.id) { delete ads[k]; saveAds(); return res.json({success:true}); }
+app.post('/api/delete-ad', authenticateToken, (req, res) => {
+  for (const k in ads) if (ads[k].userId === req.user.id) { delete ads[k]; saveAds(); return res.json({success:true}); }
   res.json({ success: true });
 });
 
@@ -281,8 +300,10 @@ app.get('/api/leaderboard', (req, res) => {
   });
 });
 
-app.post('/logout', (req, res) => {
-  req.session.destroy(() => res.json({ success: true }));
+// ========== Guest endpoint (no token needed) ==========
+app.post('/api/guest-login', (req, res) => {
+  const guestNum = Math.floor(10000 + Math.random() * 90000);
+  res.json({ username: `Guest#${guestNum}`, isGuest: true });
 });
 
 app.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
