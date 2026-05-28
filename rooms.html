@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -448,47 +449,58 @@
       input.value = '';
     }
 
-    // ========== SHOW BOARD ==========
+    // ========== SHOW BOARD – FIXED APIs ==========
     async function showBoard() {
       if (!userData || !userData.id) return;
-      document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('boardModal').style.display = 'block';
+      const boardModal = document.getElementById('boardModal');
+      const overlay = document.getElementById('modalOverlay');
+      overlay.style.display = 'block';
+      boardModal.style.display = 'block';
       document.getElementById('boardLoading').style.display = 'block';
       document.getElementById('boardGamepassGrid').innerHTML = '';
       document.getElementById('boardError').style.display = 'none';
 
       try {
+        // 1. Get owned GamePass asset IDs
         const invRes = await fetch(`https://inventory.roblox.com/v1/users/${userData.id}/items/GamePass?limit=100`);
         const invData = await invRes.json();
-        const ids = (invData.data || []).map(i => i.assetId || i.id);
+        const assets = invData.data || [];
 
-        if (ids.length === 0) {
+        if (assets.length === 0) {
           document.getElementById('boardLoading').style.display = 'none';
           document.getElementById('boardGamepassGrid').innerHTML = '<p style="color:#a0a0b0;">You don\'t own any gamepasses.</p>';
           return;
         }
 
+        // 2. Get details for each asset (name & price)
         const details = [];
-        for (const gpId of ids) {
+        for (const item of assets) {
+          const assetId = item.assetId || item.id;
           try {
-            const dRes = await fetch(`https://economy.roblox.com/v2/game-pass/${gpId}/game-pass-product-info`);
-            if (dRes.ok) {
-              const d = await dRes.json();
-              details.push({ id: gpId, name: d.Name || 'Gamepass', price: d.PriceInRobux || 0 });
+            const detailRes = await fetch(`https://economy.roblox.com/v2/assets/${assetId}/details`);
+            if (detailRes.ok) {
+              const d = await detailRes.json();
+              details.push({
+                id: assetId,
+                name: d.Name || 'Gamepass',
+                price: d.PriceInRobux || 0
+              });
             }
-          } catch (e) {}
+          } catch (e) {
+            // skip problematic ones
+          }
         }
 
         const grid = document.getElementById('boardGamepassGrid');
-        grid.innerHTML = details.map(gp => `
-          <button class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">
-            <span class="board-gamepass-amount">R$ ${gp.price}</span>
-            <span class="board-gamepass-name">${gp.name}</span>
-          </button>
-        `).join('');
-
         if (details.length === 0) {
           grid.innerHTML = '<p style="color:#a0a0b0;">Could not load gamepass details.</p>';
+        } else {
+          grid.innerHTML = details.map(gp => `
+            <button class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">
+              <span class="board-gamepass-amount">R$ ${gp.price}</span>
+              <span class="board-gamepass-name">${gp.name}</span>
+            </button>
+          `).join('');
         }
 
         document.getElementById('boardLoading').style.display = 'none';
@@ -504,10 +516,8 @@
         alert('Login required');
         return;
       }
-
       const statusDiv = document.getElementById('adPurchaseStatus');
       statusDiv.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p style="color:#fbbf24;">Verifying your gamepass…</p></div>';
-
       try {
         const res = await fetch('/api/purchase-ad', {
           method: 'POST',
