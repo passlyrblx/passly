@@ -1,14 +1,13 @@
 {
   "name": "passly",
   "version": "1.0.0",
-  "description": "Passly - Roblox Donation Platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "cookie-session": "^2.0.0",
+    "express-session": "^1.17.3",
     "axios": "^1.6.2"
   }
 }
