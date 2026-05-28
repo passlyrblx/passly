@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passly - Login</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      /* Cool dark geometric background resembling premium robux theme */
+      background: url('https://images.unsplash.com/photo-1614680376593-902f74cf0d41?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed;
+      background-size: cover;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Transparent blurred box */
+    .login-container {
+      background: rgba(22, 22, 31, 0.7);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      padding: 40px;
+      max-width: 500px;
+      text-align: center;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo {
+      font-size: 42px;
+      font-weight: bold;
+      color: #8b5cf6;
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    }
+
+    .description {
+      color: #d1d5db;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 35px;
+      text-align: left;
+    }
+
+    .login-btn {
+      background: #111111;
+      border: 2px solid #8b5cf6;
+      color: white;
+      padding: 16px 32px;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.3s ease;
+    }
+
+    .login-btn:hover {
+      background: #8b5cf6;
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
+      transform: translateY(-2px);
+    }
+
+    /* Roblox Logo SVG inside button */
+    .roblox-icon {
+      width: 24px;
+      height: 24px;
+      fill: white;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-container">
+    <div class="logo">Passly</div>
+    
+    <div class="description">
+      <strong>Welcome to the new era of donations.</strong><br><br>
+      With upcoming Roblox updates on May 29th restricting cross-game passes, games like PLS DONATE are changing forever. Passly is the ultimate web-based alternative.<br><br>
+      Create or join live rooms, chat with creators via text or voice, and showcase your donation board. When players click your booth, they are redirected straight to your Roblox gamepass page to buy it safely. <br><br>
+      Earn massive donations, trigger global live-feed blimps, and buy advertisement clouds to skyrocket your booth's visibility. 
+    </div>
+
+    <!-- This button will link to your dashboard for now. Later it will link to the Roblox OAuth URL -->
+    <button class="login-btn" onclick="window.location.href='dashboard.html'">
+      <svg class="roblox-icon" viewBox="0 0 24 24">
+        <path d="M4.88 0L0 19.12l19.12 4.88L24 4.88 4.88 0zM14.4 12.33l-2.07 2.07-2.74-2.74 2.07-2.07 2.74 2.74z"/>
+      </svg>
+      Login with Roblox
+    </button>
+  </div>
+
+</body>
+</html>
