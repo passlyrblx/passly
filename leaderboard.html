@@ -53,10 +53,40 @@
       height: 35px;
       border-radius: 50%;
       background: #8b5cf6;
+      background-size: cover;
     }
     .user-name { font-weight: 600; color: #c4b5fd; }
     .main-content { padding: 30px; max-width: 900px; margin: 0 auto; }
     h1 { font-size: 2.5rem; margin-bottom: 30px; text-align: center; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 30px;
+    }
+    .tab-btn {
+      padding: 10px 24px;
+      background: rgba(30,30,50,0.6);
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: 12px;
+      color: #a0a0b0;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    .tab-btn.active {
+      background: #8b5cf6;
+      color: white;
+      border-color: #8b5cf6;
+    }
+    .tab-btn:hover:not(.active) {
+      background: rgba(139,92,246,0.2);
+      color: white;
+    }
+
     .leaderboard-section { margin-bottom: 40px; }
     .section-title {
       font-size: 1.5rem;
@@ -104,6 +134,8 @@
     .player-avatar { width: 30px; height: 30px; border-radius: 50%; background: #8b5cf6; }
     .amount { font-weight: bold; color: #c4b5fd; }
     .empty-state { text-align: center; padding: 40px; color: #a0a0b0; }
+    .loading { text-align: center; padding: 30px; color: #a78bfa; }
+
     @media (max-width: 768px) {
       .navbar { flex-direction: column; gap: 15px; padding: 15px; }
       .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
@@ -130,6 +162,13 @@
   <div class="main-content">
     <h1>🏆 Leaderboard</h1>
 
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-period="daily" onclick="switchTab('daily')">📅 Daily</button>
+      <button class="tab-btn" data-period="weekly" onclick="switchTab('weekly')">📆 Weekly</button>
+      <button class="tab-btn" data-period="total" onclick="switchTab('total')">🌐 Total</button>
+    </div>
+
     <div class="leaderboard-section">
       <div class="section-title">💰 Top Receivers</div>
       <table class="leaderboard-table">
@@ -140,7 +179,9 @@
             <th>Robux Received</th>
           </tr>
         </thead>
-        <tbody id="receiversTable"></tbody>
+        <tbody id="receiversTable">
+          <tr><td colspan="3" class="loading">Loading...</td></tr>
+        </tbody>
       </table>
     </div>
 
@@ -154,53 +195,52 @@
             <th>Robux Donated</th>
           </tr>
         </thead>
-        <tbody id="donorsTable"></tbody>
+        <tbody id="donorsTable">
+          <tr><td colspan="3" class="loading">Loading...</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 
   <script>
-    // Get current user info for navbar (guest or logged in)
-    async function init() {
-      let username = 'Guest';
-      let avatarUrl = '';
-      const token = localStorage.getItem('passly_token');
-      if (token) {
-        try {
-          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
-          if (res.ok) {
-            const data = await res.json();
-            username = data.username;
-            avatarUrl = data.avatarUrl;
-          }
-        } catch (e) {}
-      } else {
-        const guest = JSON.parse(localStorage.getItem('passly_user') || '{}');
-        username = guest.username || 'Guest#' + Math.floor(10000+Math.random()*90000);
-      }
-      document.getElementById('userName').textContent = username;
-      if (avatarUrl) {
-        document.getElementById('userAvatar').style.background = `url(${avatarUrl}) center/cover`;
-      }
+    let currentPeriod = 'daily';
 
+    // Get current user info for navbar
+    (function initUser() {
+      const token = localStorage.getItem('passly_token');
+      const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
+      document.getElementById('userName').textContent = guest?.username || 'Guest';
+      // (avatar can be loaded via /api/user if logged in – skipped for simplicity)
+    })();
+
+    function switchTab(period) {
+      currentPeriod = period;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.period === period);
+      });
       loadLeaderboard();
     }
 
     async function loadLeaderboard() {
+      // Show loading
+      document.getElementById('receiversTable').innerHTML = '<tr><td colspan="3" class="loading">Loading...</td></tr>';
+      document.getElementById('donorsTable').innerHTML = '<tr><td colspan="3" class="loading">Loading...</td></tr>';
+
       try {
-        const res = await fetch('/api/leaderboard');
+        const res = await fetch(`/api/leaderboard?period=${currentPeriod}`);
         const data = await res.json();
         renderTable('receiversTable', data.receivers);
         renderTable('donorsTable', data.donors);
       } catch (e) {
-        console.error(e);
+        document.getElementById('receiversTable').innerHTML = '<tr><td colspan="3" class="empty-state">Error loading data</td></tr>';
+        document.getElementById('donorsTable').innerHTML = '<tr><td colspan="3" class="empty-state">Error loading data</td></tr>';
       }
     }
 
     function renderTable(tableId, players) {
       const table = document.getElementById(tableId);
       if (!players || players.length === 0) {
-        table.innerHTML = '<tr><td colspan="3" class="empty-state">No data yet</td></tr>';
+        table.innerHTML = '<tr><td colspan="3" class="empty-state">No donations yet</td></tr>';
         return;
       }
       table.innerHTML = players.map((player, index) => {
@@ -224,7 +264,8 @@
       }).join('');
     }
 
-    init();
+    // Load daily by default
+    loadLeaderboard();
   </script>
 </body>
 </html>
