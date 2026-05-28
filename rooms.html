@@ -66,8 +66,8 @@
     .board-gamepass-amount { font-size:1.5rem; }
     .board-gamepass-name { font-size:0.8rem; opacity:0.9; }
     .remove-gp-btn { position:absolute; top:5px; right:5px; background:rgba(239,68,68,0.8); border:none; color:white; border-radius:50%; width:24px; height:24px; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-    .add-board-section { display:flex; gap:10px; margin-top:15px; align-items:center; }
-    .add-board-section input { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; }
+    .add-board-section { display:flex; gap:10px; margin-top:15px; align-items:center; flex-wrap:wrap; }
+    .add-board-section input { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; min-width:120px; }
     .ad-buttons { display:flex; gap:15px; margin-top:15px; }
     .ad-btn { flex:1; padding:16px; background:rgba(139,92,246,0.2); border:2px solid rgba(139,92,246,0.3); border-radius:14px; color:white; cursor:pointer; transition:all 0.3s; text-align:center; }
     .ad-btn:hover { background:rgba(139,92,246,0.3); border-color:#8b5cf6; transform:translateY(-2px); }
@@ -76,6 +76,47 @@
     .loading-spinner { text-align:center; padding:20px; }
     .spinner { border:4px solid rgba(139,92,246,0.2); border-top:4px solid #8b5cf6; border-radius:50%; width:40px; height:40px; animation:spin 0.8s linear infinite; margin:0 auto; }
     @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ---- Ad message in chat (golden) ---- */
+    .ad-msg .msg-content {
+      background: linear-gradient(135deg, #3b2f1e, #5a4a2c) !important;
+      border: 2px solid #ffd700 !important;
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
+    }
+    .ad-msg .msg-username {
+      color: #ffd700 !important;
+    }
+    .ad-mini-board {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .ad-mini-board-item {
+      background: #22c55e;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .ad-mini-board-item:hover {
+      background: #16a34a;
+    }
+
+    /* ---- Zig-zag floating cloud (for dashboard) ---- */
+    @keyframes cloudZigZag {
+      0%   { top: -100px; left: 10%; opacity: 0; }
+      5%   { top: 5%; left: 10%; opacity: 1; }
+      25%  { top: 20%; left: 80%; }
+      50%  { top: 50%; left: 20%; }
+      75%  { top: 70%; left: 70%; }
+      90%  { top: 85%; left: 30%; opacity: 1; }
+      100% { top: 100vh; left: 50%; opacity: 0; }
+    }
+
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -160,11 +201,12 @@
     <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
   </div>
 
-  <!-- Board Modal -->
+  <!-- Board Modal (with manual price) -->
   <div class="modal" id="boardModal">
     <h2>🎁 My Board</h2>
     <div class="add-board-section">
-      <input type="text" id="newGamepassId" placeholder="Enter Gamepass Asset ID">
+      <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
+      <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
       <button class="send-btn" onclick="addGamepassToBoard()">Add</button>
     </div>
     <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
@@ -174,18 +216,18 @@
     <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closeBoardModal()">Close</button>
   </div>
 
-  <!-- Advertise Modal -->
+  <!-- Advertise Modal (unchanged) -->
   <div class="modal" id="adModal">
     <h2>📢 Advertise Your Board</h2>
-    <p style="color:#a0a0b0; margin-bottom:20px;">Your donation board will float across everyone's screen. Choose a tier:</p>
+    <p style="color:#a0a0b0; margin-bottom:20px;">Your donation board will appear in most public rooms and as a floating cloud. Choose a tier:</p>
     <div class="ad-buttons">
       <button class="ad-btn" onclick="purchaseAdFromRoom('5k')">
         <span class="tier">5,000 Robux</span>
-        <span class="shows">1 Display</span>
+        <span class="shows">1 Broadcast + 1 Cloud</span>
       </button>
       <button class="ad-btn" onclick="purchaseAdFromRoom('10k')">
         <span class="tier">10,000 Robux</span>
-        <span class="shows">3 Displays</span>
+        <span class="shows">3 Broadcasts + 3 Clouds</span>
       </button>
     </div>
     <div id="adPurchaseStatus" style="margin-top:15px;"></div>
@@ -211,6 +253,8 @@
     let currentRoom = null;
     let roomType = 'Public';
     let selectedReceiver = null;
+    let lastAdCheck = Date.now();
+    let adPollInterval = null;
 
     function authHeaders() {
       const h = { 'Content-Type': 'application/json' };
@@ -391,6 +435,12 @@
           </div>
         `;
       }).join('');
+
+      // Start polling for ad broadcasts
+      if (adPollInterval) clearInterval(adPollInterval);
+      lastAdCheck = Date.now();
+      checkAdBroadcasts();
+      adPollInterval = setInterval(checkAdBroadcasts, 10000);
     }
 
     function openDonate(playerId) {
@@ -424,13 +474,14 @@
       }
     }
 
-    function addChatMessage(username, text, color='#a78bfa') {
+    function addChatMessage(username, text, color='#a78bfa', extraClass='') {
       const chatBox = document.getElementById('chatBox');
       const msgDiv = document.createElement('div');
       msgDiv.className = 'chat-msg';
+      if (extraClass) msgDiv.classList.add(extraClass);
       msgDiv.innerHTML = `
         <div class="chat-pfp"></div>
-        <div class="msg-content">
+        <div class="msg-content ${extraClass}">
           <div class="msg-username" style="color:${color}">${username}</div>
           <div>${text}</div>
         </div>`;
@@ -439,6 +490,7 @@
     }
 
     async function leaveRoom() {
+      if (adPollInterval) clearInterval(adPollInterval);
       await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
       currentRoom = null;
       document.getElementById('roomsListPage').style.display = 'block';
@@ -456,7 +508,7 @@
       input.value = '';
     }
 
-    // ========== BOARD (Manual Add/Remove) ==========
+    // ---------- BOARD (manual add with price) ----------
     function renderBoard() {
       const grid = document.getElementById('boardGamepassGrid');
       const board = userData.board || [];
@@ -467,7 +519,7 @@
       grid.innerHTML = board.map(gp => `
         <div class="board-gamepass-btn" style="position:relative;">
           <button class="remove-gp-btn" onclick="removeGamepassFromBoard('${gp.id}')">✕</button>
-          <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price || '?'}</span>
+          <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price}</span>
           <span class="board-gamepass-name" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">${gp.name || 'Gamepass'}</span>
         </div>
       `).join('');
@@ -475,20 +527,25 @@
 
     async function addGamepassToBoard() {
       const assetId = document.getElementById('newGamepassId').value.trim();
-      if (!assetId) return;
+      const price = parseInt(document.getElementById('newGamepassPrice').value);
+      if (!assetId || !price || price <= 0) {
+        document.getElementById('boardAddStatus').innerHTML = '<span style="color:#f87171;">Enter valid Asset ID and Robux amount</span>';
+        return;
+      }
       const status = document.getElementById('boardAddStatus');
       status.innerHTML = '<span style="color:#fbbf24;">Adding...</span>';
       try {
         const res = await fetch('/api/board/add', {
           method: 'POST',
           headers: authHeaders(),
-          body: JSON.stringify({ assetId })
+          body: JSON.stringify({ assetId, price })
         });
         const data = await res.json();
         if (data.success) {
           userData.board = data.board;
           renderBoard();
           document.getElementById('newGamepassId').value = '';
+          document.getElementById('newGamepassPrice').value = '';
           status.innerHTML = '<span style="color:#4ade80;">✅ Added!</span>';
         } else {
           status.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
@@ -514,7 +571,6 @@
 
     async function showBoard() {
       if (!userData) return;
-      // Refresh user data to get latest board
       if (token) {
         const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
         if (res.ok) userData = await res.json();
@@ -524,7 +580,31 @@
       document.getElementById('boardModal').style.display = 'block';
     }
 
-    // ========== ADVERTISE FROM ROOM ==========
+    // ---------- AD BROADCAST POLLING ----------
+    async function checkAdBroadcasts() {
+      if (!currentRoom || !currentRoom.id) return;
+      try {
+        const res = await fetch(`/api/rooms/${currentRoom.id}/ad-broadcasts?since=${lastAdCheck}`);
+        const broadcasts = await res.json();
+        lastAdCheck = Date.now();
+
+        for (const b of broadcasts) {
+          const boardItems = (b.board || []).map(gp => 
+            `<span class="ad-mini-board-item" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price} ${gp.name}</span>`
+          ).join('');
+
+          const adContent = `
+            <div>
+              <strong>📢 ${b.advertiserName} wants your support!</strong>
+              <div class="ad-mini-board">${boardItems}</div>
+            </div>
+          `;
+          addChatMessage(b.advertiserName, adContent, '#ffd700', 'ad-msg');
+        }
+      } catch (e) {}
+    }
+
+    // ---------- PURCHASE AD ----------
     async function purchaseAdFromRoom(tier) {
       if (!token) {
         alert('Login required');
@@ -540,7 +620,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          statusDiv.innerHTML = '<p style="color:#4ade80;">✅ Ad purchased successfully! It will appear on dashboards soon.</p>';
+          statusDiv.innerHTML = '<p style="color:#4ade80;">✅ Ad purchased successfully! Your board will appear soon.</p>';
           userData.ad = data.ad;
         } else {
           statusDiv.innerHTML = `<p style="color:#f87171;">❌ ${data.error}</p>`;
