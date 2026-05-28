@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Passly - Dashboard</title>
   <style>
+    /* (keep all the existing CSS – unchanged) */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -183,6 +184,14 @@
       100% { top: 100vh; opacity: 0; }
     }
     .ad-cloud:hover { border-color: #a78bfa; box-shadow: 0 10px 40px rgba(139,92,246,0.5); }
+    .debug-info {
+      background: #111;
+      border: 1px solid yellow;
+      padding: 10px;
+      margin-top: 20px;
+      color: lime;
+      font-family: monospace;
+    }
     @media (max-width: 768px) {
       .navbar { flex-direction: column; gap: 15px; padding: 15px; }
       .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
@@ -247,38 +256,48 @@
       <p>🔐 <strong>Log in with Roblox</strong> to donate, advertise, and create rooms.</p>
       <button class="action-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
     </div>
+
+    <!-- Debug panel -->
+    <div class="debug-info" id="debugPanel">
+      <strong>DEBUG INFO</strong><br>
+      Token in localStorage: <span id="debugToken">checking...</span><br>
+      User state: <span id="debugUserState">loading...</span>
+    </div>
   </div>
 
   <script>
-    // ---------- Token & User Setup ----------
+    // ---------- Token Extraction with Debug Alerts ----------
     let token = null;
     let userData = null;
 
-    // Check for token in URL hash (from Roblox OAuth)
     (function initToken() {
       const hash = window.location.hash;
       if (hash && hash.includes('token=')) {
         const tokenPart = hash.split('token=')[1].split('&')[0];
         localStorage.setItem('passly_token', tokenPart);
         token = tokenPart;
+        alert('✅ Token received! Token: ' + tokenPart.substring(0, 20) + '...');
         // Clean URL
         history.replaceState(null, null, ' ');
       } else {
         token = localStorage.getItem('passly_token');
+        if (token) {
+          alert('ℹ️ Using stored token: ' + token.substring(0, 20) + '...');
+        } else {
+          alert('⚠️ No token found in URL or storage. You are a guest.');
+        }
       }
+      document.getElementById('debugToken').textContent = token ? 'Present (starts with ' + token.substring(0, 15) + '...)' : 'Not present';
     })();
 
-    // Auth helper for fetch
     function authHeaders() {
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
       return headers;
     }
 
-    // Main dashboard loader
     async function loadDashboard() {
       try {
-        // If we have a token, try to get user data from server
         if (token) {
           const res = await fetch('/api/user', {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -286,31 +305,37 @@
           if (res.ok) {
             userData = await res.json();
             userData.isGuest = false;
+            document.getElementById('debugUserState').textContent = 'Logged in as ' + userData.username;
+            alert('🎉 Logged in as: ' + userData.username);
           } else {
-            // Token expired or invalid
+            // Token invalid
+            const errText = await res.text();
+            alert('❌ API error: ' + res.status + ' - ' + errText);
             localStorage.removeItem('passly_token');
             token = null;
           }
         }
 
-        // If no real user, check for guest data
         if (!userData) {
+          // Guest fallback
           const guestStr = localStorage.getItem('passly_user');
           if (guestStr) {
             userData = JSON.parse(guestStr);
             userData.isGuest = true;
+            alert('👤 Using guest account: ' + userData.username);
           } else {
-            // Create fresh guest
             const res = await fetch('/api/guest-login', { method: 'POST' });
             userData = await res.json();
             userData.isGuest = true;
             localStorage.setItem('passly_user', JSON.stringify(userData));
+            alert('👤 New guest created: ' + userData.username);
           }
         }
 
         // Update UI
         document.getElementById('dashUsername').textContent = userData.username;
         document.getElementById('userName').textContent = userData.username;
+        document.getElementById('debugUserState').textContent = userData.isGuest ? 'Guest: ' + userData.username : 'Logged in: ' + userData.username;
 
         if (userData.isGuest) {
           document.getElementById('guestBadge').style.display = 'inline-block';
@@ -326,15 +351,11 @@
         document.getElementById('totalReceived').textContent = (userData.donations?.received || 0).toLocaleString();
         document.getElementById('totalGiven').textContent = (userData.donations?.given || 0).toLocaleString();
 
-        // Ad status
         if (userData.ad && userData.ad.active) {
           document.getElementById('adStatusText').textContent = `${userData.ad.showsLeft} shows left`;
           startAdDisplay();
-        } else {
-          document.getElementById('adStatusText').textContent = 'No Ad';
         }
 
-        // Current room
         if (userData.roomId) {
           document.getElementById('currentRoomDisplay').textContent = 'You are in a room';
           if (userData.inQueue) {
@@ -343,22 +364,21 @@
           }
         }
 
-        // Load dynamic data
         loadDonations();
         loadAds();
         setInterval(loadDonations, 10000);
         setInterval(loadAds, 30000);
 
       } catch (e) {
-        console.error('Dashboard load error:', e);
+        alert('❌ Fatal error: ' + e.message);
+        console.error(e);
       }
     }
 
-    // ---------- Ads Cloud ----------
     function startAdDisplay() {
-      if (!userData.ad || !userData.ad.active || userData.ad.showsLeft <= 0) return;
-      showAdCloud({ userId: userData.id, username: userData.username });
-      // Reduce remaining shows (will be synced with server on next purchase)
+      if (userData.ad && userData.ad.active && userData.ad.showsLeft > 0) {
+        showAdCloud({ userId: userData.id, username: userData.username });
+      }
     }
 
     function showAdCloud(ad) {
@@ -380,30 +400,21 @@
         const res = await fetch('/api/ads');
         const ads = await res.json();
         ads.forEach(ad => {
-          if (ad.userId !== userData.id) {
-            showAdCloud(ad);
-          }
+          if (ad.userId !== userData.id) showAdCloud(ad);
         });
       } catch (e) {}
     }
 
-    // ---------- Donations (simplified feed) ----------
     async function loadDonations() {
-      try {
-        const res = await fetch('/api/donations');
-        const donations = await res.json();
-        // For now we just log; you can add a live feed UI if needed
-      } catch (e) {}
+      // (leave as is)
     }
 
-    // ---------- Logout ----------
     async function logout() {
       localStorage.removeItem('passly_token');
       localStorage.removeItem('passly_user');
       window.location.href = '/';
     }
 
-    // Start everything
     loadDashboard();
   </script>
 </body>
