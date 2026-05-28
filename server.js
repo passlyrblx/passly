@@ -43,7 +43,7 @@ const ROBLOX_CONFIG = {
   authUrl: 'https://apis.roblox.com/oauth/v1/authorize',
   tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
   userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo',
-  usersApi: 'https://users.roblox.com/v1/users'   // for username/avatar
+  usersApi: 'https://users.roblox.com/v1/users'
 };
 
 const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K };
@@ -73,7 +73,7 @@ app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html'))
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ========== OAUTH ==========
+// ========== OAUTH (fetch full Roblox profile) ==========
 app.get('/auth/roblox', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   oauthStates.set(state, Date.now());
@@ -106,22 +106,21 @@ app.get('/auth/roblox/callback', async (req, res) => {
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
 
-    // Get user ID from userinfo endpoint (only sub is returned with openid)
+    // Get user ID from userinfo
     const userInfoRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
       headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
     });
     const userId = userInfoRes.data.sub;
-    if (!userId) throw new Error('No user ID returned');
+    if (!userId) throw new Error('No user ID');
 
-    // Fetch full profile from Roblox public users API
+    // Fetch full profile from Roblox public API
     const profileRes = await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`);
     const profile = profileRes.data;
     const robloxUsername = profile.name || 'Player';
     const robloxDisplayName = profile.displayName || robloxUsername;
-    // Construct avatar URL (headshot thumbnail)
     const avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
 
-    // Save/update user in JSON database
+    // Save/update user
     if (!users[userId]) {
       users[userId] = {
         id: userId,
@@ -142,18 +141,17 @@ app.get('/auth/roblox/callback', async (req, res) => {
     }
     saveUsers();
 
-    // JWT payload
+    // JWT
     const displayName = users[userId].customDisplayName || robloxDisplayName;
     const token = jwt.sign(
       { id: userId, username: robloxUsername, displayName, avatarUrl },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-
     res.redirect(`/dashboard#token=${token}`);
   } catch (err) {
     console.error('OAuth error:', err.response?.data || err.message);
-    res.send('<h1>Login Failed</h1><p>Could not fetch your Roblox profile. Please try again.</p><a href="/">Go back</a>');
+    res.send('<h1>Login Failed</h1><p>Could not fetch profile. Please try again.</p><a href="/">Go back</a>');
   }
 });
 
@@ -197,11 +195,26 @@ app.get('/api/rooms', (req, res) => res.json(Object.values(rooms)));
 app.post('/api/rooms/create', authenticateToken, (req, res) => {
   const { name, desc, type } = req.body;
   if (!name) return res.status(400).json({ error: 'Room name required' });
+
+  // Prevent creating a new room if the user already has one
+  const alreadyInRoom = Object.values(rooms).some(r =>
+    r.createdBy === req.user.id || r.players.includes(req.user.id)
+  );
+  if (alreadyInRoom) {
+    return res.status(400).json({ error: 'You must leave your current room before creating a new one.' });
+  }
+
   const roomId = crypto.randomBytes(8).toString('hex');
   rooms[roomId] = {
-    id: roomId, name, desc: desc||'', type: type||'Public',
-    players: [], queue: [], maxPlayers: 18,
-    createdBy: req.user.id, createdAt: new Date().toISOString()
+    id: roomId,
+    name,
+    desc: desc || '',
+    type: type || 'Public',
+    players: [],
+    queue: [],
+    maxPlayers: 18,
+    createdBy: req.user.id,
+    createdAt: new Date().toISOString()
   };
   saveRooms();
   res.json(rooms[roomId]);
@@ -211,6 +224,7 @@ app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   const room = rooms[req.params.roomId];
   if (!room) return res.status(404).json({ error: 'Room not found' });
   const userId = req.user.id;
+  // Leave previous room
   if (users[userId]?.roomId && rooms[users[userId].roomId]) {
     const old = rooms[users[userId].roomId];
     old.players = old.players.filter(id => id !== userId);
@@ -220,13 +234,15 @@ app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(userId)) {
       room.queue.push(userId);
-      users[userId].roomId = room.id; users[userId].inQueue = true;
+      users[userId].roomId = room.id;
+      users[userId].inQueue = true;
       saveUsers(); saveRooms();
       return res.json({ queued: true, position: room.queue.length });
     }
   }
   room.players.push(userId);
-  users[userId].roomId = room.id; users[userId].inQueue = false;
+  users[userId].roomId = room.id;
+  users[userId].inQueue = false;
   saveUsers(); saveRooms();
   res.json({ success: true, room });
 });
@@ -240,7 +256,11 @@ app.post('/api/rooms/leave', authenticateToken, (req, res) => {
     if (room.queue.length && room.players.length < room.maxPlayers) room.players.push(room.queue.shift());
     saveRooms();
   }
-  if (users[userId]) { users[userId].roomId = null; users[userId].inQueue = false; saveUsers(); }
+  if (users[userId]) {
+    users[userId].roomId = null;
+    users[userId].inQueue = false;
+    saveUsers();
+  }
   res.json({ success: true });
 });
 
@@ -299,6 +319,7 @@ app.post('/api/delete-ad', authenticateToken, (req, res) => {
 
 app.get('/api/ads', (req, res) => res.json(Object.values(ads).filter(a => a.active && a.showsLeft>0)));
 
+// ========== LEADERBOARD ==========
 app.get('/api/leaderboard', (req, res) => {
   const all = Object.values(users);
   res.json({
@@ -307,6 +328,7 @@ app.get('/api/leaderboard', (req, res) => {
   });
 });
 
+// ========== GUEST ==========
 app.post('/api/guest-login', (req, res) => {
   const guestNum = Math.floor(10000 + Math.random() * 90000);
   res.json({ username: `Guest#${guestNum}`, isGuest: true });
