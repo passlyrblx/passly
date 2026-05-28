@@ -12,209 +12,60 @@
       color: white;
       min-height: 100vh;
     }
-    .navbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 15px 30px;
-      background: rgba(15,15,30,0.95);
-      border-bottom: 1px solid rgba(139,92,246,0.2);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      backdrop-filter: blur(10px);
-    }
-    .nav-logo {
-      font-size: 1.8rem;
-      font-weight: bold;
-      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .nav-links { display: flex; gap: 25px; }
-    .nav-links a {
-      color: #b0b0c0;
-      text-decoration: none;
-      font-weight: 500;
-      transition: color 0.3s;
-      font-size: 0.95rem;
-    }
-    .nav-links a:hover { color: #a78bfa; }
-    .user-box {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: rgba(139,92,246,0.1);
-      padding: 8px 16px;
-      border-radius: 12px;
-    }
-    .user-avatar {
-      width: 35px;
-      height: 35px;
-      border-radius: 50%;
-      background: #8b5cf6;
-      background-size: cover;
-    }
-    .user-name { font-weight: 600; color: #c4b5fd; }
-    .main-content { padding: 30px; max-width: 600px; margin: 0 auto; }
-    h1 { font-size: 2.5rem; margin-bottom: 30px; text-align: center; }
-    .profile-card {
-      background: rgba(20,20,40,0.6);
-      border-radius: 20px;
-      padding: 30px;
-      border: 1px solid rgba(139,92,246,0.2);
-      margin-bottom: 20px;
-    }
-    .profile-header {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    .profile-avatar {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: #8b5cf6;
-      background-size: cover;
-      border: 3px solid rgba(139,92,246,0.5);
-    }
-    .profile-info h2 { font-size: 1.5rem; margin-bottom: 5px; }
-    .profile-info p { color: #a0a0b0; font-size: 0.9rem; margin-bottom: 4px; }
-    .guest-badge {
-      background: rgba(139,92,246,0.2);
-      padding: 4px 12px;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      color: #a78bfa;
-      display: inline-block;
-      margin-top: 5px;
-    }
-    .status-dot {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      margin-right: 5px;
-    }
-    .dot-online { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
-    .dot-offline { background: #000; border: 1px solid #444; }
-    .settings-group { margin-bottom: 25px; }
-    .settings-label {
-      display: block;
-      color: #a78bfa;
-      margin-bottom: 10px;
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-    .settings-select {
-      width: 100%;
-      padding: 12px;
-      background: rgba(30,30,50,0.8);
-      border: 1px solid rgba(139,92,246,0.2);
-      border-radius: 10px;
-      color: white;
-      font-size: 1rem;
-      outline: none;
-      cursor: pointer;
-    }
-    .settings-select:focus { border-color: #8b5cf6; }
-    .save-btn {
-      width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-      border: none;
-      border-radius: 12px;
-      color: white;
-      font-size: 1.1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s;
-      margin-bottom: 20px;
-    }
-    .save-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(139,92,246,0.3); }
-    .ad-section {
-      background: rgba(20,20,40,0.6);
-      border-radius: 20px;
-      padding: 30px;
-      border: 1px solid rgba(139,92,246,0.2);
-    }
-    .ad-section h2 { margin-bottom: 15px; color: #a78bfa; }
-    .ad-section p { color: #a0a0b0; margin-bottom: 20px; line-height: 1.5; }
-    .ad-buttons { display: flex; gap: 15px; margin-bottom: 15px; }
-    .ad-btn {
-      flex: 1;
-      padding: 16px;
-      background: rgba(139,92,246,0.2);
-      border: 2px solid rgba(139,92,246,0.3);
-      border-radius: 14px;
-      color: white;
-      cursor: pointer;
-      transition: all 0.3s;
-      text-align: center;
-    }
-    .ad-btn:hover {
-      background: rgba(139,92,246,0.3);
-      border-color: #8b5cf6;
-      transform: translateY(-2px);
-    }
-    .ad-btn .tier { font-size: 1.4rem; font-weight: bold; color: #c4b5fd; display: block; }
-    .ad-btn .shows { font-size: 0.85rem; color: #a78bfa; display: block; margin-top: 5px; }
-    .ad-status {
-      background: rgba(30,30,50,0.6);
-      border-radius: 10px;
-      padding: 15px;
-      margin-top: 15px;
-      display: none;
-    }
-    .delete-ad-btn {
-      width: 100%;
-      padding: 12px;
-      background: rgba(239,68,68,0.2);
-      border: 1px solid rgba(239,68,68,0.3);
-      border-radius: 10px;
-      color: #fca5a5;
-      cursor: pointer;
-      margin-top: 10px;
-      display: none;
-      transition: all 0.3s;
-    }
-    .delete-ad-btn:hover { background: rgba(239,68,68,0.3); }
-    .save-message {
-      background: rgba(34,197,94,0.1);
-      border: 1px solid rgba(34,197,94,0.3);
-      border-radius: 10px;
-      padding: 12px;
-      color: #4ade80;
-      text-align: center;
-      margin-top: 15px;
-      display: none;
-    }
-    .login-prompt {
-      background: rgba(139,92,246,0.1);
-      border: 1px solid rgba(139,92,246,0.3);
-      border-radius: 12px;
-      padding: 15px;
-      margin: 20px 0;
-      text-align: center;
-    }
-    .custom-name-input {
-      width: 100%;
-      padding: 12px;
-      background: rgba(30,30,50,0.8);
-      border: 1px solid rgba(139,92,246,0.2);
-      border-radius: 10px;
-      color: white;
-      font-size: 1rem;
-      outline: none;
-      margin-bottom: 15px;
-    }
-    .custom-name-input:focus { border-color: #8b5cf6; }
-    @media (max-width: 768px) {
-      .navbar { flex-direction: column; gap: 15px; padding: 15px; }
-      .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
-      h1 { font-size: 1.8rem; }
-      .ad-buttons { flex-direction: column; }
+    .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
+    .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .nav-links { display:flex; gap:25px; }
+    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
+    .nav-links a:hover { color:#a78bfa; }
+    .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,0.1); padding:8px 16px; border-radius:12px; }
+    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; }
+    .user-name { font-weight:600; color:#c4b5fd; }
+    .main-content { padding:30px; max-width:600px; margin:0 auto; }
+    h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
+    .profile-card { background: rgba(20,20,40,0.6); border-radius: 20px; padding: 30px; border: 1px solid rgba(139,92,246,0.2); margin-bottom: 20px; }
+    .profile-header { display:flex; align-items:center; gap:20px; margin-bottom:30px; }
+    .profile-avatar { width:80px; height:80px; border-radius:50%; background:#8b5cf6; background-size:cover; border:3px solid rgba(139,92,246,0.5); }
+    .profile-info h2 { font-size:1.5rem; margin-bottom:5px; }
+    .profile-info p { color:#a0a0b0; font-size:0.9rem; }
+    .guest-badge { background:rgba(139,92,246,0.2); padding:4px 12px; border-radius:8px; font-size:0.8rem; color:#a78bfa; display:inline-block; margin-top:5px; }
+    .status-dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:5px; }
+    .dot-online { background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,0.5); }
+    .dot-offline { background:#000; border:1px solid #444; }
+    .settings-group { margin-bottom:25px; }
+    .settings-label { display:block; color:#a78bfa; margin-bottom:10px; font-weight:600; font-size:0.95rem; }
+    .settings-select { width:100%; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; font-size:1rem; outline:none; cursor:pointer; }
+    .settings-select:focus { border-color:#8b5cf6; }
+    .save-btn { width:100%; padding:14px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:12px; color:white; font-size:1.1rem; font-weight:600; cursor:pointer; transition:all 0.3s; margin-bottom:20px; }
+    .save-btn:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(139,92,246,0.3); }
+    .ad-section { background:rgba(20,20,40,0.6); border-radius:20px; padding:30px; border:1px solid rgba(139,92,246,0.2); margin-bottom:20px; }
+    .ad-section h2 { margin-bottom:15px; color:#a78bfa; }
+    .ad-section p { color:#a0a0b0; margin-bottom:20px; line-height:1.5; }
+    .ad-buttons { display:flex; gap:15px; margin-bottom:15px; }
+    .ad-btn { flex:1; padding:16px; background:rgba(139,92,246,0.2); border:2px solid rgba(139,92,246,0.3); border-radius:14px; color:white; cursor:pointer; transition:all 0.3s; text-align:center; }
+    .ad-btn:hover { background:rgba(139,92,246,0.3); border-color:#8b5cf6; transform:translateY(-2px); }
+    .ad-btn .tier { font-size:1.4rem; font-weight:bold; color:#c4b5fd; display:block; }
+    .ad-btn .shows { font-size:0.85rem; color:#a78bfa; display:block; margin-top:5px; }
+    .ad-status { background:rgba(30,30,50,0.6); border-radius:10px; padding:15px; margin-top:15px; display:none; }
+    .delete-ad-btn { width:100%; padding:12px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.3); border-radius:10px; color:#fca5a5; cursor:pointer; margin-top:10px; display:none; transition:all 0.3s; }
+    .delete-ad-btn:hover { background:rgba(239,68,68,0.3); }
+    .save-message { background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px; color:#4ade80; text-align:center; margin-top:15px; display:none; }
+    .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin:20px 0; text-align:center; }
+    .custom-name-input { width:100%; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; font-size:1rem; outline:none; margin-bottom:15px; }
+    .custom-name-input:focus { border-color:#8b5cf6; }
+    .search-section { background:rgba(20,20,40,0.6); border-radius:20px; padding:20px; border:1px solid rgba(139,92,246,0.2); margin-bottom:20px; }
+    .search-input { width:100%; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; font-size:1rem; outline:none; margin-bottom:10px; }
+    .search-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:12px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
+    .search-result { margin-top:15px; }
+    .search-result .board-gamepass-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-top:10px; }
+    .search-result .board-gamepass-btn { background:#22c55e; color:white; border:none; border-radius:14px; padding:18px 10px; font-weight:bold; font-size:1rem; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px; }
+    .search-result .board-gamepass-btn:hover { background:#16a34a; }
+    .board-gamepass-amount { font-size:1.2rem; }
+    .board-gamepass-name { font-size:0.8rem; opacity:0.9; }
+    @media (max-width:768px) {
+      .navbar { flex-direction:column; gap:15px; padding:15px; }
+      .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
+      h1 { font-size:1.8rem; }
+      .ad-buttons { flex-direction:column; }
     }
   </style>
 </head>
@@ -236,6 +87,15 @@
   <div class="main-content">
     <h1>👤 Profile Settings</h1>
 
+    <!-- SEARCH OTHER PLAYERS -->
+    <div class="search-section">
+      <h3 style="color:#a78bfa; margin-bottom:10px;">🔍 Find a Player</h3>
+      <input type="text" id="searchUsername" class="search-input" placeholder="Enter Roblox username">
+      <button class="search-btn" onclick="searchPlayer()">Search</button>
+      <div id="searchResult" class="search-result"></div>
+    </div>
+
+    <!-- PROFILE CARD -->
     <div class="profile-card">
       <div class="profile-header">
         <div class="profile-avatar" id="profileAvatar"></div>
@@ -258,9 +118,7 @@
       <div class="settings-group">
         <label class="settings-label">Custom Display Name</label>
         <input type="text" class="custom-name-input" id="customDisplayName" placeholder="Leave blank to use Roblox name" maxlength="20">
-        <p style="color:#a0a0b0; font-size:0.8rem;">This name will appear everywhere on Passly instead of your Roblox display name.</p>
       </div>
-
       <div class="settings-group">
         <label class="settings-label">Show Booth (Gamepass Board)</label>
         <select class="settings-select" id="showBooth">
@@ -268,7 +126,6 @@
           <option value="false">❌ No - Hide my board</option>
         </select>
       </div>
-
       <div class="settings-group">
         <label class="settings-label">Online Status Display</label>
         <select class="settings-select" id="statusDotSelect" onchange="updateStatusPreview()">
@@ -277,7 +134,6 @@
           <option value="always-black">⚫ Always Black - Never show online status</option>
         </select>
       </div>
-
       <div class="settings-group">
         <label class="settings-label">Show Room ID on Profile</label>
         <select class="settings-select" id="showRoomId">
@@ -285,26 +141,24 @@
           <option value="false">❌ No - Hide my current room</option>
         </select>
       </div>
-
       <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
       <div class="save-message" id="saveMessage">✅ Profile saved successfully!</div>
     </div>
 
+    <!-- AD SECTION -->
     <div class="ad-section">
       <h2>📢 Advertise Your Board</h2>
-      <p>Purchase an advertisement to show your donation board to all Passly users. Your ad will float across everyone's screen!</p>
-
+      <p>Purchase an advertisement to show your donation board to all Passly users.</p>
       <div class="ad-buttons">
         <button class="ad-btn" onclick="requireLogin(() => purchaseAd('5k'))">
           <span class="tier">5,000 Robux</span>
-          <span class="shows">1 Ad Display</span>
+          <span class="shows">1 Broadcast + 1 Cloud</span>
         </button>
         <button class="ad-btn" onclick="requireLogin(() => purchaseAd('10k'))">
           <span class="tier">10,000 Robux</span>
-          <span class="shows">3 Ad Displays</span>
+          <span class="shows">1 Broadcast + 3 Clouds</span>
         </button>
       </div>
-
       <div class="ad-status" id="adStatusBox"></div>
       <button class="delete-ad-btn" id="deleteAdBtn" onclick="requireLogin(() => deleteAd())">🗑️ Delete Current Ad</button>
     </div>
@@ -345,7 +199,6 @@
           }
         } catch (e) {}
       }
-
       if (!userData) {
         const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
         if (guest && guest.username) {
@@ -360,28 +213,21 @@
         document.getElementById('loginPrompt').style.display = 'block';
       }
 
-      // Update UI
       document.getElementById('userName').textContent = userData.displayName || userData.username;
       document.getElementById('profileName').textContent = userData.displayName || userData.username;
       document.getElementById('robloxUsernameDisplay').textContent = `Roblox: @${userData.robloxUsername || 'N/A'}`;
 
-      // Avatar
       if (userData.avatarUrl) {
         document.getElementById('userAvatar').style.backgroundImage = `url(${userData.avatarUrl})`;
-        document.getElementById('userAvatar').style.backgroundSize = 'cover';
         document.getElementById('profileAvatar').style.backgroundImage = `url(${userData.avatarUrl})`;
-        document.getElementById('profileAvatar').style.backgroundSize = 'cover';
       }
 
-      // Profile settings
       if (userData.profile) {
         document.getElementById('showBooth').value = userData.profile.showBooth.toString();
         document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online';
         document.getElementById('showRoomId').value = userData.profile.showRoomId.toString();
       }
-
       document.getElementById('customDisplayName').value = userData.customDisplayName || '';
-
       updateStatusPreview();
       updateAdUI();
     }
@@ -412,9 +258,7 @@
         headers: authHeaders(),
         body: JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName })
       });
-
       if (res.ok) {
-        // Update local userData
         userData.profile = { showBooth, statusDot, showRoomId };
         userData.customDisplayName = customDisplayName;
         userData.displayName = customDisplayName || userData.robloxDisplayName;
@@ -427,11 +271,12 @@
     }
 
     async function purchaseAd(tier) {
+      const message = prompt('Enter a short message (optional):');
       try {
         const res = await fetch('/api/purchase-ad', {
           method: 'POST',
           headers: authHeaders(),
-          body: JSON.stringify({ tier })
+          body: JSON.stringify({ tier, message })
         });
         const data = await res.json();
         if (data.success) {
@@ -448,10 +293,7 @@
 
     async function deleteAd() {
       if (!confirm('Delete your current ad?')) return;
-      await fetch('/api/delete-ad', {
-        method: 'POST',
-        headers: authHeaders()
-      });
+      await fetch('/api/delete-ad', { method: 'POST', headers: authHeaders() });
       userData.ad = null;
       updateAdUI();
     }
@@ -464,13 +306,51 @@
         statusBox.innerHTML = `
           <strong>📢 Active Ad</strong><br>
           Tier: ${userData.ad.tier.toLocaleString()} Robux<br>
-          Shows Left: ${userData.ad.showsLeft}<br>
-          Purchased: ${new Date(userData.ad.purchasedAt).toLocaleDateString()}
+          Clouds Left: ${userData.ad.showsLeft}<br>
+          ${userData.ad.message ? `Message: "${userData.ad.message}"` : ''}
         `;
         deleteBtn.style.display = 'block';
       } else {
         statusBox.style.display = 'none';
         deleteBtn.style.display = 'none';
+      }
+    }
+
+    // ---------- SEARCH PLAYER ----------
+    async function searchPlayer() {
+      const username = document.getElementById('searchUsername').value.trim();
+      const resultDiv = document.getElementById('searchResult');
+      if (!username) { resultDiv.innerHTML = '<p style="color:#f87171;">Enter a username</p>'; return; }
+
+      resultDiv.innerHTML = '<p style="color:#fbbf24;">Searching...</p>';
+      try {
+        const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`);
+        const data = await res.json();
+        if (data.error) {
+          resultDiv.innerHTML = `<p style="color:#f87171;">${data.error}</p>`;
+          return;
+        }
+        const boardHtml = data.board.length === 0
+          ? '<p style="color:#a0a0b0;">Board hidden or empty.</p>'
+          : data.board.map(gp => `
+              <button class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">
+                <span class="board-gamepass-amount">R$ ${gp.price}</span>
+                <span class="board-gamepass-name">${gp.name}</span>
+              </button>
+            `).join('');
+
+        resultDiv.innerHTML = `
+          <div style="display:flex; align-items:center; gap:15px; margin-bottom:10px;">
+            <div style="width:50px; height:50px; border-radius:50%; background:url(${data.avatarUrl}) center/cover;"></div>
+            <div>
+              <strong>${data.displayName}</strong><br>
+              <span style="color:#a0a0b0;">@${data.robloxUsername}</span>
+            </div>
+          </div>
+          <div class="board-gamepass-grid">${boardHtml}</div>
+        `;
+      } catch (e) {
+        resultDiv.innerHTML = '<p style="color:#f87171;">Error searching player.</p>';
       }
     }
 
