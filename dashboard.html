@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,126 +13,38 @@
       color: white;
       min-height: 100vh;
     }
-    .navbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 15px 30px;
-      background: rgba(15,15,30,0.95);
-      border-bottom: 1px solid rgba(139,92,246,0.2);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      backdrop-filter: blur(10px);
-    }
-    .nav-logo {
-      font-size: 1.8rem;
-      font-weight: bold;
-      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .nav-links { display: flex; gap: 25px; }
-    .nav-links a {
-      color: #b0b0c0;
-      text-decoration: none;
-      font-weight: 500;
-      transition: color 0.3s;
-      font-size: 0.95rem;
-    }
-    .nav-links a:hover { color: #a78bfa; }
-    .user-box {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: rgba(139,92,246,0.1);
-      padding: 8px 16px;
-      border-radius: 12px;
-    }
-    .user-avatar {
-      width: 35px;
-      height: 35px;
-      border-radius: 50%;
-      background: #8b5cf6;
-      background-size: cover;
-    }
-    .user-name { font-weight: 600; color: #c4b5fd; }
-    .main-content { padding: 30px; max-width: 1200px; margin: 0 auto; }
-    .welcome-section { margin-bottom: 40px; }
-    .welcome-section h1 { font-size: 2.5rem; margin-bottom: 10px; }
-    .username-highlight {
-      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .guest-badge {
-      background: rgba(139,92,246,0.2);
-      padding: 4px 12px;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      color: #a78bfa;
-      margin-left: 10px;
-      display: none;
-    }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    .stat-card {
-      background: rgba(20,20,40,0.6);
-      border-radius: 16px;
-      padding: 25px;
-      border: 1px solid rgba(139,92,246,0.2);
-      transition: transform 0.3s;
-    }
-    .stat-card:hover { transform: translateY(-5px); }
-    .stat-value { font-size: 2rem; font-weight: bold; color: #c4b5fd; }
-    .stat-label { color: #a0a0b0; margin-top: 5px; font-size: 0.9rem; }
-    .current-room {
-      background: rgba(20,20,40,0.6);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 30px;
-      border: 1px solid rgba(139,92,246,0.2);
-    }
-    .current-room h3 { color: #a78bfa; margin-bottom: 8px; }
-    .quick-actions { display: flex; gap: 15px; flex-wrap: wrap; }
-    .action-btn {
-      padding: 14px 28px;
-      background: rgba(139,92,246,0.15);
-      border: 1px solid rgba(139,92,246,0.3);
-      border-radius: 12px;
-      color: white;
-      cursor: pointer;
-      transition: all 0.3s;
-      font-size: 1rem;
-      font-weight: 500;
-      text-decoration: none;
-      display: inline-block;
-    }
-    .action-btn:hover {
-      background: rgba(139,92,246,0.25);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(139,92,246,0.2);
-    }
-    .logout-btn { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
-    .logout-btn:hover { background: rgba(239,68,68,0.25); }
-    .login-prompt {
-      background: rgba(139,92,246,0.1);
-      border: 1px solid rgba(139,92,246,0.3);
-      border-radius: 12px;
-      padding: 15px;
-      margin-top: 20px;
-      text-align: center;
-      display: none;
-    }
+    .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
+    .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .nav-links { display:flex; gap:25px; }
+    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
+    .nav-links a:hover { color:#a78bfa; }
+    .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,0.1); padding:8px 16px; border-radius:12px; }
+    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; }
+    .user-name { font-weight:600; color:#c4b5fd; }
+    .main-content { padding:30px; max-width:1200px; margin:0 auto; }
+    .welcome-section { margin-bottom:40px; }
+    .welcome-section h1 { font-size:2.5rem; margin-bottom:10px; }
+    .username-highlight { background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .guest-badge { background:rgba(139,92,246,0.2); padding:4px 12px; border-radius:8px; font-size:0.8rem; color:#a78bfa; margin-left:10px; display:none; }
+    .stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:20px; margin-bottom:30px; }
+    .stat-card { background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); transition:transform 0.3s; }
+    .stat-card:hover { transform:translateY(-5px); }
+    .stat-value { font-size:2rem; font-weight:bold; color:#c4b5fd; }
+    .stat-label { color:#a0a0b0; margin-top:5px; font-size:0.9rem; }
+    .current-room { background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; margin-bottom:30px; border:1px solid rgba(139,92,246,0.2); }
+    .current-room h3 { color:#a78bfa; margin-bottom:8px; }
+    .quick-actions { display:flex; gap:15px; flex-wrap:wrap; }
+    .action-btn { padding:14px 28px; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); border-radius:12px; color:white; cursor:pointer; transition:all 0.3s; font-size:1rem; font-weight:500; text-decoration:none; display:inline-block; }
+    .action-btn:hover { background:rgba(139,92,246,0.25); transform:translateY(-2px); box-shadow:0 8px 25px rgba(139,92,246,0.2); }
+    .logout-btn { background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.3); color:#fca5a5; }
+    .logout-btn:hover { background:rgba(239,68,68,0.25); }
+    .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin-top:20px; text-align:center; display:none; }
+
+    /* ---- Zig-zag floating cloud ---- */
     .ad-cloud {
       position: fixed;
       top: -100px;
-      left: 50%;
-      transform: translateX(-50%);
+      left: 10%;
       background: rgba(30,30,50,0.95);
       border: 2px solid #8b5cf6;
       border-radius: 20px;
@@ -141,20 +54,24 @@
       text-align: center;
       font-size: 1.1rem;
       backdrop-filter: blur(10px);
-      animation: cloudDown 10s linear forwards;
       cursor: pointer;
+      animation: cloudZigZag 12s ease-in-out forwards;
     }
-    @keyframes cloudDown {
-      0% { top: -100px; opacity: 0; }
-      10% { top: 30px; opacity: 1; }
-      90% { top: 80vh; opacity: 1; }
-      100% { top: 100vh; opacity: 0; }
+    @keyframes cloudZigZag {
+      0%   { top: -100px; left: 10%; opacity: 0; }
+      5%   { top: 5%; left: 10%; opacity: 1; }
+      25%  { top: 20%; left: 80%; }
+      50%  { top: 50%; left: 20%; }
+      75%  { top: 70%; left: 70%; }
+      90%  { top: 85%; left: 30%; opacity: 1; }
+      100% { top: 100vh; left: 50%; opacity: 0; }
     }
     .ad-cloud:hover { border-color: #a78bfa; box-shadow: 0 10px 40px rgba(139,92,246,0.5); }
-    @media (max-width: 768px) {
-      .navbar { flex-direction: column; gap: 15px; padding: 15px; }
-      .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
-      .welcome-section h1 { font-size: 1.8rem; }
+
+    @media (max-width:768px) {
+      .navbar { flex-direction:column; gap:15px; padding:15px; }
+      .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
+      .welcome-section h1 { font-size:1.8rem; }
     }
   </style>
 </head>
@@ -301,8 +218,14 @@
     }
 
     function startAdDisplay() {
-      if (userData.ad && userData.ad.active && userData.ad.showsLeft > 0) {
-        showAdCloud(userData.ad);
+      if (!userData.ad || !userData.ad.active || userData.ad.showsLeft <= 0) return;
+      showAdCloud(userData.ad);
+      userData.ad.showsLeft--;
+      if (userData.ad.showsLeft > 0) {
+        setTimeout(() => startAdDisplay(), 10000);
+      } else {
+        document.getElementById('adStatusText').textContent = 'No Ad';
+        userData.ad.active = false;
       }
     }
 
@@ -310,7 +233,6 @@
       const cloud = document.createElement('div');
       cloud.className = 'ad-cloud';
 
-      // Link directly to gamepass if available, otherwise to profile
       let adLink = `https://www.roblox.com/users/${ad.userId}/profile`;
       if (ad.gamepassId) {
         adLink = `https://www.roblox.com/game-pass/${ad.gamepassId}`;
@@ -323,7 +245,7 @@
       cloud.onclick = () => window.open(adLink, '_blank');
 
       document.getElementById('adContainer').appendChild(cloud);
-      setTimeout(() => cloud.remove(), 10500);
+      setTimeout(() => cloud.remove(), 12500); // slightly longer than animation
     }
 
     async function loadAds() {
