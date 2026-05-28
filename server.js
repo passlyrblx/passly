@@ -4,20 +4,17 @@ const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// JWT secret – fixed so tokens survive restarts
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 
-// Create data folder if not exists
+// Create data folder
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
   fs.mkdirSync(path.join(__dirname, 'data'));
 }
 
-// JSON Database files
+// JSON Database
 const DB_USERS = path.join(__dirname, 'data', 'users.json');
 const DB_ROOMS = path.join(__dirname, 'data', 'rooms.json');
 const DB_DONATIONS = path.join(__dirname, 'data', 'donations.json');
@@ -39,7 +36,6 @@ function saveAds() { writeJSON(DB_ADS, ads); }
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 app.use(express.static(path.join(__dirname)));
 
 const ROBLOX_CONFIG = {
@@ -53,15 +49,23 @@ const ROBLOX_CONFIG = {
 
 const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K };
 
-// ========== AUTH MIDDLEWARE ==========
+// In‑memory state store (cleans up after 10 minutes)
+const oauthStates = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, time] of oauthStates) {
+    if (now - time > 600000) oauthStates.delete(key);
+  }
+}, 60000);
+
+// Auth middleware
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No token provided' });
-
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+  if (!token) return res.status(401).json({ error: 'No token' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid token' });
-    req.user = decoded;
+    req.user = user;
     next();
   });
 }
@@ -73,25 +77,11 @@ app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html'))
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ========== API: check token ==========
-app.get('/api/check-auth', authenticateToken, (req, res) => {
-  res.json({ authenticated: true, user: req.user });
-});
-
-// ========== OAUTH (cookie‑based state, debug output) ==========
-
-function setStateCookie(res, state) {
-  res.cookie('oauth_state', state, {
-    maxAge: 600000, // 10 minutes
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax'
-  });
-}
-
+// ========== OAUTH (with extensive logging) ==========
 app.get('/auth/roblox', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  setStateCookie(res, state);
+  oauthStates.set(state, Date.now());
+  console.log(`[OAUTH] State set: ${state}`);
 
   const params = new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId,
@@ -100,36 +90,35 @@ app.get('/auth/roblox', (req, res) => {
     scope: 'openid',
     state
   });
-  res.redirect(`${ROBLOX_CONFIG.authUrl}?${params}`);
+  const url = `${ROBLOX_CONFIG.authUrl}?${params}`;
+  console.log(`[OAUTH] Redirecting to: ${url}`);
+  res.redirect(url);
 });
 
 app.get('/auth/roblox/callback', async (req, res) => {
+  console.log(`[OAUTH] Callback received. Query:`, req.query);
   const { code, state, error } = req.query;
 
-  // If user denied
   if (error === 'access_denied') {
-    return res.send(`<html><body style="background:#0a0a14;color:white;text-align:center;padding:50px;">
-      <h1 style="color:#f87171;">Authorization Denied</h1>
-      <p>You must allow Passly to access your account.</p>
-      <a href="/" style="color:#8b5cf6;">Try Again</a></body></html>`);
+    console.log('[OAUTH] User denied access');
+    return res.send('<h1>Authorization Denied</h1><p>You denied access.</p><a href="/">Try again</a>');
   }
 
-  // Verify state via cookie
-  const cookieState = req.cookies?.oauth_state;
-  if (!state || state !== cookieState) {
-    return res.status(403).send(`<html><body style="background:#0a0a14;color:white;text-align:center;padding:50px;">
-      <h1 style="color:#f87171;">Invalid State</h1>
-      <p>Expected: ${cookieState}, got: ${state}</p>
-      <a href="/" style="color:#8b5cf6;">Go back</a></body></html>`);
+  // Verify state
+  if (!state || !oauthStates.has(state)) {
+    console.log(`[OAUTH] Invalid state: ${state}. Active states:`, oauthStates.size);
+    return res.status(403).send(`<h1>Invalid State</h1><p>State: ${state}</p><a href="/">Go back</a>`);
   }
-  res.clearCookie('oauth_state');
+  oauthStates.delete(state);
+  console.log(`[OAUTH] State verified and removed.`);
 
   if (!code) {
+    console.log('[OAUTH] No code received');
     return res.redirect('/?error=no_code');
   }
 
   try {
-    // Exchange code for access token
+    console.log('[OAUTH] Exchanging code for token...');
     const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl,
       new URLSearchParams({
         client_id: ROBLOX_CONFIG.clientId,
@@ -139,14 +128,17 @@ app.get('/auth/roblox/callback', async (req, res) => {
       }).toString(),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
+    console.log('[OAUTH] Token response:', JSON.stringify(tokenRes.data));
 
+    console.log('[OAUTH] Fetching user info...');
     const userRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
       headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
     });
+    console.log('[OAUTH] User info:', JSON.stringify(userRes.data));
 
     const rb = userRes.data;
 
-    // Save user to database
+    // Save user
     if (!users[rb.sub]) {
       users[rb.sub] = {
         id: rb.sub,
@@ -154,8 +146,7 @@ app.get('/auth/roblox/callback', async (req, res) => {
         displayName: rb.nickname || rb.name || 'Player',
         avatarUrl: rb.picture || '',
         profile: { showBooth: true, statusDot: 'online', showRoomId: true },
-        roomId: null,
-        inQueue: false,
+        roomId: null, inQueue: false,
         donations: { received: 0, given: 0 },
         createdAt: new Date().toISOString()
       };
@@ -167,41 +158,26 @@ app.get('/auth/roblox/callback', async (req, res) => {
     saveUsers();
 
     // Create JWT
-    const tokenPayload = {
-      id: rb.sub,
-      username: users[rb.sub].username,
-      avatarUrl: users[rb.sub].avatarUrl
-    };
+    const tokenPayload = { id: rb.sub, username: users[rb.sub].username, avatarUrl: users[rb.sub].avatarUrl };
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' });
+    console.log(`[OAUTH] JWT created: ${token.substring(0,20)}...`);
 
-    // Redirect with token in URL hash
-    res.redirect(`/dashboard#token=${token}`);
+    // Redirect with token
+    const redirectUrl = `/dashboard#token=${token}`;
+    console.log(`[OAUTH] Redirecting to: ${redirectUrl}`);
+    res.redirect(redirectUrl);
   } catch (err) {
-    // Debug: show exact error
-    const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    res.send(`<html><body style="background:#0a0a14;color:white;text-align:center;padding:50px;">
-      <h1 style="color:#f87171;">OAuth Error</h1>
-      <pre>${errorMsg}</pre>
-      <a href="/" style="color:#8b5cf6;">Try again</a></body></html>`);
+    console.error('[OAUTH] Error:', err.response?.data || err.message);
+    res.send(`<h1>OAuth Error</h1><pre>${JSON.stringify(err.response?.data || err.message)}</pre><a href="/">Try again</a>`);
   }
 });
 
-// ========== USER API ==========
+// ========== REST OF THE API (unchanged) ==========
 app.get('/api/user', authenticateToken, (req, res) => {
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
   const ad = Object.values(ads).find(a => a.userId === user.id && a.active);
-  res.json({
-    id: user.id,
-    username: user.username,
-    displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
-    profile: user.profile,
-    roomId: user.roomId,
-    inQueue: user.inQueue,
-    donations: user.donations,
-    ad: ad || null
-  });
+  res.json({ id: user.id, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl, profile: user.profile, roomId: user.roomId, inQueue: user.inQueue, donations: user.donations, ad: ad || null });
 });
 
 app.post('/api/profile/update', authenticateToken, (req, res) => {
@@ -215,18 +191,13 @@ app.post('/api/profile/update', authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
-// ========== ROOMS ==========
 app.get('/api/rooms', (req, res) => res.json(Object.values(rooms)));
 
 app.post('/api/rooms/create', authenticateToken, (req, res) => {
   const { name, desc, type } = req.body;
   if (!name) return res.status(400).json({ error: 'Room name required' });
   const roomId = crypto.randomBytes(8).toString('hex');
-  rooms[roomId] = {
-    id: roomId, name, desc: desc||'', type: type||'Public',
-    players: [], queue: [], maxPlayers: 18,
-    createdBy: req.user.id, createdAt: new Date().toISOString()
-  };
+  rooms[roomId] = { id: roomId, name, desc: desc||'', type: type||'Public', players:[], queue:[], maxPlayers:18, createdBy: req.user.id };
   saveRooms();
   res.json(rooms[roomId]);
 });
@@ -235,7 +206,6 @@ app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   const room = rooms[req.params.roomId];
   if (!room) return res.status(404).json({ error: 'Room not found' });
   const userId = req.user.id;
-  // leave previous room
   if (users[userId]?.roomId && rooms[users[userId].roomId]) {
     const old = rooms[users[userId].roomId];
     old.players = old.players.filter(id => id !== userId);
@@ -245,13 +215,13 @@ app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(userId)) {
       room.queue.push(userId);
-      if (users[userId]) { users[userId].roomId = room.id; users[userId].inQueue = true; saveUsers(); }
+      users[userId].roomId = room.id; users[userId].inQueue = true; saveUsers();
       saveRooms();
       return res.json({ queued: true, position: room.queue.length });
     }
   }
   room.players.push(userId);
-  if (users[userId]) { users[userId].roomId = room.id; users[userId].inQueue = false; saveUsers(); }
+  users[userId].roomId = room.id; users[userId].inQueue = false; saveUsers();
   saveRooms();
   res.json({ success: true, room });
 });
@@ -269,14 +239,13 @@ app.post('/api/rooms/leave', authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
-// ========== DONATIONS ==========
 app.post('/api/donate', authenticateToken, async (req, res) => {
   const { receiverId, gamepassId, amount } = req.body;
   const donor = users[req.user.id];
   const receiver = users[receiverId];
   if (!donor || !receiver) return res.status(404).json({ error: 'User not found' });
   try {
-    const check = await axios.get(`https://inventory.roblox.com/v1/users/${donor.id}/items/GamePass/${gamepassId}`, { timeout: 5000 });
+    const check = await axios.get(`https://inventory.roblox.com/v1/users/${donor.id}/items/GamePass/${gamepassId}`, { timeout:5000 });
     if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
   } catch(e) { return res.status(400).json({ error: 'Verification failed' }); }
   const recent = Object.values(donations).find(d => d.donorId===donor.id && d.receiverId===receiverId && d.gamepassId===gamepassId && (Date.now()-d.timestamp)<300000);
@@ -295,7 +264,6 @@ app.get('/api/donations', (req, res) => {
   res.json(Object.values(donations));
 });
 
-// ========== ADS ==========
 app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   const { tier } = req.body;
   const user = users[req.user.id];
@@ -326,7 +294,6 @@ app.get('/api/leaderboard', (req, res) => {
   });
 });
 
-// ========== Guest endpoint (no token needed) ==========
 app.post('/api/guest-login', (req, res) => {
   const guestNum = Math.floor(10000 + Math.random() * 90000);
   res.json({ username: `Guest#${guestNum}`, isGuest: true });
