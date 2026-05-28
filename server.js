@@ -4,18 +4,20 @@ const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// JWT secret – keep it stable
+// JWT secret – fixed so tokens survive restarts
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 
-// Create data folder
+// Create data folder if not exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
   fs.mkdirSync(path.join(__dirname, 'data'));
 }
 
+// JSON Database files
 const DB_USERS = path.join(__dirname, 'data', 'users.json');
 const DB_ROOMS = path.join(__dirname, 'data', 'rooms.json');
 const DB_DONATIONS = path.join(__dirname, 'data', 'donations.json');
@@ -37,6 +39,7 @@ function saveAds() { writeJSON(DB_ADS, ads); }
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname)));
 
 const ROBLOX_CONFIG = {
@@ -53,7 +56,7 @@ const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_
 // ========== AUTH MIDDLEWARE ==========
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token provided' });
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
@@ -63,30 +66,32 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// ========== PAGES (no auth needed, pages handle token in frontend) ==========
+// ========== PAGES ==========
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ========== API: check token validity ==========
+// ========== API: check token ==========
 app.get('/api/check-auth', authenticateToken, (req, res) => {
   res.json({ authenticated: true, user: req.user });
 });
 
-// ========== OAUTH ==========
+// ========== OAUTH (cookie‑based state, debug output) ==========
+
+function setStateCookie(res, state) {
+  res.cookie('oauth_state', state, {
+    maxAge: 600000, // 10 minutes
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
+  });
+}
+
 app.get('/auth/roblox', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  // We'll pass state via cookie or query, but simpler: store in a short‑lived map
-  // Instead we can just send state as query and verify on callback.
-  // For simplicity we'll store in a global Map with a short expiry.
-  if (!global.oauthStates) global.oauthStates = new Map();
-  global.oauthStates.set(state, Date.now());
-  // Clean old states
-  for (const [key, time] of global.oauthStates) {
-    if (Date.now() - time > 600000) global.oauthStates.delete(key);
-  }
+  setStateCookie(res, state);
 
   const params = new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId,
@@ -100,16 +105,31 @@ app.get('/auth/roblox', (req, res) => {
 
 app.get('/auth/roblox/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  if (error === 'access_denied') return res.send('<h1>Authorization Denied</h1><a href="/">Go back</a>');
 
-  if (!global.oauthStates || !global.oauthStates.has(state)) {
-    return res.status(403).send('Invalid state. <a href="/">Go back</a>');
+  // If user denied
+  if (error === 'access_denied') {
+    return res.send(`<html><body style="background:#0a0a14;color:white;text-align:center;padding:50px;">
+      <h1 style="color:#f87171;">Authorization Denied</h1>
+      <p>You must allow Passly to access your account.</p>
+      <a href="/" style="color:#8b5cf6;">Try Again</a></body></html>`);
   }
-  global.oauthStates.delete(state);
 
-  if (!code) return res.redirect('/');
+  // Verify state via cookie
+  const cookieState = req.cookies?.oauth_state;
+  if (!state || state !== cookieState) {
+    return res.status(403).send(`<html><body style="background:#0a0a14;color:white;text-align:center;padding:50px;">
+      <h1 style="color:#f87171;">Invalid State</h1>
+      <p>Expected: ${cookieState}, got: ${state}</p>
+      <a href="/" style="color:#8b5cf6;">Go back</a></body></html>`);
+  }
+  res.clearCookie('oauth_state');
+
+  if (!code) {
+    return res.redirect('/?error=no_code');
+  }
 
   try {
+    // Exchange code for access token
     const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl,
       new URLSearchParams({
         client_id: ROBLOX_CONFIG.clientId,
@@ -125,6 +145,8 @@ app.get('/auth/roblox/callback', async (req, res) => {
     });
 
     const rb = userRes.data;
+
+    // Save user to database
     if (!users[rb.sub]) {
       users[rb.sub] = {
         id: rb.sub,
@@ -152,15 +174,19 @@ app.get('/auth/roblox/callback', async (req, res) => {
     };
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' });
 
-    // Redirect to dashboard with token in URL hash (so it stays client‑side)
+    // Redirect with token in URL hash
     res.redirect(`/dashboard#token=${token}`);
-  } catch (e) {
-    console.error('OAuth error:', e.response?.data || e.message);
-    res.redirect('/?error=oauth');
+  } catch (err) {
+    // Debug: show exact error
+    const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    res.send(`<html><body style="background:#0a0a14;color:white;text-align:center;padding:50px;">
+      <h1 style="color:#f87171;">OAuth Error</h1>
+      <pre>${errorMsg}</pre>
+      <a href="/" style="color:#8b5cf6;">Try again</a></body></html>`);
   }
 });
 
-// ========== USER API (require token) ==========
+// ========== USER API ==========
 app.get('/api/user', authenticateToken, (req, res) => {
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
