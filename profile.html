@@ -165,6 +165,17 @@
   </div>
 
   <script>
+    // Ensure token is extracted from URL hash if missing in storage
+    (function() {
+      let token = localStorage.getItem('passly_token');
+      if (!token && window.location.hash.includes('token=')) {
+        const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
+        localStorage.setItem('passly_token', tokenPart);
+        token = tokenPart;
+        history.replaceState(null, null, ' ');
+      }
+    })();
+    
     let token = localStorage.getItem('passly_token');
     let userData = null;
 
