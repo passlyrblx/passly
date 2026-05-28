@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Passly - Dashboard</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b0b14;
+      color: white;
+      overflow-x: hidden;
+    }
+
+    /* NAVBAR */
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      background: #141420;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      color: #8b5cf6;
+    }
+
+    .menu {
+      font-size: 34px;
+      cursor: pointer;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      right: -260px;
+      width: 260px;
+      height: 100%;
+      background: #16161f;
+      transition: 0.3s;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      padding-top: 80px;
+      box-shadow: -5px 0 15px rgba(0,0,0,0.4);
+    }
+
+    .sidebar a {
+      color: white;
+      text-decoration: none;
+      padding: 20px;
+      font-size: 20px;
+      border-bottom: 1px solid #2a2a35;
+      transition: 0.2s;
+    }
+
+    .sidebar a:hover {
+      background: #242432;
+      color: #8b5cf6;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 18px;
+      right: 22px;
+      font-size: 32px;
+      cursor: pointer;
+    }
+
+    /* MAIN DASHBOARD LAYOUT */
+    .dashboard-container {
+      display: flex;
+      gap: 20px;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .feed-section {
+      flex: 1;
+      background: #16161f;
+      border-radius: 18px;
+      padding: 20px;
+      min-height: 80vh;
+    }
+
+    .section-title {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 20px;
+      color: #8b5cf6;
+      border-bottom: 2px solid #242432;
+      padding-bottom: 10px;
+    }
+
+    /* FEED ITEMS */
+    .feed-item {
+      background: #242432;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .feed-info {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .feed-amount {
+      color: #4ade80;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .ad-timer {
+      color: #ff9b9b;
+      font-size: 14px;
+    }
+
+    .buy-ad-btn {
+      width: 100%;
+      background: #8b5cf6;
+      border: none;
+      color: white;
+      padding: 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 17px;
+      margin-top: 10px;
+      transition: 0.2s;
+    }
+
+    .buy-ad-btn:hover {
+      background: #7c3aed;
+    }
+
+    @media(max-width: 768px) {
+      .dashboard-container {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- NAVBAR -->
+  <div class="navbar">
+    <div class="logo">Passly</div>
+    <div class="menu" onclick="openMenu()">☰</div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="close-btn" onclick="closeMenu()">✕</div>
+    <a href="rooms.html">🚪 Rooms</a>
+    <a href="#">🎨 My GPs & Booth</a>
+    <a href="#">🏆 Leaderboards</a>
+    <a href="#">⚙️ Settings</a>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="dashboard-container">
+    
+    <!-- GLOBAL DONATIONS FEED -->
+    <div class="feed-section">
+      <div class="section-title">🌟 Global Mega Donations</div>
+      
+      <!-- Example 10k Donation (Disappears after 15 mins via JS later) -->
+      <div class="feed-item">
+        <div class="feed-info">
+          <span style="font-weight: bold;">EpicGamer</span>
+          <span style="color: #aaaaaa; font-size: 14px;">donated to Builderman</span>
+        </div>
+        <div class="feed-amount">R$ 10,000</div>
+      </div>
+
+      <!-- Example 1k Donation (Disappears after 5 mins) -->
+      <div class="feed-item">
+        <div class="feed-info">
+          <span style="font-weight: bold;">NoobSlayer</span>
+          <span style="color: #aaaaaa; font-size: 14px;">donated to CoolDev</span>
+        </div>
+        <div class="feed-amount">R$ 1,000</div>
+      </div>
+
+    </div>
+
+    <!-- ADVERTISING REQUESTS -->
+    <div class="feed-section">
+      <div class="section-title">📢 Player Advertisements</div>
+      
+      <!-- Example Ad -->
+      <div class="feed-item" style="border-left: 4px solid #8b5cf6;">
+        <div class="feed-info">
+          <span style="font-weight: bold;">Pls fund my new game!</span>
+          <span style="color: #aaaaaa; font-size: 14px;">User: DevPro</span>
+        </div>
+        <div class="ad-timer">⏳ 4m 12s left</div>
+      </div>
+
+      <button class="buy-ad-btn" onclick="alert('Will redirect to your Roblox GP to buy ad time!')">
+        + Buy Advertising Request
+      </button>
+    </div>
+
+  </div>
+
+  <!-- SCRIPT -->
+  <script>
+    function openMenu() {
+      document.getElementById("sidebar").style.right = "0";
+    }
+
+    function closeMenu() {
+      document.getElementById("sidebar").style.right = "-260px";
+    }
+  </script>
+
+</body>
+</html>
