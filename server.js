@@ -141,8 +141,17 @@ app.get('/auth/roblox/callback', async (req, res) => {
     saveUsers();
 
     const displayName = users[userId].customDisplayName || robloxDisplayName;
-    const token = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl }, JWT_SECRET, { expiresIn: '7d' });
-    res.redirect(`/dashboard#token=${token}`);
+    const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl }, JWT_SECRET, { expiresIn: '7d' });
+
+    // SET COOKIE so token survives browser restarts
+    res.cookie('passly_token', jwtToken, {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax'
+    });
+
+    res.redirect(`/dashboard#token=${jwtToken}`);
   } catch (err) {
     console.error('OAuth error:', err.response?.data || err.message);
     res.send('<h1>Login Failed</h1><a href="/">Go back</a>');
@@ -383,13 +392,45 @@ app.get('/api/rooms/:roomId/ad-broadcasts', (req, res) => {
   res.json((adBroadcasts[req.params.roomId] || []).filter(b => b.timestamp > since));
 });
 
-// ========== LEADERBOARD ==========
+// ========== LEADERBOARD (daily / weekly / total) ==========
 app.get('/api/leaderboard', (req, res) => {
-  const all = Object.values(users);
-  res.json({
-    receivers: all.sort((a,b)=>b.donations.received-a.donations.received).slice(0,10).map(u=>({username:u.robloxUsername,amount:u.donations.received})),
-    donors: all.sort((a,b)=>b.donations.given-a.donations.given).slice(0,10).map(u=>({username:u.robloxUsername,amount:u.donations.given}))
+  const period = req.query.period || 'total';   // daily, weekly, total
+  const now = Date.now();
+  const oneDay = 24 * 60 * 60 * 1000;
+  const oneWeek = 7 * oneDay;
+
+  // Filter donations based on period
+  const filteredDonations = Object.values(donations).filter(d => {
+    if (period === 'daily') return (now - d.timestamp) <= oneDay;
+    if (period === 'weekly') return (now - d.timestamp) <= oneWeek;
+    return true; // total
   });
+
+  // Aggregate received and given per user
+  const receivedMap = {};
+  const givenMap = {};
+
+  filteredDonations.forEach(d => {
+    const receiverId = d.receiverId;
+    const donorId = d.donorId;
+    const amount = d.amount || 0;
+
+    if (!receivedMap[receiverId]) receivedMap[receiverId] = { username: d.receiverName || 'Unknown', amount: 0 };
+    receivedMap[receiverId].amount += amount;
+
+    if (!givenMap[donorId]) givenMap[donorId] = { username: d.donorName || 'Unknown', amount: 0 };
+    givenMap[donorId].amount += amount;
+  });
+
+  const receivers = Object.values(receivedMap)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 10);
+
+  const donors = Object.values(givenMap)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 10);
+
+  res.json({ receivers, donors });
 });
 
 // ========== GUEST ==========
