@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Passly - Rooms</title>
   <style>
-    /* (all existing CSS – unchanged) */
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Arial,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
@@ -158,7 +157,6 @@
     <div id="donateStatus" style="margin-top:10px; text-align:center;"></div>
     <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeDonateModal()">Cancel</button>
   </div>
-
   <script>
     let token = localStorage.getItem('passly_token');
     let userData = null;
@@ -220,7 +218,6 @@
     async function loadRooms() {
       const res = await fetch('/api/rooms');
       const allRooms = await res.json();
-      // Only show public rooms
       const publicRooms = allRooms.filter(r => r.type === 'Public');
       const grid = document.getElementById('roomsGrid');
       grid.innerHTML = publicRooms.map(room => `
@@ -236,7 +233,6 @@
       `).join('');
     }
 
-    // Join by room ID (used by both button and input)
     async function joinRoomById(id) {
       if (!id) {
         id = document.getElementById('joinRoomIdInput').value.trim();
@@ -264,7 +260,6 @@
     }
 
     function openCreateModal() {
-      // Check if user already has a room
       if (userData.roomId) {
         alert('You are already in a room. Leave it before creating a new one.');
         return;
@@ -304,7 +299,6 @@
         return;
       }
       closeModal();
-      // Auto-join the room
       joinRoomById(room.id);
       loadRooms();
     }
@@ -317,7 +311,6 @@
       document.getElementById('viewRoomDesc').textContent = room.desc || '';
       document.getElementById('queueBox').style.display = 'none';
 
-      // Show room ID if private
       const idDisplay = document.getElementById('roomIdDisplay');
       if (room.type === 'Private' && room.createdBy === userData.id) {
         idDisplay.style.display = 'inline-block';
@@ -326,7 +319,6 @@
         idDisplay.style.display = 'none';
       }
 
-      // Player list
       const playerList = document.getElementById('playerList');
       playerList.innerHTML = room.players.map(playerId => {
         const isMe = (userData.id && playerId === userData.id);
@@ -396,4 +388,23 @@
     async function leaveQueue() { await leaveRoom(); }
 
     function sendMessage() {
-      const input = do
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg || !userData) return;
+      addChatMessage(userData.displayName || userData.username, msg);
+      input.value = '';
+    }
+
+    function showBoard() {
+      if (!userData || !userData.id) return;
+      const link = `https://www.roblox.com/users/${userData.id}/profile`;
+      addChatMessage(
+        userData.displayName || userData.username,
+        `🎁 <a href="${link}" target="_blank">Click here to view my board and donate!</a>`
+      );
+    }
+
+    init();
+  </script>
+</body>
+</html>
