@@ -96,6 +96,14 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
+    .guest-badge {
+      background: rgba(139,92,246,0.2);
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #a78bfa;
+      margin-left: 10px;
+    }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -141,6 +149,14 @@
     }
     .logout-btn { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
     .logout-btn:hover { background: rgba(239,68,68,0.25); }
+    .login-prompt {
+      background: rgba(139,92,246,0.1);
+      border: 1px solid rgba(139,92,246,0.3);
+      border-radius: 12px;
+      padding: 15px;
+      margin-top: 20px;
+      text-align: center;
+    }
     .ad-cloud {
       position: fixed;
       top: -100px;
@@ -165,32 +181,6 @@
       100% { top: 100vh; opacity: 0; }
     }
     .ad-cloud:hover { border-color: #a78bfa; box-shadow: 0 10px 40px rgba(139,92,246,0.5); }
-    .donation-feed {
-      background: rgba(20,20,40,0.6);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 30px;
-      border: 1px solid rgba(139,92,246,0.2);
-      max-height: 300px;
-      overflow-y: auto;
-    }
-    .donation-feed h3 { color: #a78bfa; margin-bottom: 15px; }
-    .donation-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      background: rgba(30,30,50,0.4);
-      border-radius: 10px;
-      margin-bottom: 8px;
-    }
-    .donation-amount {
-      font-weight: bold;
-      color: #ffd700;
-      white-space: nowrap;
-    }
-    .donation-info { flex: 1; }
-    .donation-time { font-size: 0.8rem; color: #a0a0b0; }
     @media (max-width: 768px) {
       .navbar { flex-direction: column; gap: 15px; padding: 15px; }
       .nav-links { gap: 15px; flex-wrap: wrap; justify-content: center; }
@@ -218,7 +208,8 @@
 
   <div class="main-content">
     <div class="welcome-section">
-      <h1>Welcome back, <span class="username-highlight" id="dashUsername">Player</span>! 👋</h1>
+      <h1>Welcome, <span class="username-highlight" id="dashUsername">Player</span>! 👋</h1>
+      <span id="guestBadge" class="guest-badge" style="display:none;">Guest</span>
       <p style="color: #a0a0b0; margin-top: 5px;">Your donation hub is ready</p>
     </div>
 
@@ -243,18 +234,16 @@
       </div>
     </div>
 
-    <div class="donation-feed">
-      <h3>📢 Live Donation Feed</h3>
-      <div id="donationFeed">
-        <p style="color: #a0a0b0;">No recent donations</p>
-      </div>
-    </div>
-
     <div class="quick-actions">
       <a href="/rooms" class="action-btn">🚪 Browse Rooms</a>
       <a href="/leaderboard" class="action-btn">🏆 View Leaderboard</a>
       <a href="/profile" class="action-btn">👤 Edit Profile</a>
       <button class="action-btn logout-btn" onclick="logout()">🚪 Logout</button>
+    </div>
+
+    <div id="loginPrompt" class="login-prompt" style="display:none;">
+      <p>🔐 <strong>Log in with Roblox</strong> to donate, advertise, and create rooms.</p>
+      <button class="action-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
     </div>
   </div>
 
@@ -264,21 +253,23 @@
     async function loadDashboard() {
       try {
         const response = await fetch('/api/user');
-        if (!response.ok) {
-          window.location.href = '/';
-          return;
-        }
+        if (!response.ok) return;
         userData = await response.json();
         
-        document.getElementById('dashUsername').textContent = userData.displayName || userData.username;
-        document.getElementById('userName').textContent = userData.username;
+        document.getElementById('dashUsername').textContent = userData.username || 'Guest';
+        document.getElementById('userName').textContent = userData.username || 'Guest';
+        
+        if (userData.isGuest) {
+          document.getElementById('guestBadge').style.display = 'inline-block';
+          document.getElementById('loginPrompt').style.display = 'block';
+        }
         
         if (userData.avatarUrl) {
           document.getElementById('userAvatar').style.background = `url(${userData.avatarUrl}) center/cover`;
         }
         
-        document.getElementById('totalReceived').textContent = userData.donations.received.toLocaleString();
-        document.getElementById('totalGiven').textContent = userData.donations.given.toLocaleString();
+        document.getElementById('totalReceived').textContent = (userData.donations?.received || 0).toLocaleString();
+        document.getElementById('totalGiven').textContent = (userData.donations?.given || 0).toLocaleString();
         
         if (userData.ad && userData.ad.active) {
           document.getElementById('adStatusText').textContent = `${userData.ad.showsLeft} shows left`;
@@ -297,9 +288,7 @@
         loadDonations();
         loadAds();
         
-        // Refresh donations every 10 seconds
         setInterval(loadDonations, 10000);
-        // Refresh ads every 30 seconds
         setInterval(loadAds, 30000);
         
       } catch (error) {
@@ -311,34 +300,7 @@
       try {
         const res = await fetch('/api/donations');
         const donations = await res.json();
-        
-        const feed = document.getElementById('donationFeed');
-        
-        if (donations.length === 0) {
-          feed.innerHTML = '<p style="color: #a0a0b0;">No recent donations</p>';
-          return;
-        }
-        
-        feed.innerHTML = donations.map(d => {
-          const timeAgo = Math.floor((Date.now() - d.timestamp) / 1000);
-          let timeText = '';
-          if (timeAgo < 60) timeText = 'Just now';
-          else if (timeAgo < 3600) timeText = `${Math.floor(timeAgo/60)}m ago`;
-          else timeText = `${Math.floor(timeAgo/3600)}h ago`;
-          
-          return `
-            <div class="donation-item">
-              <span style="font-size:1.5rem;">💰</span>
-              <div class="donation-info">
-                <strong style="color:#c4b5fd;">${d.donorName}</strong>
-                donated to 
-                <strong style="color:#c4b5fd;">${d.receiverName}</strong>
-              </div>
-              <div class="donation-amount">${d.amount.toLocaleString()} Robux</div>
-              <div class="donation-time">${timeText}</div>
-            </div>
-          `;
-        }).join('');
+        // (blimp display logic can be added, but for now we just keep the feed concept)
       } catch(e) {}
     }
 
@@ -346,8 +308,6 @@
       try {
         const res = await fetch('/api/ads');
         const activeAds = await res.json();
-        
-        // Display ads from other users
         activeAds.forEach(ad => {
           if (ad.userId !== userData.id) {
             showAdCloud(ad);
@@ -372,12 +332,8 @@
       cloud.onclick = function() {
         window.open(`https://www.roblox.com/users/${ad.userId || userData.id}/profile`, '_blank');
       };
-      
       document.getElementById('adContainer').appendChild(cloud);
-      
-      setTimeout(() => {
-        if (cloud.parentElement) cloud.remove();
-      }, 10500);
+      setTimeout(() => cloud.remove(), 10500);
     }
 
     async function logout() {
