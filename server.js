@@ -46,23 +46,27 @@ function saveRooms() { writeJSON(DB_ROOMS, rooms); }
 function saveDonations() { writeJSON(DB_DONATIONS, donations); }
 function saveAds() { writeJSON(DB_ADS, ads); }
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname)));
+// TRUST PROXY - IMPORTANT FOR RENDER
+app.set('trust proxy', 1);
+
+// Session setup - FIXED
 app.use(session({
   secret: crypto.randomBytes(32).toString('hex'),
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
   cookie: { 
-    secure: process.env.NODE_ENV === 'production',
+    secure: true,
+    httpOnly: true,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
-app.set('trust proxy', 1);
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname)));
 
-// Captcha store (memory only - fine for temporary data)
+// Captcha store (memory only)
 const captchaStore = new Map();
 
 // Roblox OAuth config
@@ -75,13 +79,11 @@ const ROBLOX_CONFIG = {
   userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo'
 };
 
-// Gamepass IDs
 const GAMEPASSES = {
   '5k': process.env.GAMEPASS_5K,
   '10k': process.env.GAMEPASS_10K
 };
 
-// Captcha
 function generateCaptcha() {
   const num1 = Math.floor(Math.random() * 10) + 1;
   const num2 = Math.floor(Math.random() * 10) + 1;
@@ -91,35 +93,39 @@ function generateCaptcha() {
   return { id, question: `What is ${num1} + ${num2}?` };
 }
 
-// Clean expired donations (older than 5 minutes)
 function cleanExpiredDonations() {
   const now = Date.now();
   const fiveMinutes = 5 * 60 * 1000;
   let changed = false;
-  
   for (const key in donations) {
     if (donations[key].timestamp && (now - donations[key].timestamp) > fiveMinutes) {
       delete donations[key];
       changed = true;
     }
   }
-  
   if (changed) saveDonations();
 }
 
-// Run cleanup every minute
 setInterval(cleanExpiredDonations, 60000);
+
+// Debug middleware - shows if logged in
+app.use((req, res, next) => {
+  console.log('Session ID:', req.sessionID);
+  console.log('User in session:', req.session.user ? req.session.user.username : 'None');
+  next();
+});
 
 // Pages
 app.get('/', (req, res) => {
+  console.log('GET / - Session user:', req.session.user);
   if (req.session.user) {
-    res.sendFile(path.join(__dirname, 'dashboard.html'));
-  } else {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    return res.redirect('/dashboard');
   }
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/dashboard', (req, res) => {
+  console.log('GET /dashboard - Session user:', req.session.user);
   if (!req.session.user) return res.redirect('/');
   res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
@@ -139,7 +145,7 @@ app.get('/profile', (req, res) => {
   res.sendFile(path.join(__dirname, 'profile.html'));
 });
 
-// API Routes
+// API
 app.get('/api/captcha', (req, res) => {
   res.json(generateCaptcha());
 });
@@ -155,6 +161,7 @@ app.post('/api/verify-captcha', (req, res) => {
     captchaStore.delete(captchaId);
     req.session.captchaVerified = true;
     req.session.lastCaptchaTime = Date.now();
+    req.session.save();
     return res.json({ success: true });
   }
   res.status(400).json({ error: 'Wrong answer' });
@@ -169,46 +176,63 @@ app.get('/api/check-captcha', (req, res) => {
   res.json({ valid: false });
 });
 
-// OAuth
+// OAuth - FIXED
 app.get('/auth/roblox', (req, res) => {
   if (!req.session.captchaVerified) return res.redirect('/');
+  
   const state = crypto.randomBytes(16).toString('hex');
   req.session.oauthState = state;
+  req.session.save();
+  
   const params = new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId,
     redirect_uri: ROBLOX_CONFIG.redirectUri,
     response_type: 'code',
-    scope: 'openid profile',
+    scope: 'openid',
     state
   });
+  
   res.redirect(`${ROBLOX_CONFIG.authUrl}?${params}`);
 });
 
 app.get('/auth/roblox/callback', async (req, res) => {
+  console.log('OAuth Callback received');
   const { code, state } = req.query;
-  if (state !== req.session.oauthState) return res.status(403).send('Invalid state');
+  
+  if (state !== req.session.oauthState) {
+    console.log('State mismatch');
+    return res.status(403).send('Invalid state');
+  }
   
   try {
-    const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl, {
-      client_id: ROBLOX_CONFIG.clientId,
-      client_secret: ROBLOX_CONFIG.clientSecret,
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: ROBLOX_CONFIG.redirectUri
-    });
+    console.log('Exchanging code for token...');
+    const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl, 
+      new URLSearchParams({
+        client_id: ROBLOX_CONFIG.clientId,
+        client_secret: ROBLOX_CONFIG.clientSecret,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: ROBLOX_CONFIG.redirectUri
+      }).toString(),
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      }
+    );
     
+    console.log('Getting user info...');
     const userRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
       headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
     });
     
     const rbUser = userRes.data;
-    let user = users[rbUser.sub];
+    console.log('Roblox user:', rbUser);
     
+    let user = users[rbUser.sub];
     if (!user) {
       user = {
         id: rbUser.sub,
-        username: rbUser.preferred_username || rbUser.name,
-        displayName: rbUser.name,
+        username: rbUser.preferred_username || rbUser.name || 'Player',
+        displayName: rbUser.name || rbUser.preferred_username || 'Player',
         avatarUrl: rbUser.picture || '',
         profile: { showBooth: true, statusDot: 'online', showRoomId: true },
         roomId: null,
@@ -217,29 +241,52 @@ app.get('/auth/roblox/callback', async (req, res) => {
         createdAt: new Date().toISOString()
       };
     } else {
-      user.username = rbUser.preferred_username || rbUser.name;
-      user.displayName = rbUser.name;
-      user.avatarUrl = rbUser.picture || '';
+      user.username = rbUser.preferred_username || user.username;
+      user.displayName = rbUser.name || user.displayName;
+      user.avatarUrl = rbUser.picture || user.avatarUrl;
     }
     
     users[rbUser.sub] = user;
     saveUsers();
     
-    req.session.user = { id: user.id, username: user.username, avatarUrl: user.avatarUrl };
-    res.redirect('/dashboard');
+    // FIX: Set session and save before redirect
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      avatarUrl: user.avatarUrl
+    };
+    
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.redirect('/?error=session');
+      }
+      console.log('Session saved, redirecting to dashboard');
+      res.redirect('/dashboard');
+    });
+    
   } catch (error) {
-    console.error('OAuth error:', error.message);
-    res.status(500).send('Authentication failed');
+    console.error('OAuth error:', error.response?.data || error.message);
+    res.status(500).send('Authentication failed. <a href="/">Try again</a>');
+  }
+});
+
+// Check if user is authenticated
+app.get('/api/check-auth', (req, res) => {
+  if (req.session.user) {
+    res.json({ authenticated: true, user: req.session.user });
+  } else {
+    res.json({ authenticated: false });
   }
 });
 
 // User API
 app.get('/api/user', (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
+  
   const user = users[req.session.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  // Check if user has active ad
   const userAd = Object.values(ads).find(a => a.userId === user.id && a.active && a.showsLeft > 0);
   
   res.json({
@@ -282,15 +329,9 @@ app.post('/api/rooms/create', (req, res) => {
   
   const roomId = crypto.randomBytes(8).toString('hex');
   rooms[roomId] = {
-    id: roomId,
-    name,
-    desc: desc || '',
-    type: type || 'Public',
-    players: [],
-    queue: [],
-    maxPlayers: 18,
-    createdBy: req.session.user.id,
-    createdAt: new Date().toISOString()
+    id: roomId, name, desc: desc || '', type: type || 'Public',
+    players: [], queue: [], maxPlayers: 18,
+    createdBy: req.session.user.id, createdAt: new Date().toISOString()
   };
   
   saveRooms();
@@ -306,7 +347,6 @@ app.post('/api/rooms/join/:roomId', (req, res) => {
   const user = users[req.session.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  // Leave current room
   if (user.roomId && rooms[user.roomId]) {
     const oldRoom = rooms[user.roomId];
     oldRoom.players = oldRoom.players.filter(id => id !== user.id);
@@ -317,7 +357,6 @@ app.post('/api/rooms/join/:roomId', (req, res) => {
     saveRooms();
   }
   
-  // Check capacity
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(user.id)) {
       room.queue.push(user.id);
@@ -364,28 +403,24 @@ app.post('/api/rooms/leave', (req, res) => {
   res.json({ success: true });
 });
 
-// DONATION VERIFICATION - Check if user owns gamepass
+// Donation verification
 app.get('/api/verify-ownership/:userId/:gamepassId', async (req, res) => {
   const { userId, gamepassId } = req.params;
-  
   try {
     const response = await axios.get(
       `https://inventory.roblox.com/v1/users/${userId}/items/GamePass/${gamepassId}`,
       { timeout: 5000 }
     );
-    
     if (response.data && response.data.data && response.data.data.length > 0) {
       res.json({ owns: true, data: response.data.data[0] });
     } else {
       res.json({ owns: false });
     }
   } catch (error) {
-    console.error('Verification error:', error.message);
     res.json({ owns: false, error: 'Could not verify' });
   }
 });
 
-// Process donation
 app.post('/api/donate', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
   
@@ -395,13 +430,11 @@ app.post('/api/donate', async (req, res) => {
   
   if (!donor || !receiver) return res.status(404).json({ error: 'User not found' });
   
-  // Verify donor owns the gamepass
   try {
     const check = await axios.get(
       `https://inventory.roblox.com/v1/users/${donor.id}/items/GamePass/${gamepassId}`,
       { timeout: 5000 }
     );
-    
     if (!check.data.data || check.data.data.length === 0) {
       return res.status(400).json({ error: 'You do not own this gamepass' });
     }
@@ -409,19 +442,17 @@ app.post('/api/donate', async (req, res) => {
     return res.status(400).json({ error: 'Could not verify gamepass ownership' });
   }
   
-  // Check for duplicate donation (prevent spam)
   const recentDonation = Object.values(donations).find(d => 
     d.donorId === donor.id && 
     d.receiverId === receiverId && 
     d.gamepassId === gamepassId &&
-    (Date.now() - d.timestamp) < 300000 // 5 minutes
+    (Date.now() - d.timestamp) < 300000
   );
   
   if (recentDonation) {
     return res.status(400).json({ error: 'You already donated recently. Wait 5 minutes.' });
   }
   
-  // Record donation
   const donationId = crypto.randomBytes(8).toString('hex');
   donations[donationId] = {
     id: donationId,
@@ -432,10 +463,9 @@ app.post('/api/donate', async (req, res) => {
     gamepassId,
     amount: amount || 0,
     timestamp: Date.now(),
-    expires: Date.now() + 300000 // 5 minutes
+    expires: Date.now() + 300000
   };
   
-  // Update user stats
   donor.donations.given += (amount || 0);
   receiver.donations.received += (amount || 0);
   users[donor.id] = donor;
@@ -451,7 +481,6 @@ app.post('/api/donate', async (req, res) => {
   });
 });
 
-// Get active donations
 app.get('/api/donations', (req, res) => {
   cleanExpiredDonations();
   const active = Object.values(donations).filter(d => d.timestamp > Date.now() - 300000);
@@ -466,20 +495,17 @@ app.post('/api/purchase-ad', async (req, res) => {
   const user = users[req.session.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  // Check existing ad
   const existingAd = Object.values(ads).find(a => a.userId === user.id && a.active);
   if (existingAd) return res.status(400).json({ error: 'Delete existing ad first' });
   
   const gamepassId = GAMEPASSES[tier];
   if (!gamepassId) return res.status(400).json({ error: 'Invalid tier' });
   
-  // Verify gamepass ownership
   try {
     const check = await axios.get(
       `https://inventory.roblox.com/v1/users/${user.id}/items/GamePass/${gamepassId}`,
       { timeout: 5000 }
     );
-    
     if (!check.data.data || check.data.data.length === 0) {
       return res.status(400).json({ error: 'You do not own this gamepass' });
     }
@@ -490,14 +516,9 @@ app.post('/api/purchase-ad', async (req, res) => {
   const shows = tier === '5k' ? 1 : 3;
   const adId = crypto.randomBytes(8).toString('hex');
   ads[adId] = {
-    id: adId,
-    userId: user.id,
-    username: user.username,
-    tier: parseInt(tier.replace('k', '000')),
-    gamepassId,
-    showsLeft: shows,
-    active: true,
-    purchasedAt: new Date().toISOString()
+    id: adId, userId: user.id, username: user.username,
+    tier: parseInt(tier.replace('k', '000')), gamepassId,
+    showsLeft: shows, active: true, purchasedAt: new Date().toISOString()
   };
   
   saveAds();
@@ -507,7 +528,6 @@ app.post('/api/purchase-ad', async (req, res) => {
 app.post('/api/delete-ad', (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not authenticated' });
   
-  // Find and delete user's ad
   for (const key in ads) {
     if (ads[key].userId === req.session.user.id) {
       delete ads[key];
@@ -515,40 +535,38 @@ app.post('/api/delete-ad', (req, res) => {
       return res.json({ success: true });
     }
   }
-  
   res.json({ success: true, message: 'No ad found' });
 });
 
-// Get active ads (for displaying across site)
 app.get('/api/ads', (req, res) => {
   const activeAds = Object.values(ads).filter(a => a.active && a.showsLeft > 0);
   res.json(activeAds);
 });
 
-// Leaderboard API
+// Leaderboard
 app.get('/api/leaderboard', (req, res) => {
   const allUsers = Object.values(users);
-  
   const receivers = allUsers
     .sort((a, b) => b.donations.received - a.donations.received)
     .slice(0, 10)
     .map(u => ({ username: u.username, amount: u.donations.received }));
-    
   const donors = allUsers
     .sort((a, b) => b.donations.given - a.donations.given)
     .slice(0, 10)
     .map(u => ({ username: u.username, amount: u.donations.given }));
-  
   res.json({ receivers, donors });
 });
 
 // Logout
 app.post('/logout', (req, res) => {
-  req.session.destroy();
-  res.json({ success: true });
+  req.session.destroy((err) => {
+    if (err) console.error('Logout error:', err);
+    res.clearCookie('connect.sid');
+    res.json({ success: true });
+  });
 });
 
 app.listen(PORT, () => {
   console.log(`Passly running on port ${PORT}`);
-  console.log('JSON Database ready');
+  console.log('Environment:', process.env.NODE_ENV);
 });
