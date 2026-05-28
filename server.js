@@ -95,7 +95,6 @@ app.get('/auth/roblox/callback', async (req, res) => {
   if (!code) return res.redirect('/?error=no_code');
 
   try {
-    // Exchange code for access token
     const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl,
       new URLSearchParams({
         client_id: ROBLOX_CONFIG.clientId,
@@ -106,21 +105,18 @@ app.get('/auth/roblox/callback', async (req, res) => {
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
 
-    // Get user ID from userinfo
     const userInfoRes = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
       headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
     });
     const userId = userInfoRes.data.sub;
     if (!userId) throw new Error('No user ID');
 
-    // Fetch full profile from Roblox public API
     const profileRes = await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`);
     const profile = profileRes.data;
     const robloxUsername = profile.name || 'Player';
     const robloxDisplayName = profile.displayName || robloxUsername;
     const avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
 
-    // Save/update user
     if (!users[userId]) {
       users[userId] = {
         id: userId,
@@ -141,7 +137,6 @@ app.get('/auth/roblox/callback', async (req, res) => {
     }
     saveUsers();
 
-    // JWT
     const displayName = users[userId].customDisplayName || robloxDisplayName;
     const token = jwt.sign(
       { id: userId, username: robloxUsername, displayName, avatarUrl },
@@ -224,7 +219,6 @@ app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
   const room = rooms[req.params.roomId];
   if (!room) return res.status(404).json({ error: 'Room not found' });
   const userId = req.user.id;
-  // Leave previous room
   if (users[userId]?.roomId && rooms[users[userId].roomId]) {
     const old = rooms[users[userId].roomId];
     old.players = old.players.filter(id => id !== userId);
@@ -333,5 +327,31 @@ app.post('/api/guest-login', (req, res) => {
   const guestNum = Math.floor(10000 + Math.random() * 90000);
   res.json({ username: `Guest#${guestNum}`, isGuest: true });
 });
+
+// ========== DEFAULT ROOMS (if none exist) ==========
+if (Object.keys(rooms).length === 0) {
+  const defaultRooms = [
+    { name: "Chill Donations", desc: "Relax and donate to small creators." },
+    { name: "Big Donators", desc: "High donation rooms with active players." },
+    { name: "Anime Fans", desc: "A room for anime lovers." }
+  ];
+
+  defaultRooms.forEach(r => {
+    const roomId = crypto.randomBytes(8).toString('hex');
+    rooms[roomId] = {
+      id: roomId,
+      name: r.name,
+      desc: r.desc,
+      type: 'Public',
+      players: [],
+      queue: [],
+      maxPlayers: 18,
+      createdBy: 'system',
+      createdAt: new Date().toISOString()
+    };
+  });
+  saveRooms();
+  console.log('Default public rooms created.');
+}
 
 app.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
