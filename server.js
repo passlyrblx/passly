@@ -6,7 +6,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
 const mongoose = require('mongoose');
-const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require('@simplewebauthn/server');
+const { generateRegistrationOptions, verifyRegistrationResponse } = require('@simplewebauthn/server');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,35 +24,68 @@ mongoose.connect(MONGO_URI).then(async () => {
   console.log('MongoDB connected');
 
   const userSchema = new mongoose.Schema({
-    _id: String, robloxUsername: String, robloxDisplayName: String,
-    customDisplayName: String, avatarUrl: String,
-    profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true } },
-    roomId: String, inQueue: Boolean,
+    _id: String,
+    robloxUsername: String,
+    robloxDisplayName: String,
+    customDisplayName: String,
+    avatarUrl: String,
+    profile: {
+      showBooth: { type: Boolean, default: true },
+      statusDot: { type: String, default: 'online' },
+      showRoomId: { type: Boolean, default: true }
+    },
+    roomId: String,
+    inQueue: Boolean,
     donations: { received: Number, given: Number },
     board: [{ id: String, name: String, price: Number }],
     credentials: [{ id: String, publicKey: Buffer, counter: Number, transports: [String] }],
     currentRegistrationChallenge: String,
     createdAt: { type: Date, default: Date.now }
   });
+
   const roomSchema = new mongoose.Schema({
-    _id: String, name: String, desc: String, type: String,
-    players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
-    createdBy: String, createdAt: { type: Date, default: Date.now }
+    _id: String,
+    name: String,
+    desc: String,
+    type: String,
+    players: [String],
+    queue: [String],
+    maxPlayers: { type: Number, default: 18 },
+    createdBy: String,
+    createdAt: { type: Date, default: Date.now }
   });
+
   const donationSchema = new mongoose.Schema({
-    _id: String, donorId: String, donorName: String, receiverId: String,
-    receiverName: String, gamepassId: String, amount: Number,
+    _id: String,
+    donorId: String,
+    donorName: String,
+    receiverId: String,
+    receiverName: String,
+    gamepassId: String,
+    amount: Number,
     roomId: String,
     timestamp: { type: Date, default: Date.now }
   });
+
   const adSchema = new mongoose.Schema({
-    _id: String, userId: String, username: String, tier: Number,
-    gamepassId: String, broadcastsLeft: Number, showsLeft: Number,
-    active: Boolean, message: String, purchasedAt: { type: Date, default: Date.now }
+    _id: String,
+    userId: String,
+    username: String,
+    tier: Number,
+    gamepassId: String,
+    broadcastsLeft: Number,
+    showsLeft: Number,
+    active: Boolean,
+    message: String,
+    purchasedAt: { type: Date, default: Date.now }
   });
+
   const adBroadcastSchema = new mongoose.Schema({
-    roomId: String, board: [mongoose.Schema.Types.Mixed],
-    advertiserName: String, advertiserId: String, message: String,
+    roomId: String,
+    board: [mongoose.Schema.Types.Mixed],
+    advertiserName: String,
+    advertiserId: String,
+    message: String,
     timestamp: { type: Date, default: Date.now }
   });
 
@@ -94,15 +127,20 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname)));
 
 const ROBLOX_CONFIG = {
-  clientId: process.env.ROBLOX_CLIENT_ID, clientSecret: process.env.ROBLOX_CLIENT_SECRET,
+  clientId: process.env.ROBLOX_CLIENT_ID,
+  clientSecret: process.env.ROBLOX_CLIENT_SECRET,
   redirectUri: process.env.ROBLOX_REDIRECT_URI || 'http://localhost:3000/auth/roblox/callback',
-  authUrl: 'https://apis.roblox.com/oauth/v1/authorize', tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
-  userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo', usersApi: 'https://users.roblox.com/v1/users'
+  authUrl: 'https://apis.roblox.com/oauth/v1/authorize',
+  tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
+  userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo',
+  usersApi: 'https://users.roblox.com/v1/users'
 };
 const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K };
 
-// OAuth state (MongoDB)
-const oauthStateSchema = new mongoose.Schema({ state: { type: String, required: true, unique: true }, createdAt: { type: Date, default: Date.now, expires: 600 } });
+const oauthStateSchema = new mongoose.Schema({
+  state: { type: String, required: true, unique: true },
+  createdAt: { type: Date, default: Date.now, expires: 600 }
+});
 const OAuthState = mongoose.model('OAuthState', oauthStateSchema);
 
 function authenticateToken(req, res, next) {
@@ -110,7 +148,8 @@ function authenticateToken(req, res, next) {
   if (!token) return res.status(401).json({ error: 'No token' });
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid token' });
-    req.user = user; next();
+    req.user = user;
+    next();
   });
 }
 
@@ -127,7 +166,13 @@ app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'lived
 app.get('/auth/roblox', async (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   await OAuthState.create({ state });
-  res.redirect(`${ROBLOX_CONFIG.authUrl}?${new URLSearchParams({ client_id: ROBLOX_CONFIG.clientId, redirect_uri: ROBLOX_CONFIG.redirectUri, response_type:'code', scope:'openid', state })}`);
+  res.redirect(`${ROBLOX_CONFIG.authUrl}?${new URLSearchParams({
+    client_id: ROBLOX_CONFIG.clientId,
+    redirect_uri: ROBLOX_CONFIG.redirectUri,
+    response_type: 'code',
+    scope: 'openid',
+    state
+  })}`);
 });
 
 app.get('/auth/roblox/callback', async (req, res) => {
@@ -137,8 +182,18 @@ app.get('/auth/roblox/callback', async (req, res) => {
   if (!doc) return res.status(403).send('<h1>Invalid State</h1><a href="/">Go back</a>');
   if (!code) return res.redirect('/');
   try {
-    const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl, new URLSearchParams({ client_id: ROBLOX_CONFIG.clientId, client_secret: ROBLOX_CONFIG.clientSecret, grant_type: 'authorization_code', code }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-    const ui = await axios.get(ROBLOX_CONFIG.userInfoUrl, { headers: { Authorization: `Bearer ${tokenRes.data.access_token}` } });
+    const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl,
+      new URLSearchParams({
+        client_id: ROBLOX_CONFIG.clientId,
+        client_secret: ROBLOX_CONFIG.clientSecret,
+        grant_type: 'authorization_code',
+        code
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+    const ui = await axios.get(ROBLOX_CONFIG.userInfoUrl, {
+      headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
+    });
     const userId = ui.data.sub;
     const profile = (await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`)).data;
     const robloxUsername = profile.name || 'Player';
@@ -150,13 +205,20 @@ app.get('/auth/roblox/callback', async (req, res) => {
     } catch (e) {}
     if (!avatarUrl) avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
 
-    await mongoose.model('User').findOneAndUpdate({ _id: userId }, { $set: { robloxUsername, robloxDisplayName, avatarUrl } }, { upsert: true, setDefaultsOnInsert: true });
+    await mongoose.model('User').findOneAndUpdate(
+      { _id: userId },
+      { $set: { robloxUsername, robloxDisplayName, avatarUrl } },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
     const user = await mongoose.model('User').findById(userId);
     const displayName = user.customDisplayName || robloxDisplayName;
     const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('passly_token', jwtToken, { maxAge: 7*24*60*60*1000, httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
     res.redirect(`/dashboard#token=${jwtToken}`);
-  } catch (e) { console.error(e); res.send('<h1>Login Failed</h1><a href="/">Go back</a>'); }
+  } catch (e) {
+    console.error(e);
+    res.send('<h1>Login Failed</h1><a href="/">Go back</a>');
+  }
 });
 
 // ========== USER API ==========
@@ -168,10 +230,18 @@ app.get('/api/user', authenticateToken, async (req, res) => {
   const avatarFallback = avatarUrl ? '' : `https://www.roblox.com/bust-thumbnail/image?userId=${user._id}&width=150&height=150&format=png`;
   const activeAd = await mongoose.model('Ad').findOne({ userId: user._id, active: true });
   res.json({
-    id: user._id, robloxUsername: user.robloxUsername || '', robloxDisplayName: user.robloxDisplayName || '',
+    id: user._id,
+    robloxUsername: user.robloxUsername || '',
+    robloxDisplayName: user.robloxDisplayName || '',
     displayName: user.customDisplayName || user.robloxDisplayName || '',
-    avatarUrl, avatarFallback, profile: user.profile, roomId: user.roomId, inQueue: user.inQueue,
-    donations: user.donations, ad: activeAd || null, customDisplayName: user.customDisplayName || null,
+    avatarUrl,
+    avatarFallback,
+    profile: user.profile,
+    roomId: user.roomId,
+    inQueue: user.inQueue,
+    donations: user.donations,
+    ad: activeAd || null,
+    customDisplayName: user.customDisplayName || null,
     board: user.board || []
   });
 });
@@ -194,9 +264,11 @@ app.get('/api/search', async (req, res) => {
   const found = await mongoose.model('User').findOne({ robloxUsername: new RegExp(`^${q}$`, 'i') });
   if (!found) return res.json({ error: 'User not found' });
   res.json({
-    id: found._id, robloxUsername: found.robloxUsername,
+    id: found._id,
+    robloxUsername: found.robloxUsername,
     displayName: found.customDisplayName || found.robloxDisplayName,
-    avatarUrl: found.avatarUrl, board: found.profile?.showBooth !== false ? (found.board || []) : []
+    avatarUrl: found.avatarUrl,
+    board: found.profile?.showBooth !== false ? (found.board || []) : []
   });
 });
 
@@ -205,8 +277,10 @@ app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
   const user = await mongoose.model('User').findById(req.params.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({
-    id: user._id, displayName: user.customDisplayName || user.robloxDisplayName,
-    avatarUrl: user.avatarUrl, board: user.profile?.showBooth !== false ? (user.board || []) : []
+    id: user._id,
+    displayName: user.customDisplayName || user.robloxDisplayName,
+    avatarUrl: user.avatarUrl,
+    board: user.profile?.showBooth !== false ? (user.board || []) : []
   });
 });
 
@@ -221,7 +295,9 @@ app.post('/api/board/add', authenticateToken, async (req, res) => {
   try {
     const check = await axios.get(`https://inventory.roblox.com/v1/users/${user._id}/items/GamePass/${assetId}`, { timeout: 5000 });
     if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
-  } catch (e) { return res.status(400).json({ error: 'Ownership verification failed' }); }
+  } catch (e) {
+    return res.status(400).json({ error: 'Ownership verification failed' });
+  }
   user.board.push({ id: assetId, name: 'Gamepass', price: parseInt(price) });
   await user.save();
   res.json({ success: true, board: user.board });
@@ -244,8 +320,13 @@ app.post('/api/rooms/create', authenticateToken, async (req, res) => {
   const Room = mongoose.model('Room');
   const roomId = crypto.randomBytes(8).toString('hex');
   const room = new Room({
-    _id: roomId, name, desc: desc || '', type: type || 'Public',
-    players: [req.user.id], queue: [], createdBy: req.user.id
+    _id: roomId,
+    name,
+    desc: desc || '',
+    type: type || 'Public',
+    players: [req.user.id],
+    queue: [],
+    createdBy: req.user.id
   });
   await room.save();
   await mongoose.model('User').findByIdAndUpdate(req.user.id, { roomId: room._id, inQueue: false });
@@ -330,7 +411,10 @@ io.on('connection', (socket) => {
     const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
     const avatarUrl = user.avatarUrl || '';
     io.to(currentRoomId).emit('chat-message', {
-      userId, username, message: msg, avatarUrl,
+      userId,
+      username,
+      message: msg,
+      avatarUrl,
       timestamp: Date.now()
     });
   });
@@ -342,7 +426,10 @@ io.on('connection', (socket) => {
     if (!user) return;
     const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
     io.to(currentRoomId).emit('chat-board', {
-      userId, username, board: boardData, avatarUrl: user.avatarUrl
+      userId,
+      username,
+      board: boardData,
+      avatarUrl: user.avatarUrl
     });
   });
 
@@ -383,7 +470,7 @@ app.get('/api/leaderboard', async (req, res) => {
   ]);
 
   const User = mongoose.model('User');
-  const enrich = async (arr, type) => {
+  const enrich = async (arr) => {
     const result = [];
     for (const item of arr) {
       const user = await User.findById(item._id);
@@ -400,8 +487,8 @@ app.get('/api/leaderboard', async (req, res) => {
   };
 
   res.json({
-    receivers: await enrich(receivers, 'receiver'),
-    donors: await enrich(donors, 'donor')
+    receivers: await enrich(receivers),
+    donors: await enrich(donors)
   });
 });
 
@@ -409,8 +496,11 @@ app.get('/api/leaderboard', async (req, res) => {
 app.get('/api/ads', async (req, res) => {
   const ads = await mongoose.model('Ad').find({ active: true, showsLeft: { $gt: 0 } }).limit(5);
   res.json(ads.map(ad => ({
-    userId: ad.userId, username: ad.username, tier: ad.tier,
-    message: ad.message, showsLeft: ad.showsLeft
+    userId: ad.userId,
+    username: ad.username,
+    tier: ad.tier,
+    message: ad.message,
+    showsLeft: ad.showsLeft
   })));
 });
 
@@ -453,7 +543,8 @@ app.get('/api/ads/broadcast', async (req, res) => {
   const { roomId, since } = req.query;
   const sinceDate = since ? new Date(parseInt(since)) : new Date(Date.now() - 60000);
   const broadcasts = await mongoose.model('AdBroadcast').find({
-    roomId, timestamp: { $gt: sinceDate }
+    roomId,
+    timestamp: { $gt: sinceDate }
   }).sort({ timestamp: -1 }).limit(10);
   res.json(broadcasts);
 });
@@ -482,8 +573,8 @@ app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   if (!receiverId || !gamepassId || !amount) {
     return res.status(400).json({ error: 'Missing fields' });
   }
-  // In production, create a Roblox purchase link (unresolved marketplace API).
-  // For demo, just return a dummy URL.
+  // For production: call Roblox API to create a purchase link
+  // For demo: just return the gamepass URL
   const url = `https://www.roblox.com/game-pass/${gamepassId}`;
   res.json({ url });
 });
@@ -502,7 +593,7 @@ app.post('/api/webauthn/register/begin', authenticateToken, async (req, res) => 
     authenticatorSelection: { userVerification: 'preferred' }
   });
 
-  // Store challenge temporarily
+  // Store the challenge temporarily in the user document
   user.currentRegistrationChallenge = options.challenge;
   await user.save();
 
@@ -536,7 +627,7 @@ app.post('/api/webauthn/register/complete', authenticateToken, async (req, res) 
   }
 });
 
-// ========== FALLBACK – must be LAST ==========
+// ========== FALLBACK – THIS MUST BE THE VERY LAST ROUTE ==========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
