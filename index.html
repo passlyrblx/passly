@@ -8,6 +8,7 @@
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
   <style>
+    /* ... same as before, unchanged ... */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -88,17 +89,12 @@
       cursor: pointer;
       transition: all 0.3s;
     }
-    .btn-roblox {
-      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-      color: white;
-    }
+    .btn-roblox { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
     .btn-roblox:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3); }
-    .btn-guest {
-      background: rgba(139, 92, 246, 0.15);
-      border: 1px solid rgba(139, 92, 246, 0.3);
-      color: white;
-    }
+    .btn-guest { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: white; }
     .btn-guest:hover { background: rgba(139, 92, 246, 0.25); transform: translateY(-2px); }
+    .btn-passkey { background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); color: #4ade80; }
+    .btn-passkey:hover { background: rgba(34, 197, 94, 0.3); }
     .features {
       display: flex;
       justify-content: center;
@@ -106,21 +102,12 @@
       margin-top: 25px;
       flex-wrap: wrap;
     }
-    .feature {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #a0a0b0;
-      font-size: 0.85rem;
-    }
+    .feature { display: flex; align-items: center; gap: 8px; color: #a0a0b0; font-size: 0.85rem; }
     .feature-icon {
-      width: 30px;
-      height: 30px;
+      width: 30px; height: 30px;
       background: rgba(139, 92, 246, 0.15);
       border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
     }
     .install-hint {
       margin-top: 15px;
@@ -130,9 +117,12 @@
       padding: 10px 15px;
       border-radius: 10px;
     }
-    @media (max-width: 600px) {
-      .container { padding: 25px 20px; }
+    .status-message {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: #fbbf24;
     }
+    @media (max-width: 600px) { .container { padding: 25px 20px; } }
   </style>
 </head>
 <body>
@@ -145,8 +135,9 @@
 
     <div class="description">
       <strong>Thanks for choosing Passly!</strong><br><br>
-      With recent changes affecting games like PLS DONATE after May 29, 
-      I created this platform to keep the community alive. Here you can:<br><br>
+      Donation games in Roblox will not work after May 29, so I got this idea and built Passly.
+      It's still in beta – you may find some bugs.<br><br>
+      Here you can:<br><br>
       🏠 <strong>Create & Join Rooms</strong> — like Roblox servers<br>
       💬 <strong>Chat & Voice Chat</strong> with other players<br>
       🎁 <strong>Show Your Board</strong> — display your gamepass for donations<br>
@@ -157,6 +148,9 @@
 
     <button class="btn btn-roblox" onclick="loginRoblox()">🔐 Login with Roblox</button>
     <button class="btn btn-guest" onclick="continueAsGuest()">👤 Continue as Guest</button>
+    <button class="btn btn-passkey" id="passkeyLoginBtn" onclick="loginWithPasskey()" style="display:none;">🔑 Login with Passkey</button>
+
+    <div id="loginStatus" class="status-message"></div>
 
     <div class="features">
       <div class="feature"><div class="feature-icon">💬</div><span>Chat</span></div>
@@ -169,10 +163,12 @@
     </div>
   </div>
 
+  <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
   <script>
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-    });
+    // Show passkey button if WebAuthn is supported
+    if (window.PublicKeyCredential) {
+      document.getElementById('passkeyLoginBtn').style.display = 'block';
+    }
 
     async function continueAsGuest() {
       try {
@@ -184,8 +180,41 @@
       window.location.href = '/dashboard';
     }
 
-    function loginRoblox() {
-      window.location.href = '/auth/roblox';
+    function loginRoblox() { window.location.href = '/auth/roblox'; }
+
+    async function loginWithPasskey() {
+      const statusEl = document.getElementById('loginStatus');
+      statusEl.textContent = 'Requesting passkey login...';
+      try {
+        // 1. Get authentication options
+        const optionsRes = await fetch('/api/passkey/login-options', { method: 'POST' });
+        const options = await optionsRes.json();
+        if (options.error) {
+          statusEl.textContent = options.error;
+          return;
+        }
+
+        // 2. Prompt user for biometrics
+        const authResponse = await SimpleWebAuthnBrowser.startAuthentication(options);
+
+        // 3. Verify with server
+        const verifyRes = await fetch('/api/passkey/login-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(authResponse)
+        });
+        const result = await verifyRes.json();
+        if (result.success) {
+          localStorage.setItem('passly_token', result.token);
+          // No need to store passly_user because user is real
+          window.location.href = '/dashboard';
+        } else {
+          statusEl.textContent = result.error || 'Login failed';
+        }
+      } catch (err) {
+        statusEl.textContent = 'Passkey login error. Maybe no passkey set up?';
+        console.error(err);
+      }
     }
 
     if ('serviceWorker' in navigator) {
