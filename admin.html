@@ -33,6 +33,8 @@
     .stats-grid { display:flex; flex-wrap:wrap; gap:15px; justify-content:space-between; }
     .stat-item { flex:1; min-width:120px; background:rgba(139,92,246,0.1); padding:10px; border-radius:12px; text-align:center; }
     .stat-number { font-size:1.5rem; font-weight:bold; color:#c4b5fd; }
+    .online-list { max-height:300px; overflow-y:auto; }
+    .online-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid rgba(139,92,246,0.1); }
     @media (max-width:768px) { .admin-grid { grid-template-columns:1fr; } }
   </style>
 </head>
@@ -44,6 +46,11 @@
     <div class="card">
       <h3>📊 Website Status</h3>
       <div id="statsContainer" class="stats-grid">Loading...</div>
+    </div>
+    <!-- Online Users Card (NEW) -->
+    <div class="card">
+      <h3>🟢 Online Users <button onclick="loadOnlineUsers()" style="background:#333; padding:4px 12px; margin-left:10px;">Refresh</button></h3>
+      <div id="onlineUsersList" class="online-list">Loading...</div>
     </div>
     <!-- Reports Card -->
     <div class="card">
@@ -106,6 +113,31 @@
     `;
   }
 
+  // Load online users list
+  window.loadOnlineUsers = async function() {
+    const data = await authFetch('/api/admin/online-users');
+    if (data.error) {
+      document.getElementById('onlineUsersList').innerHTML = `<p>Error loading online users.</p>`;
+      return;
+    }
+    const container = document.getElementById('onlineUsersList');
+    if (!data.onlineUsers || data.onlineUsers.length === 0) {
+      container.innerHTML = '<p>No users currently online.</p>';
+      return;
+    }
+    container.innerHTML = data.onlineUsers.map(user => `
+      <div class="online-item">
+        <span>${escapeHtml(user.displayName)} (${escapeHtml(user.username)})</span>
+        <button onclick="viewUserProfile('${user.id}')" style="background:#333;">👁️ View</button>
+      </div>
+    `).join('');
+  };
+
+  // View user profile (opens in new tab or modal)
+  window.viewUserProfile = function(userId) {
+    window.open(`/profile?userId=${userId}`, '_blank');
+  };
+
   // Load reports and banned users
   async function loadAdminData() {
     const data = await authFetch('/api/admin/data');
@@ -117,7 +149,7 @@
   function renderReports(reports) {
     const container = document.getElementById('reportsList');
     if (!reports.length) { container.innerHTML = '<p>✅ No pending reports.</p>'; return; }
-    container.innerHTML = `<table><thead><tr><th>Reported</th><th>Reason</th><th>Reported By</th><th>Actions</th></tr></thead><tbody>${reports.map(r => `<tr><td><strong>${escapeHtml(r.reportedUsername)}</strong></td><td>${escapeHtml(r.reason)}</td><td>${escapeHtml(r.reporterUsername)}</td><td><button class="btn-ban" onclick="banUser('${r.reportedId}')">Ban</button><button onclick="resolveReport('${r._id}')">Resolve</button></td></tr>`).join('')}</tbody></table>`;
+    container.innerHTML = `<table><thead><tr><th>Reported</th><th>Reason</th><th>Reported By</th><th>Actions</th></tr></thead><tbody>${reports.map(r => `<tr><td><strong>${escapeHtml(r.reportedUsername)}</strong></td><td>${escapeHtml(r.reason)}</td><td>${escapeHtml(r.reporterUsername)}</td><td><button class="btn-ban" onclick="banUser('${r.reportedId}')">Ban</button><button onclick="resolveReport('${r._id}')">Resolve</button></td>`).join('')}</tbody></tr>`;
   }
 
   function renderBanned(banned) {
@@ -145,7 +177,7 @@ window.searchUser = async function() {
 window.banUser = async function(userId) {
   if (confirm('Ban this user?')) {
     const res = await authFetch('/api/admin/ban', { method: 'POST', body: JSON.stringify({ userId }) });
-    if (res.success) { alert('User banned'); loadAdminData(); document.getElementById('searchUser').value = ''; document.getElementById('userResult').innerHTML = ''; }
+    if (res.success) { alert('User banned'); loadAdminData(); loadOnlineUsers(); document.getElementById('searchUser').value = ''; document.getElementById('userResult').innerHTML = ''; }
     else alert(res.error);
   }
 };
@@ -206,6 +238,7 @@ function addAdminMessage(sender, message) {
   // Initial load
   loadStats();
   loadAdminData();
+  loadOnlineUsers();
 </script>
 </body>
 </html>
