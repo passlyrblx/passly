@@ -449,17 +449,34 @@ app.get('/api/leaderboard', async (req, res) => {
 
 // ========== PASSKEY ==========
 const challengeStore = new Map();
+
 app.post('/api/passkey/register-options', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
+
   const options = await generateRegistrationOptions({
-    rpName: RP_NAME, rpID: RP_ID, userID: user._id, userName: user.robloxUsername || user._id,
-    attestationType: 'none', excludeCredentials: user.credentials.map(c => ({ id: Buffer.from(c.id,'base64'), type: 'public-key', transports: c.transports }))
+    rpName: RP_NAME,
+    rpID: RP_ID,
+    userID: user._id,
+    userName: user.robloxUsername || user._id,
+    attestationType: 'none',
+    authenticatorSelection: {             // ← NEW: makes the credential discoverable
+      residentKey: 'required',
+      requireResidentKey: true,
+      userVerification: 'preferred'
+    },
+    excludeCredentials: user.credentials.map(c => ({
+      id: Buffer.from(c.id, 'base64'),
+      type: 'public-key',
+      transports: c.transports
+    }))
   });
+
   challengeStore.set(user._id, options.challenge);
   res.json(options);
 });
+
 app.post('/api/passkey/register-verify', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
@@ -475,12 +492,14 @@ app.post('/api/passkey/register-verify', authenticateToken, async (req, res) => 
   }
   res.status(400).json({ error: 'Verification failed' });
 });
+
 app.post('/api/passkey/login-options', async (req, res) => {
   const options = await generateAuthenticationOptions({ rpID: RP_ID, userVerification: 'preferred' });
   const loginKey = crypto.randomBytes(16).toString('hex');
   challengeStore.set(loginKey, options.challenge);
   res.json({ ...options, loginKey });
 });
+
 app.post('/api/passkey/login-verify', async (req, res) => {
   try {
     const { loginKey, ...response } = req.body;
