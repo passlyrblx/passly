@@ -67,7 +67,7 @@ mongoose.connect(MONGO_URI).then(async () => {
   mongoose.model('AdBroadcast', adBroadcastSchema);
 
   const Room = mongoose.model('Room');
-  // Ensure default rooms (3 fixed rooms)
+  // Ensure default 3 rooms
   await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
   const defaultRooms = [
     { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators." },
@@ -279,9 +279,34 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 
-// SOCKET.IO with server-side bad word filter
-const BAD_WORDS_PATTERN_SERVER = /\b(fuck|shit|ass|bitch|cunt|dick|pussy|twat|whore|slut|bastard|damn|hell|piss|cock|faggot|nigga|nigger|retard|fck|fcuk|phuk|fuk|sh1t|sh\*t|sht|b1tch|b\*tch|btch|c0ck|d1ck|dck|p\*ssy|puss|c\*nt|cnt|n1gga|n1gger|ngga|f4ggot|fag|f4g|ret4rd|rtrd|b8stard|bstrd|wh0re|whre|slut|sl\*t|b!tch|b!\+ch|c0k|dik|dikhed|clit|cl1t|tw4t|wanker|w4nker|bollocks|b0ll0cks|arse|arsehole|5hit|5h1t|phoque|kunt|kuk|kak)\b/gi;
+// ========== IMPROVED SERVER-SIDE BAD WORD FILTER ==========
+const BAD_WORDS_LIST_SERVER = [
+  'fuck', 'shit', 'ass', 'bitch', 'cunt', 'dick', 'pussy', 'twat', 'whore', 'slut', 'bastard', 'damn', 'hell', 'piss', 'cock',
+  'faggot', 'nigga', 'nigger', 'retard', 'fck', 'fcuk', 'phuk', 'fuk', 'sh1t', 'sht', 'b1tch', 'btch', 'c0ck', 'd1ck', 'dck',
+  'pussy', 'cunt', 'cnt', 'n1gga', 'n1gger', 'ngga', 'f4ggot', 'fag', 'f4g', 'ret4rd', 'rtrd', 'b8stard', 'bstrd', 'wh0re',
+  'whre', 'slut', 'b!tch', 'c0k', 'dik', 'dikhed', 'clit', 'cl1t', 'tw4t', 'wanker', 'w4nker', 'bollocks', 'arse', 'arsehole',
+  '5hit', '5h1t', 'phoque', 'kunt', 'kuk', 'kak'
+];
+function normalizeTextServer(text) {
+  let normalized = text.toLowerCase();
+  normalized = normalized.replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
+  normalized = normalized.replace(/@/g, 'a').replace(/\$/g, 's').replace(/\+/g, 't');
+  normalized = normalized.replace(/[\s\._\-*]/g, '');
+  return normalized;
+}
+function filterMessageServer(text) {
+  if (!text) return text;
+  const normalized = normalizeTextServer(text);
+  for (const bad of BAD_WORDS_LIST_SERVER) {
+    if (normalized.includes(bad)) {
+      return '#'.repeat(text.length);
+    }
+  }
+  return text;
+}
+// =========================================================
 
+// SOCKET.IO
 io.on('connection', (socket) => {
   let currentRoomId = null, userId = null;
   socket.on('authenticate', (token) => {
@@ -291,7 +316,7 @@ io.on('connection', (socket) => {
   socket.on('join-room', async (roomId) => { if (currentRoomId) socket.leave(currentRoomId); currentRoomId = roomId; socket.join(roomId); });
   socket.on('chat-message', async (msg) => {
     if (!userId || !currentRoomId) return;
-    const filteredMsg = msg.replace(BAD_WORDS_PATTERN_SERVER, '#####');
+    const filteredMsg = filterMessageServer(msg);
     const User = mongoose.model('User');
     const user = await User.findById(userId);
     if (!user) return;
