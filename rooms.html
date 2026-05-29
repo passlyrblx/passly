@@ -11,9 +11,9 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
-    .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
+    .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); flex-wrap:wrap; gap:10px; }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-    .nav-links { display:flex; gap:25px; }
+    .nav-links { display:flex; gap:25px; flex-wrap:wrap; }
     .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
     .nav-links a:hover { color:#a78bfa; }
     .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,0.1); padding:8px 16px; border-radius:12px; }
@@ -33,6 +33,7 @@
     .room-card:hover { transform:translateY(-5px); }
     .room-name { font-size:1.5rem; font-weight:bold; margin-bottom:8px; }
     .room-type { display:inline-block; background:rgba(139,92,246,0.2); padding:4px 12px; border-radius:8px; font-size:0.85rem; color:#a78bfa; margin-bottom:12px; }
+    .room-type.vip { background:rgba(255,215,0,0.2); color:#ffd700; }
     .room-desc { color:#a0a0b0; margin-bottom:15px; line-height:1.5; }
     .room-stats { display:flex; justify-content:space-between; align-items:center; }
     .room-players { color:#b0b0c0; font-size:0.9rem; }
@@ -47,6 +48,7 @@
     .type-btns { display:flex; gap:10px; margin-bottom:15px; }
     .type-btn { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; cursor:pointer; transition:all 0.3s; }
     .type-btn.active { background:rgba(139,92,246,0.3); border-color:#8b5cf6; }
+    .type-btn.vip-btn { background:rgba(255,215,0,0.1); border-color:#ffd700; }
     .modal-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:10px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
     .room-view { display:none; background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); }
     .room-view h2 { font-size:2rem; margin-bottom:10px; }
@@ -93,14 +95,16 @@
     .ad-mini-board-item { background: #22c55e; color: white; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
     .ad-mini-board-item:hover { background: #16a34a; }
     .ad-message-text { font-style: italic; color: #ffd700; margin-top: 4px; }
-    .verify-donate-btn { background: #f59e0b; color: white; border: none; border-radius: 8px; padding: 4px 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
-    .verify-donate-btn:hover { background: #d97706; }
     .gp-link-btn { background: transparent; border: 1px solid #ffd700; color: #ffd700; padding: 12px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 15px; width: 100%; }
     .gp-link-btn:hover { background: rgba(255,215,0,0.1); }
     .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin:20px 0; text-align:center; }
+    .room-filter { display:flex; gap:10px; margin-bottom:20px; }
+    .filter-btn { padding:8px 16px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:20px; color:white; cursor:pointer; transition:all 0.2s; }
+    .filter-btn.active { background:#8b5cf6; border-color:#8b5cf6; }
+    .pending-donation-banner { background:rgba(34,197,94,0.15); border:1px solid #22c55e; border-radius:12px; padding:12px; margin-bottom:15px; display:none; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
     @media (max-width:768px) {
-      .navbar { flex-direction:column; gap:15px; padding:15px; }
-      .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
+      .navbar { flex-direction:column; padding:15px; }
+      .nav-links { justify-content:center; }
       .page-header h1 { font-size:1.8rem; }
       .rooms-grid { grid-template-columns:1fr; }
     }
@@ -128,7 +132,7 @@
   <div id="roomsListPage">
     <div class="page-header">
       <h1>🚪 Public Rooms</h1>
-      <div style="display:flex; gap:15px; align-items:center;">
+      <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
         <button class="create-btn" onclick="requireLoginThen(openCreateModal)">+ Create Room</button>
         <button class="refresh-btn" onclick="loadRooms()">🔄 Refresh</button>
         <div class="join-by-id">
@@ -136,6 +140,11 @@
           <button onclick="joinRoomById()">Join</button>
         </div>
       </div>
+    </div>
+    <div class="room-filter">
+      <button class="filter-btn active" data-filter="all" onclick="setRoomFilter('all')">All</button>
+      <button class="filter-btn" data-filter="Public" onclick="setRoomFilter('Public')">Public</button>
+      <button class="filter-btn" data-filter="VIP" onclick="setRoomFilter('VIP')">VIP</button>
     </div>
     <div class="error-msg" id="errorBox"></div>
     <div class="rooms-grid" id="roomsGrid"></div>
@@ -162,7 +171,11 @@
     <button class="create-btn" style="margin-bottom:15px;" onclick="requireLoginThen(showBoard)">🎁 Show My Board</button>
     <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="requireLoginThen(sendBoardToChat)">📤 Send Board to Chat</button>
     <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="requireLoginThen(openAdModal)">📢 Advertise Board</button>
-    <!-- New Verify Donation button -->
+    <!-- Pending donation banner -->
+    <div id="pendingDonationBanner" class="pending-donation-banner">
+      <span id="pendingDonationText"></span>
+      <button class="create-btn" style="background:#f59e0b; padding:8px 16px;" onclick="verifyPendingDonation()">✅ Verify Now</button>
+    </div>
     <button class="create-btn" style="background:#f59e0b; margin-bottom:15px;" onclick="verifyPendingDonation()">✅ Verify Donation</button>
     <div class="queue-box" id="queueBox">
       ⏳ You are in queue position #<span id="queuePos">1</span>
@@ -191,10 +204,11 @@
   <h2>Create New Room</h2>
   <input type="text" id="roomNameInput" placeholder="Room Name">
   <textarea id="roomDescInput" placeholder="Room Description"></textarea>
-  <div class="type-btns">
-    <button class="type-btn active" onclick="setType('Public')">Public</button>
-    <button class="type-btn" onclick="setType('Private')">Private</button>
+  <div class="type-btns" id="roomTypeBtns">
+    <button class="type-btn active" data-type="Public" onclick="setCreateRoomType('Public')">Public</button>
+    <button class="type-btn" data-type="Private" onclick="setCreateRoomType('Private')">Private</button>
   </div>
+  <div id="vipRoomWarning" style="color:#ffd700; font-size:0.85rem; margin-bottom:10px; display:none;">VIP role required to create VIP rooms. Buy VIP from the ad page.</div>
   <button class="modal-btn" onclick="createRoom()">Create Room</button>
   <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
 </div>
@@ -220,6 +234,7 @@
   <div class="ad-buttons">
     <button class="ad-btn" onclick="openAdVerification('5k')"><span class="tier">5,000 Robux</span><span class="shows">1 Broadcast + 1 Cloud</span></button>
     <button class="ad-btn" onclick="openAdVerification('10k')"><span class="tier">10,000 Robux</span><span class="shows">1 Broadcast + 3 Clouds</span></button>
+    <button class="ad-btn" onclick="openAdVerification('vip')"><span class="tier">VIP Role</span><span class="shows">Get VIP access</span></button>
   </div>
   <div id="adPurchaseStatus" style="margin-top:15px;"></div>
   <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
@@ -275,7 +290,7 @@
 
   let userData = null;
   let currentRoom = null;
-  let roomType = 'Public';
+  let roomTypeForCreate = 'Public';
   let selectedReceiverId = null;
   let lastAdCheck = Date.now();
   let adPollInterval = null;
@@ -284,6 +299,7 @@
   let mutedUsers = new Set();
   let boardCooldown = false;
   let guestChatCooldown = false;
+  let currentRoomFilter = 'all';
 
   // ========== BAD WORDS FILTER ==========
   const BAD_WORDS_LIST = [
@@ -458,20 +474,52 @@
   socket.on('authenticated', (data) => {});
   socket.on('guest-authenticated', (data) => {});
 
-  // ========== DONATION VERIFICATION FUNCTIONS ==========
-  async function confirmDonate(receiverId, gamepassId, amount) {
+  // ========== PENDING DONATION UI ==========
+  function updatePendingDonationUI() {
+    const pending = sessionStorage.getItem('pendingDonation');
+    const banner = document.getElementById('pendingDonationBanner');
+    const textSpan = document.getElementById('pendingDonationText');
+    if (pending) {
+      try {
+        const donation = JSON.parse(pending);
+        if (Date.now() - donation.timestamp < 3600000) {
+          textSpan.innerText = `⏳ Pending donation: ${donation.amount} Robux to @${donation.receiverName || 'player'}`;
+          banner.style.display = 'flex';
+        } else {
+          sessionStorage.removeItem('pendingDonation');
+          banner.style.display = 'none';
+        }
+      } catch(e) { banner.style.display = 'none'; }
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  // ========== DONATION FUNCTIONS ==========
+  async function confirmDonate(receiverId, gamepassId, amount, receiverName) {
     if (!token) {
       alert('You must be logged in to donate.');
       return;
     }
     if (!confirm(`Donate ${amount} Robux to this player? You will be redirected to Roblox to complete the purchase. After buying, click the "Verify Donation" button in the room.`)) return;
-    // Store donation details in sessionStorage (cleared after verification)
-    sessionStorage.setItem('pendingDonation', JSON.stringify({
-      receiverId, gamepassId, amount, timestamp: Date.now()
-    }));
-    // Open Roblox gamepass page
-    window.open(`https://www.roblox.com/game-pass/${gamepassId}`, '_blank');
-    alert('After purchasing, click the "Verify Donation" button in the room chat area.');
+    try {
+      const res = await fetch('/api/donate/initiate', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ receiverId, gamepassId, amount })
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+      sessionStorage.setItem('pendingDonation', JSON.stringify({
+        receiverId, gamepassId, amount, receiverName, timestamp: Date.now()
+      }));
+      window.open(data.url, '_blank');
+      alert('After purchasing, click the "Verify Donation" button in the room.');
+      updatePendingDonationUI();
+    } catch (err) { alert('Error initiating donation.'); }
   }
 
   window.verifyPendingDonation = async function() {
@@ -481,16 +529,16 @@
       return;
     }
     const donation = JSON.parse(pending);
-    // Optional: check age (1 hour expiry)
     if (Date.now() - donation.timestamp > 3600000) {
       sessionStorage.removeItem('pendingDonation');
       alert('This donation request has expired (older than 1 hour). Please start a new donation.');
+      updatePendingDonationUI();
       return;
     }
     try {
       const res = await fetch('/api/donate/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: authHeaders(),
         body: JSON.stringify({
           receiverId: donation.receiverId,
           gamepassId: donation.gamepassId,
@@ -501,289 +549,319 @@
       if (data.success) {
         alert('Donation verified and recorded!');
         sessionStorage.removeItem('pendingDonation');
-        // Optionally refresh leaderboard or update stats on page
+        updatePendingDonationUI();
       } else {
         alert('Verification failed: ' + (data.error || 'Unknown error'));
       }
-    } catch (err) {
-      alert('Error verifying donation. Please try again.');
-    }
+    } catch (err) { alert('Error verifying donation.'); }
   };
-  // ==================================================
-    // --- Room loading & joining (supports guests) ---
-    async function loadRooms() {
-      const grid = document.getElementById('roomsGrid');
-      grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
-      try {
-        const res = await fetch('/api/rooms');
-        if (!res.ok) throw new Error();
-        const allRooms = await res.json();
-        const publicRooms = allRooms.filter(r => r.type === 'Public');
-        if (publicRooms.length === 0) { grid.innerHTML = '<p style="color:#a0a0b0;">No public rooms yet. Create one!</p>'; return; }
-        const seen = new Set();
-        const uniqueRooms = publicRooms.filter(room => {
-          if (seen.has(room._id)) return false;
-          seen.add(room._id);
-          return true;
-        });
-        grid.innerHTML = uniqueRooms.map(room => `
-          <div class="room-card">
-            <div class="room-name">${escapeHtml(room.name)}</div>
-            <div class="room-type">${room.type}</div>
-            <div class="room-desc">${escapeHtml(room.desc || 'No description')}</div>
-            <div class="room-stats">
-              <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
-              <button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button>
-            </div>
-          </div>
-        `).join('');
-      } catch (e) { grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms.</p>'; }
-    }
+// --- Room loading with filter (Public/VIP) ---
+let allRoomsCache = [];
+function setRoomFilter(filter) {
+  currentRoomFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    if (btn.dataset.filter === filter) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+  renderRooms(allRoomsCache);
+}
 
-    window.joinRoomById = async function(id) {
-      if (!id) id = document.getElementById('joinRoomIdInput').value.trim();
-      if (!id) { showError('Enter a room ID.'); return; }
-      showError('Joining room ' + id + '…');
-      let url, body;
-      if (isGuest && guestData.id) {
-        url = `/api/rooms/guest/join/${id}`;
-        body = { guestId: guestData.id, guestName: guestData.displayName || guestData.username || 'Guest' };
-      } else if (token) {
-        url = `/api/rooms/join/${id}`;
-        body = {};
-      } else {
-        showError('You need to log in or continue as guest first.');
-        return;
-      }
-      try {
-        const options = {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        };
-        if (token) options.headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(url, options);
-        const data = await res.json();
-        if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
-        if (data.queued) {
-          document.getElementById('roomsListPage').style.display = 'none';
-          document.getElementById('roomView').style.display = 'block';
-          document.getElementById('viewRoomName').textContent = 'Room (Queued)';
-          document.getElementById('viewRoomDesc').textContent = '';
-          document.getElementById('queueBox').style.display = 'block';
-          document.getElementById('queuePos').textContent = data.position;
-          currentRoom = { id, queued: true };
-          return;
-        }
-        if (data.success && data.room) {
-          document.getElementById('errorBox').style.display = 'none';
-          showRoomView(data.room);
-        }
-      } catch (e) { showError('Network error: ' + e.message); }
+function renderRooms(rooms) {
+  const grid = document.getElementById('roomsGrid');
+  let filtered = rooms;
+  if (currentRoomFilter !== 'all') {
+    filtered = rooms.filter(r => r.type === currentRoomFilter);
+  }
+  if (filtered.length === 0) {
+    grid.innerHTML = '<p style="color:#a0a0b0;">No rooms found.</p>';
+    return;
+  }
+  grid.innerHTML = filtered.map(room => `
+    <div class="room-card">
+      <div class="room-name">${escapeHtml(room.name)}</div>
+      <div class="room-type ${room.type === 'VIP' ? 'vip' : ''}">${room.type}</div>
+      <div class="room-desc">${escapeHtml(room.desc || 'No description')}</div>
+      <div class="room-stats">
+        <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
+        <button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadRooms() {
+  const grid = document.getElementById('roomsGrid');
+  grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
+  try {
+    const res = await fetch('/api/rooms');
+    if (!res.ok) throw new Error();
+    const allRooms = await res.json();
+    allRoomsCache = allRooms.filter(r => r.type !== 'Private'); // only show Public and VIP in list
+    renderRooms(allRoomsCache);
+  } catch (e) { grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms.</p>'; }
+}
+
+window.joinRoomById = async function(id) {
+  if (!id) id = document.getElementById('joinRoomIdInput').value.trim();
+  if (!id) { showError('Enter a room ID.'); return; }
+  showError('Joining room ' + id + '…');
+  let url, body;
+  if (isGuest && guestData.id) {
+    url = `/api/rooms/guest/join/${id}`;
+    body = { guestId: guestData.id, guestName: guestData.displayName || guestData.username || 'Guest' };
+  } else if (token) {
+    url = `/api/rooms/join/${id}`;
+    body = {};
+  } else {
+    showError('You need to log in or continue as guest first.');
+    return;
+  }
+  try {
+    const options = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
     };
-
-    // --- Room creation (only for logged‑in users) ---
-    function openCreateModal() {
-      if (!token) { showError('Login required to create rooms'); return; }
-      document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('createModal').style.display = 'block';
-    }
-    function closeModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('createModal').style.display = 'none';
-    }
-    function setType(type) {
-      roomType = type;
-      document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
-    }
-    window.createRoom = async function() {
-      if (!token) { showError('Login required'); return; }
-      const name = document.getElementById('roomNameInput').value.trim();
-      const desc = document.getElementById('roomDescInput').value.trim();
-      if (!name) { showError('Enter a room name'); return; }
-      try {
-        const res = await fetch('/api/rooms/create', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ name, desc, type: roomType })
-        });
-        const room = await res.json();
-        if (room.error) { showError(room.error); return; }
-        closeModal();
-        await joinRoomById(room._id);
-        loadRooms();
-      } catch (e) { showError('Error creating room'); }
-    };
-
-    function showRoomView(room) {
-      currentRoom = room;
+    if (token) options.headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, options);
+    const data = await res.json();
+    if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
+    if (data.queued) {
       document.getElementById('roomsListPage').style.display = 'none';
       document.getElementById('roomView').style.display = 'block';
-      document.getElementById('viewRoomName').textContent = room.name;
-      document.getElementById('viewRoomDesc').textContent = room.desc || '';
-      document.getElementById('queueBox').style.display = 'none';
-      document.getElementById('roomIdDisplay').style.display = 'inline-block';
-      document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong> (share to invite)`;
-      const playerList = document.getElementById('playerList');
-      playerList.innerHTML = room.players.map(playerId => {
-        const isMe = (token && userData && playerId === userData.id) || (isGuest && playerId === guestData.id);
-        let label = 'Player';
-        if (isMe) label = (userData?.displayName || guestData?.displayName || 'You');
-        else if (playerId.startsWith('Guest_')) label = 'Guest';
-        else label = 'Player';
-        return `<div class="player-tag"><span>${label}</span>${!isMe && token ? `<button class="donate-btn" onclick="openDonate('${playerId}')">💝 Donate</button>` : ''}</div>`;
-      }).join('');
-      socket.emit('join-room', room._id);
-      if (adPollInterval) clearInterval(adPollInterval);
-      lastAdCheck = Date.now();
-      checkAdBroadcasts();
-      adPollInterval = setInterval(checkAdBroadcasts, 10000);
-      isSpeaking = false;
-      updateSpeakButton();
-      mutedUsers.clear();
-      updateMutePopup();
+      document.getElementById('viewRoomName').textContent = 'Room (Queued)';
+      document.getElementById('viewRoomDesc').textContent = '';
+      document.getElementById('queueBox').style.display = 'block';
+      document.getElementById('queuePos').textContent = data.position;
+      currentRoom = { id, queued: true };
+      return;
     }
+    if (data.success && data.room) {
+      document.getElementById('errorBox').style.display = 'none';
+      showRoomView(data.room);
+    }
+  } catch (e) { showError('Network error: ' + e.message); }
+};
 
-    async function leaveRoom() {
-      if (adPollInterval) clearInterval(adPollInterval);
-      if (isSpeaking) await toggleSpeak();
-      socket.emit('leave-room');
-      if (isGuest && guestData.id) {
-        await fetch('/api/rooms/guest/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guestId: guestData.id }) });
-      } else if (token) {
-        await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
-      }
-      currentRoom = null;
-      document.getElementById('roomsListPage').style.display = 'block';
-      document.getElementById('roomView').style.display = 'none';
-      loadRooms();
-    }
-    async function leaveQueue() { await leaveRoom(); }
+// --- Room creation (with VIP check and daily limit) ---
+function setCreateRoomType(type) {
+  roomTypeForCreate = type;
+  document.querySelectorAll('#roomTypeBtns .type-btn').forEach(btn => {
+    if (btn.dataset.type === type) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+  const vipWarning = document.getElementById('vipRoomWarning');
+  if (type === 'VIP' && userData && userData.role !== 'vip' && userData.role !== 'admin' && userData.role !== 'owner') {
+    vipWarning.style.display = 'block';
+  } else {
+    vipWarning.style.display = 'none';
+  }
+}
 
-    // --- Voice functions (unchanged) ---
-    async function toggleSpeak() {
-      if (!currentRoom) return;
-      if (!isSpeaking) {
-        try {
-          localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const audioContext = new AudioContext();
-          const source = audioContext.createMediaStreamSource(localStream);
-          const processor = audioContext.createScriptProcessor(4096, 1, 1);
-          source.connect(processor);
-          processor.connect(audioContext.destination);
-          processor.onaudioprocess = (e) => {
-            if (!isSpeaking || !currentRoom) return;
-            const inputData = e.inputBuffer.getChannelData(0);
-            const buffer = new Int16Array(inputData.length);
-            for (let i = 0; i < inputData.length; i++) buffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-            socket.emit('voice-data', buffer.buffer);
-          };
-          window.currentAudioProcessor = processor;
-          isSpeaking = true;
-        } catch (err) { alert('Could not access microphone.'); return; }
-      } else {
-        if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
-        if (window.currentAudioProcessor) { window.currentAudioProcessor.disconnect(); window.currentAudioProcessor = null; }
-        isSpeaking = false;
-      }
-      updateSpeakButton();
-    }
-    function updateSpeakButton() {
-      const btn = document.getElementById('speakButton');
-      btn.textContent = isSpeaking ? '🔇 Stop Speaking' : '🎤 Speak';
-      if (isSpeaking) btn.classList.add('active');
-      else btn.classList.remove('active');
-    }
-    function toggleMutePopup() {
-      const popup = document.getElementById('mutePopup');
-      popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
-      if (popup.style.display === 'block') updateMutePopup();
-    }
-    function updateMutePopup() {
-      const popup = document.getElementById('mutePopup');
-      if (!currentRoom) return;
-      const players = currentRoom.players || [];
-      popup.innerHTML = players.map(playerId => {
-        const isMe = (token && userData && playerId === userData.id) || (isGuest && playerId === guestData.id);
-        const label = isMe ? 'You' : 'Player';
-        const checked = mutedUsers.has(playerId) ? 'checked' : '';
-        return `<div class="player-mute-row"><input type="checkbox" id="mute-${playerId}" ${checked} onchange="toggleMuteUser('${playerId}', this.checked)" ${isMe ? 'disabled' : ''}><label for="mute-${playerId}">${label}</label></div>`;
-      }).join('');
-    }
-    function toggleMuteUser(userId, mute) { if (mute) mutedUsers.add(userId); else mutedUsers.delete(userId); }
-    socket.off('voice-data');
-    socket.on('voice-data', (data) => {
-      if (mutedUsers.has(data.userId)) return;
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
-      const channel = buffer.getChannelData(0);
-      const int16Array = new Int16Array(data.audio);
-      for (let i = 0; i < int16Array.length; i++) channel[i] = int16Array[i] / 0x7FFF;
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioCtx.destination);
-      source.start();
+function openCreateModal() {
+  if (!token) { showError('Login required to create rooms'); return; }
+  // Check if user has reached daily limit (optional: fetch from backend but we rely on backend error)
+  document.getElementById('modalOverlay').style.display = 'block';
+  document.getElementById('createModal').style.display = 'block';
+  // Reset type selection to Public
+  setCreateRoomType('Public');
+}
+function closeModal() {
+  document.getElementById('modalOverlay').style.display = 'none';
+  document.getElementById('createModal').style.display = 'none';
+}
+window.createRoom = async function() {
+  if (!token) { showError('Login required'); return; }
+  const name = document.getElementById('roomNameInput').value.trim();
+  const desc = document.getElementById('roomDescInput').value.trim();
+  if (!name) { showError('Enter a room name'); return; }
+  if (roomTypeForCreate === 'VIP' && userData && userData.role !== 'vip' && userData.role !== 'admin' && userData.role !== 'owner') {
+    showError('VIP role required to create VIP rooms.');
+    return;
+  }
+  try {
+    const res = await fetch('/api/rooms/create', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ name, desc, type: roomTypeForCreate })
     });
+    const room = await res.json();
+    if (room.error) { showError(room.error); return; }
+    closeModal();
+    await joinRoomById(room._id);
+    loadRooms();
+  } catch (e) { showError('Error creating room'); }
+};
+function showRoomView(room) {
+  currentRoom = room;
+  document.getElementById('roomsListPage').style.display = 'none';
+  document.getElementById('roomView').style.display = 'block';
+  document.getElementById('viewRoomName').textContent = room.name;
+  document.getElementById('viewRoomDesc').textContent = room.desc || '';
+  document.getElementById('queueBox').style.display = 'none';
+  document.getElementById('roomIdDisplay').style.display = 'inline-block';
+  document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong> (share to invite)`;
+  const playerList = document.getElementById('playerList');
+  playerList.innerHTML = room.players.map(playerId => {
+    const isMe = (token && userData && playerId === userData.id) || (isGuest && playerId === guestData.id);
+    let label = 'Player';
+    if (isMe) label = (userData?.displayName || guestData?.displayName || 'You');
+    else if (playerId.startsWith('Guest_')) label = 'Guest';
+    else label = 'Player';
+    return `<div class="player-tag"><span>${label}</span>${!isMe && token ? `<button class="donate-btn" onclick="openDonate('${playerId}')">💝 Donate</button>` : ''}</div>`;
+  }).join('');
+  socket.emit('join-room', room._id);
+  if (adPollInterval) clearInterval(adPollInterval);
+  lastAdCheck = Date.now();
+  checkAdBroadcasts();
+  adPollInterval = setInterval(checkAdBroadcasts, 10000);
+  isSpeaking = false;
+  updateSpeakButton();
+  mutedUsers.clear();
+  updateMutePopup();
+  updatePendingDonationUI();
+}
 
-    // --- Board, donations, ads (only for logged‑in users) ---
-    async function showBoard() { /* same as before */ }
-    function closeBoardModal() { /* same */ }
-    async function addGamepassToBoard() { /* same */ }
-    async function removeGamepass(assetId) { /* same */ }
-    async function openDonate(receiverId) {
-      if (!token) { alert('Login to donate'); return; }
-      selectedReceiverId = receiverId;
-      try {
-        const res = await fetch(`/api/user/${receiverId}/board`, { headers: authHeaders() });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        document.getElementById('playerBoardTitle').textContent = `🎁 ${data.displayName}'s Board`;
-        document.getElementById('playerBoardName').textContent = data.displayName;
-        if (data.avatarUrl) {
-          document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
-          document.getElementById('playerBoardAvatar').style.backgroundSize = 'cover';
-        }
-        const grid = document.getElementById('playerBoardGrid');
-        if (!data.board || data.board.length === 0) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses on this player\'s board.</p>';
-        else {
-          grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn" onclick="confirmDonate('${receiverId}', '${gp.id}', ${gp.price})"><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('');
-        }
-        document.getElementById('playerBoardModal').style.display = 'block';
-        document.getElementById('modalOverlay').style.display = 'block';
-      } catch (e) { alert('Could not load player\'s board: ' + e.message); }
-    }
-    function closePlayerBoardModal() {
-      document.getElementById('playerBoardModal').style.display = 'none';
-      document.getElementById('modalOverlay').style.display = 'none';
-    }
-    async function confirmDonate(receiverId, gamepassId, amount) {
-      // This is now replaced by the version in Block 4 that uses sessionStorage.
-      // But we keep it as a wrapper to avoid errors; the actual implementation is above.
-      // To avoid duplication, we call the new function defined earlier.
-      // However, the onclick in the modal uses this name, so we redirect:
-      window.confirmDonateOriginal = confirmDonate;
-      // The real implementation is already defined as confirmDonate (the one with sessionStorage).
-      // To prevent confusion, ensure the confirmDonate defined in Block 4 is the one used.
-      // The function above (in Block 4) is the correct one. This stub will not be called.
-    }
-    // The actual confirmDonate is defined in Block 4, so we need to ensure it's not overwritten.
-    // To be safe, we remove this duplicate and rely on the one in Block 4.
-    // Therefore, comment out or delete this entire confirmDonate function.
-    // (I'll keep it as a comment, but the real one is in Block 4)
-    // Actually, the onclick in the modal uses 'confirmDonate' – we have defined it in Block 4, so this one would override.
-    // So remove this stub. I'll replace it with nothing.
+async function leaveRoom() {
+  if (adPollInterval) clearInterval(adPollInterval);
+  if (isSpeaking) await toggleSpeak();
+  socket.emit('leave-room');
+  if (isGuest && guestData.id) {
+    await fetch('/api/rooms/guest/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guestId: guestData.id }) });
+  } else if (token) {
+    await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
+  }
+  currentRoom = null;
+  document.getElementById('roomsListPage').style.display = 'block';
+  document.getElementById('roomView').style.display = 'none';
+  loadRooms();
+}
+async function leaveQueue() { await leaveRoom(); }
 
-    function openAdModal() { /* same */ }
-    function closeAdModal() { /* same */ }
-    let selectedAdTier, selectedAdGamepassId;
-    function openAdVerification(tier) { /* same */ }
-    function closeAdVerifyModal() { /* same */ }
-    function openAdGamepass() { /* same */ }
-    async function verifyAdPurchase() { /* same */ }
-    async function checkAdBroadcasts() { /* same */ }
-    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
+// --- Voice functions ---
+async function toggleSpeak() {
+  if (!currentRoom) return;
+  if (!isSpeaking) {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(localStream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+      processor.onaudioprocess = (e) => {
+        if (!isSpeaking || !currentRoom) return;
+        const inputData = e.inputBuffer.getChannelData(0);
+        const buffer = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) buffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+        socket.emit('voice-data', buffer.buffer);
+      };
+      window.currentAudioProcessor = processor;
+      isSpeaking = true;
+    } catch (err) { alert('Could not access microphone.'); return; }
+  } else {
+    if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
+    if (window.currentAudioProcessor) { window.currentAudioProcessor.disconnect(); window.currentAudioProcessor = null; }
+    isSpeaking = false;
+  }
+  updateSpeakButton();
+}
+function updateSpeakButton() {
+  const btn = document.getElementById('speakButton');
+  btn.textContent = isSpeaking ? '🔇 Stop Speaking' : '🎤 Speak';
+  if (isSpeaking) btn.classList.add('active');
+  else btn.classList.remove('active');
+}
+function toggleMutePopup() {
+  const popup = document.getElementById('mutePopup');
+  popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+  if (popup.style.display === 'block') updateMutePopup();
+}
+function updateMutePopup() {
+  const popup = document.getElementById('mutePopup');
+  if (!currentRoom) return;
+  const players = currentRoom.players || [];
+  popup.innerHTML = players.map(playerId => {
+    const isMe = (token && userData && playerId === userData.id) || (isGuest && playerId === guestData.id);
+    const label = isMe ? 'You' : 'Player';
+    const checked = mutedUsers.has(playerId) ? 'checked' : '';
+    return `<div class="player-mute-row"><input type="checkbox" id="mute-${playerId}" ${checked} onchange="toggleMuteUser('${playerId}', this.checked)" ${isMe ? 'disabled' : ''}><label for="mute-${playerId}">${label}</label></div>`;
+  }).join('');
+}
+function toggleMuteUser(userId, mute) { if (mute) mutedUsers.add(userId); else mutedUsers.delete(userId); }
+socket.off('voice-data');
+socket.on('voice-data', (data) => {
+  if (mutedUsers.has(data.userId)) return;
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
+  const channel = buffer.getChannelData(0);
+  const int16Array = new Int16Array(data.audio);
+  for (let i = 0; i < int16Array.length; i++) channel[i] = int16Array[i] / 0x7FFF;
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  source.start();
+});
 
+// --- Board, ads (same as before) ---
+async function showBoard() { /* unchanged - keep your existing */ }
+function closeBoardModal() { /* unchanged */ }
+async function addGamepassToBoard() { /* unchanged */ }
+async function removeGamepass(assetId) { /* unchanged */ }
+async function openDonate(receiverId) {
+  if (!token) { alert('Login to donate'); return; }
+  try {
+    const res = await fetch(`/api/user/${receiverId}/board`, { headers: authHeaders() });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    document.getElementById('playerBoardTitle').textContent = `🎁 ${data.displayName}'s Board`;
+    document.getElementById('playerBoardName').textContent = data.displayName;
+    if (data.avatarUrl) {
+      document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
+      document.getElementById('playerBoardAvatar').style.backgroundSize = 'cover';
+    }
+    const grid = document.getElementById('playerBoardGrid');
+    if (!data.board || data.board.length === 0) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses on this player\'s board.</p>';
+    else {
+      grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn" onclick="confirmDonate('${receiverId}', '${gp.id}', ${gp.price}, '${data.displayName}')"><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('');
+    }
+    document.getElementById('playerBoardModal').style.display = 'block';
+    document.getElementById('modalOverlay').style.display = 'block';
+  } catch (e) { alert('Could not load player\'s board: ' + e.message); }
+}
+function closePlayerBoardModal() {
+  document.getElementById('playerBoardModal').style.display = 'none';
+  document.getElementById('modalOverlay').style.display = 'none';
+}
+function openAdModal() { document.getElementById('adModal').style.display = 'block'; document.getElementById('modalOverlay').style.display = 'block'; }
+function closeAdModal() { document.getElementById('adModal').style.display = 'none'; document.getElementById('modalOverlay').style.display = 'none'; }
+let selectedAdTier, selectedAdGamepassId;
+function openAdVerification(tier) {
+  selectedAdTier = tier;
+  if (tier === 'vip') selectedAdGamepassId = '1859054633';
+  else if (tier === '5k') selectedAdGamepassId = '1862184808';
+  else selectedAdGamepassId = '1860026243';
+  document.getElementById('adVerifyTierText').textContent = `Tier: ${tier === 'vip' ? 'VIP Role' : (tier === '5k' ? '5,000 Robux' : '10,000 Robux')}`;
+  closeAdModal();
+  document.getElementById('adVerifyModal').style.display = 'block';
+  document.getElementById('modalOverlay').style.display = 'block';
+}
+function closeAdVerifyModal() { document.getElementById('adVerifyModal').style.display = 'none'; document.getElementById('modalOverlay').style.display = 'none'; }
+function openAdGamepass() { window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank'); }
+async function verifyAdPurchase() {
+  const statusDiv = document.getElementById('adVerifyStatus');
+  statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying purchase...</span>';
+  try {
+    const res = await fetch('/api/verify-ad', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ tier: selectedAdTier }) });
+    const data = await res.json();
+    if (data.success) {
+      statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Verified successfully!</span>';
+      setTimeout(() => { closeAdVerifyModal(); if (selectedAdTier === 'vip') window.location.reload(); }, 3000);
+    } else statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+  } catch (e) { statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>'; }
+}
+async function checkAdBroadcasts() { /* unchanged – keep your existing */ }
+function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
     // --- Initialisation ---
     async function init() {
       if (token) {
@@ -793,6 +871,15 @@
             userData = await res.json();
             userData.isGuest = false;
             document.getElementById('loginPrompt').style.display = 'none';
+            // Show VIP room type button in create modal if user has VIP role
+            if (userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') {
+              const vipBtn = document.createElement('button');
+              vipBtn.className = 'type-btn';
+              vipBtn.setAttribute('data-type', 'VIP');
+              vipBtn.textContent = 'VIP';
+              vipBtn.onclick = () => setCreateRoomType('VIP');
+              document.getElementById('roomTypeBtns').appendChild(vipBtn);
+            }
           } else { localStorage.removeItem('passly_token'); token = null; isGuest = true; }
         } catch (e) {}
       }
@@ -800,7 +887,6 @@
         userData = { ...guestData, isGuest: true };
         document.getElementById('loginPrompt').style.display = 'block';
       } else if (!userData && !isGuest) {
-        // Create guest session automatically
         const res = await fetch('/api/guest-login', { method: 'POST' });
         const data = await res.json();
         guestData = data;
@@ -821,6 +907,8 @@
       }
       setAvatar(avatarEl, userData?.avatarUrl, userData?.avatarFallback);
       loadRooms();
+      // Check pending donation on load
+      updatePendingDonationUI();
     }
     init();
   </script>
