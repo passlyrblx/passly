@@ -121,6 +121,13 @@
       font-size: 0.9rem;
       color: #fbbf24;
     }
+    .diagnostic-info {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 10px;
+      text-align: left;
+    }
     @media (max-width: 600px) { .container { padding: 25px 20px; } }
   </style>
 </head>
@@ -182,9 +189,11 @@
 
     async function loginWithPasskey() {
       const statusEl = document.getElementById('loginStatus');
+      statusEl.innerHTML = '';  // clear previous content
       statusEl.textContent = 'Requesting passkey login...';
+
       try {
-        // 1. Get authentication options (includes loginKey)
+        // 1. Get login options from server
         const optionsRes = await fetch('/api/passkey/login-options', { method: 'POST' });
         const options = await optionsRes.json();
         if (options.error) {
@@ -192,17 +201,34 @@
           return;
         }
 
-        // ── CRITICAL FIX: extract the loginKey BEFORE calling startAuthentication ──
+        // ─── DIAGNOSTIC: show the RP ID and allowCredentials info ───
+        const diagDiv = document.createElement('div');
+        diagDiv.className = 'diagnostic-info';
+        const rpId = options.rpId || 'Not set';
+        const allowCreds = options.allowCredentials || [];
+        diagDiv.innerHTML = `
+          <p><strong>Server RP ID:</strong> ${rpId}</p>
+          <p><strong>Number of known credentials for this RP ID:</strong> ${allowCreds.length}</p>
+          <p style="font-size:0.8rem; color:#a0a0b0;">(If the RP ID is wrong, fix it in Render env vars.<br>If credentials = 0, you must set up a passkey in your Profile first.)</p>
+        `;
+        statusEl.appendChild(diagDiv);
+
         const { loginKey, ...authOptions } = options;
 
-        // 2. Prompt user for biometrics
-        const authResponse = await SimpleWebAuthnBrowser.startAuthentication(authOptions);
+        // 2. Prompt biometrics – “No passkeys available” will appear here if credentials = 0
+        let authResponse;
+        try {
+          authResponse = await SimpleWebAuthnBrowser.startAuthentication(authOptions);
+        } catch (webAuthnError) {
+          statusEl.textContent += ' | WebAuthn error: ' + webAuthnError.message;
+          return;
+        }
 
-        // 3. Verify with server – include loginKey in the body
+        // 3. Verify with server
         const verifyRes = await fetch('/api/passkey/login-verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...authResponse, loginKey })   // ✅ loginKey included here
+          body: JSON.stringify({ ...authResponse, loginKey })
         });
         const result = await verifyRes.json();
         if (result.success) {
@@ -212,7 +238,7 @@
           statusEl.textContent = result.error || 'Login failed';
         }
       } catch (err) {
-        statusEl.textContent = 'Passkey login error. Maybe no passkey set up?';
+        statusEl.textContent = 'Unexpected error: ' + err.message;
         console.error(err);
       }
     }
