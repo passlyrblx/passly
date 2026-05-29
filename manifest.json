@@ -9,13 +9,13 @@
   "theme_color": "#8b5cf6",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512.png",
+      "src": "https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
