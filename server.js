@@ -19,11 +19,10 @@ const RP_ID = process.env.RP_ID || 'localhost';
 const RP_NAME = 'Passly';
 const ORIGIN = process.env.ORIGIN || 'http://localhost:3000';
 
-// ----- MongoDB connection & default rooms -----
+// ----- MongoDB & Default Rooms (created BEFORE server starts) -----
 mongoose.connect(MONGO_URI).then(async () => {
   console.log('MongoDB connected');
 
-  // Create default rooms if none exist
   const Room = mongoose.model('Room');
   const count = await Room.countDocuments();
   if (count === 0) {
@@ -133,7 +132,6 @@ app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'lived
 // ========== OAUTH (with MongoDB state) ==========
 app.get('/auth/roblox', async (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  // Store in MongoDB (auto‑deletes after 10 minutes)
   await OAuthState.create({ state });
   const params = new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId,
@@ -149,11 +147,8 @@ app.get('/auth/roblox/callback', async (req, res) => {
   const { code, state, error } = req.query;
   if (error === 'access_denied') return res.send('<h1>Authorization Denied</h1><a href="/">Try again</a>');
 
-  // Check if the state exists in MongoDB
   const stateDoc = await OAuthState.findOneAndDelete({ state });
-  if (!stateDoc) {
-    return res.status(403).send('<h1>Invalid State</h1><p>The login session expired or is invalid. Please try again.</p><a href="/">Go back</a>');
-  }
+  if (!stateDoc) return res.status(403).send('<h1>Invalid State</h1><p>The login session expired. Please try again.</p><a href="/">Go back</a>');
 
   if (!code) return res.redirect('/?error=no_code');
 
@@ -271,7 +266,7 @@ app.post('/api/board/remove', authenticateToken, async (req, res) => {
   res.json({ success: true, board: user.board });
 });
 
-// ========== ROOMS ==========
+// ========== ROOMS (fast, no stale state) ==========
 app.get('/api/rooms', async (req, res) => {
   const rooms = await Room.find({});
   res.json(rooms);
@@ -280,8 +275,7 @@ app.get('/api/rooms', async (req, res) => {
 app.post('/api/rooms/create', authenticateToken, async (req, res) => {
   const { name, desc, type } = req.body;
   if (!name) return res.status(400).json({ error: 'Room name required' });
-  const alreadyInRoom = await Room.findOne({ $or: [{ createdBy: req.user.id }, { players: req.user.id }] });
-  if (alreadyInRoom) return res.status(400).json({ error: 'You must leave your current room first.' });
+  // No need to check alreadyInRoom because we force-leave on page load
   const roomId = crypto.randomBytes(8).toString('hex');
   const newRoom = await Room.create({
     _id: roomId, name, desc: desc || '', type: type || 'Public',
@@ -299,7 +293,7 @@ app.post('/api/rooms/join/:roomId', authenticateToken, async (req, res) => {
   const userId = req.user.id;
   const user = await User.findById(userId);
 
-  // Clean up stale room references
+  // Clean up any stale reference
   if (user.roomId) {
     const storedRoom = await Room.findById(user.roomId);
     if (!storedRoom || storedRoom._id !== room._id) {
@@ -316,6 +310,7 @@ app.post('/api/rooms/join/:roomId', authenticateToken, async (req, res) => {
     }
   }
 
+  // If already in this room, just confirm
   if (room.players.includes(userId)) {
     if (!user.roomId || user.roomId !== room._id) {
       user.roomId = room._id;
@@ -325,6 +320,7 @@ app.post('/api/rooms/join/:roomId', authenticateToken, async (req, res) => {
     return res.json({ success: true, room });
   }
 
+  // Queue logic
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(userId)) {
       room.queue.push(userId);
@@ -337,6 +333,7 @@ app.post('/api/rooms/join/:roomId', authenticateToken, async (req, res) => {
     return res.json({ queued: true, position: room.queue.indexOf(userId) + 1 });
   }
 
+  // Normal join
   room.players.push(userId);
   await room.save();
   user.roomId = room._id;
@@ -392,7 +389,7 @@ app.get('/api/donations', async (req, res) => {
   res.json(recent);
 });
 
-// ========== LIVE DONATIONS ==========
+// ========== LIVE DONATIONS (immediate) ==========
 app.get('/api/live-donations', async (req, res) => {
   const now = Date.now();
   const all = await Donation.find({}).sort({ timestamp: -1 });
