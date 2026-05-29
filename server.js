@@ -31,6 +31,7 @@ mongoose.connect(MONGO_URI).then(async () => {
     donations: { received: Number, given: Number },
     board: [{ id: String, name: String, price: Number }],
     credentials: [{ id: String, publicKey: Buffer, counter: Number, transports: [String] }],
+    currentRegistrationChallenge: String,
     createdAt: { type: Date, default: Date.now }
   });
   const roomSchema = new mongoose.Schema({
@@ -258,12 +259,10 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
   const room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
 
-  // If already in room
   if (room.players.includes(req.user.id)) {
     return res.json({ success: true, room, alreadyIn: true });
   }
 
-  // If room is full, add to queue
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(req.user.id)) {
       room.queue.push(req.user.id);
@@ -273,12 +272,10 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
     return res.json({ queued: true, position });
   }
 
-  // Join room
   room.players.push(req.user.id);
   await room.save();
   await User.findByIdAndUpdate(req.user.id, { roomId: room._id, inQueue: false });
 
-  // Notify others in room via socket
   io.to(roomId).emit('player-joined', { userId: req.user.id, username: req.user.displayName });
   res.json({ success: true, room });
 });
@@ -291,7 +288,6 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   const room = await Room.findById(user.roomId);
   if (room) {
     room.players = room.players.filter(id => id !== req.user.id);
-    // Move first queued player in
     if (room.queue.length > 0 && room.players.length < room.maxPlayers) {
       const nextId = room.queue.shift();
       room.players.push(nextId);
@@ -345,7 +341,6 @@ io.on('connection', (socket) => {
     const user = await User.findById(userId);
     if (!user) return;
     const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
-    // Broadcast board as a special message
     io.to(currentRoomId).emit('chat-board', {
       userId, username, board: boardData, avatarUrl: user.avatarUrl
     });
@@ -429,12 +424,9 @@ app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  // Check if user already has an active ad
   const existing = await mongoose.model('Ad').findOne({ userId: req.user.id, active: true });
   if (existing) return res.status(400).json({ error: 'You already have an active ad. Delete it first.' });
 
-  // For demo, we simulate purchase verification. In production, call Roblox API to verify ownership.
-  // Here we assume success.
   const tierNum = tier === '5k' ? 5000 : 10000;
   const shows = tier === '5k' ? 1 : 3;
   const ad = new (mongoose.model('Ad'))({
@@ -465,6 +457,7 @@ app.get('/api/ads/broadcast', async (req, res) => {
   }).sort({ timestamp: -1 }).limit(10);
   res.json(broadcasts);
 });
+
 // ========== GUEST LOGIN ==========
 app.post('/api/guest-login', async (req, res) => {
   const guestId = crypto.randomBytes(8).toString('hex');
@@ -492,42 +485,50 @@ app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   // In production, create a Roblox purchase link (unresolved marketplace API).
   // For demo, just return a dummy URL.
   const url = `https://www.roblox.com/game-pass/${gamepassId}`;
-  // Record pending donation? You'd need a webhook to confirm.
   res.json({ url });
 });
-
 // ========== PASKEY (WebAuthn) ==========
 app.post('/api/webauthn/register/begin', authenticateToken, async (req, res) => {
-  const user = await mongoose.model('User').findById(req.user.id);
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
     rpID: RP_ID,
     userID: new Uint8Array(Buffer.from(user._id)),
-    userName: user.robloxUsername,
+    userName: user.robloxUsername || user.customDisplayName || 'user',
     attestationType: 'none',
     authenticatorSelection: { userVerification: 'preferred' }
   });
-  user.currentRegistration = options;
+
+  // Store challenge temporarily
+  user.currentRegistrationChallenge = options.challenge;
   await user.save();
+
   res.json(options);
 });
 
 app.post('/api/webauthn/register/complete', authenticateToken, async (req, res) => {
-  const user = await mongoose.model('User').findById(req.user.id);
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
   const verification = await verifyRegistrationResponse({
     response: req.body,
-    expectedChallenge: user.currentRegistration.challenge,
+    expectedChallenge: user.currentRegistrationChallenge,
     expectedOrigin: ORIGIN,
     expectedRPID: RP_ID
   });
+
   if (verification.verified && verification.registrationInfo) {
     user.credentials.push({
       id: verification.registrationInfo.credentialID,
       publicKey: Buffer.from(verification.registrationInfo.credentialPublicKey),
       counter: verification.registrationInfo.counter,
-      transports: req.body.transports
+      transports: req.body.transports || []
     });
-    user.currentRegistration = undefined;
+    user.currentRegistrationChallenge = undefined;
     await user.save();
     res.json({ verified: true });
   } else {
@@ -535,9 +536,7 @@ app.post('/api/webauthn/register/complete', authenticateToken, async (req, res) 
   }
 });
 
-// ========== FALLBACK ==========
+// ========== FALLBACK – must be LAST ==========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
-
-// Start server is already inside mongoose.connect callback
