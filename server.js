@@ -1,3 +1,4 @@
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -122,7 +123,18 @@ app.get('/auth/roblox/callback', async (req, res) => {
     const profile = profileRes.data;
     const robloxUsername = profile.name || 'Player';
     const robloxDisplayName = profile.displayName || robloxUsername;
-    const avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
+
+    // 🔥 Fetch avatar using the Thumbnails API (most reliable)
+    let avatarUrl = '';
+    try {
+      const thumbRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`);
+      if (thumbRes.data && thumbRes.data.data && thumbRes.data.data.length > 0) {
+        avatarUrl = thumbRes.data.data[0].imageUrl || '';
+      }
+    } catch (e) {
+      // Fallback to old headshot URL
+      avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
+    }
 
     if (!users[userId]) {
       users[userId] = {
@@ -155,9 +167,10 @@ app.get('/api/user', authenticateToken, (req, res) => {
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
 
+  // Already stored avatarUrl from login (Thumbnails API), use that
   const avatarUrl = user.avatarUrl || '';
-  const avatarFallback = avatarUrl ? 
-    `https://www.roblox.com/bust-thumbnail/image?userId=${user.id}&width=150&height=150&format=png` : '';
+  // Fallback for really old users who might not have the new avatarUrl yet
+  const avatarFallback = avatarUrl ? '' : `https://www.roblox.com/bust-thumbnail/image?userId=${user.id}&width=150&height=150&format=png`;
 
   const ad = Object.values(ads).find(a => a.userId === user.id && a.active);
 
