@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Passly - Profile</title>
+  <title>Passly - Donations Never Stop</title>
+  <!-- PWA support -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
+  <meta name="theme-color" content="#8b5cf6">
+
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0a0a14;
-      color: white;
-      min-height: 100vh;
-    }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0a14; color: white; min-height: 100vh; }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display:flex; gap:25px; }
@@ -275,21 +275,105 @@
       renderBoard();
     }
 
-    function updateStatusPreview() { /* unchanged */ }
-    async function saveProfile() { /* unchanged */ }
-    async function purchaseAd(tier) { /* unchanged */ }
-    async function deleteAd() { /* unchanged */ }
-    function updateAdUI() { /* unchanged */ }
-    async function searchPlayer() { /* unchanged */ }
-    function renderBoard() { /* unchanged */ }
-    async function addGamepassToBoard() { /* unchanged */ }
-    async function removeGamepassFromBoard(assetId) { /* unchanged */ }
+    function updateStatusPreview() {
+      const status = document.getElementById('statusDotSelect').value;
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      dot.className = 'status-dot';
+      if (status === 'online') {
+        dot.classList.add('dot-online');
+        text.textContent = 'Online';
+      } else {
+        dot.classList.add('dot-offline');
+        text.textContent = 'Offline';
+      }
+    }
 
-    // ... (include all previously defined functions – they are the same as before)
-    // For brevity I've omitted them here, but you must keep them.
-    // The key change is only the avatar setting part.
+    async function saveProfile() {
+      if (!token) return;
+      const showBooth = document.getElementById('showBooth').value === 'true';
+      const statusDot = document.getElementById('statusDotSelect').value;
+      const showRoomId = document.getElementById('showRoomId').value === 'true';
+      const customDisplayName = document.getElementById('customDisplayName').value.trim();
 
-    init();
-  </script>
-</body>
-</html>
+      const res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName })
+      });
+      if (res.ok) {
+        userData.profile = { showBooth, statusDot, showRoomId };
+        userData.customDisplayName = customDisplayName;
+        userData.displayName = customDisplayName || userData.robloxDisplayName;
+        document.getElementById('profileName').textContent = userData.displayName;
+        document.getElementById('userName').textContent = userData.displayName;
+        const msg = document.getElementById('saveMessage');
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 3000);
+      }
+    }
+
+    async function purchaseAd(tier) {
+      const message = prompt('Enter a short message (optional):');
+      try {
+        const res = await fetch('/api/purchase-ad', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ tier, message })
+        });
+        const data = await res.json();
+        if (data.success) {
+          userData.ad = data.ad;
+          alert('Ad purchased successfully!');
+          updateAdUI();
+        } else {
+          alert(data.error || 'Purchase failed. Make sure you own the gamepass!');
+        }
+      } catch (e) {
+        alert('Error purchasing ad.');
+      }
+    }
+
+    async function deleteAd() {
+      if (!confirm('Delete your current ad?')) return;
+      await fetch('/api/delete-ad', { method: 'POST', headers: authHeaders() });
+      userData.ad = null;
+      updateAdUI();
+    }
+
+    function updateAdUI() {
+      const statusBox = document.getElementById('adStatusBox');
+      const deleteBtn = document.getElementById('deleteAdBtn');
+      if (userData?.ad && userData.ad.active) {
+        statusBox.style.display = 'block';
+        statusBox.innerHTML = `
+          <strong>📢 Active Ad</strong><br>
+          Tier: ${userData.ad.tier.toLocaleString()} Robux<br>
+          Clouds Left: ${userData.ad.showsLeft}<br>
+          ${userData.ad.message ? `Message: "${userData.ad.message}"` : ''}
+        `;
+        deleteBtn.style.display = 'block';
+      } else {
+        statusBox.style.display = 'none';
+        deleteBtn.style.display = 'none';
+      }
+    }
+
+    // ---------- SEARCH PLAYER ----------
+    async function searchPlayer() {
+      const username = document.getElementById('searchUsername').value.trim();
+      const resultDiv = document.getElementById('searchResult');
+      if (!username) { resultDiv.innerHTML = '<p style="color:#f87171;">Enter a username</p>'; return; }
+
+      resultDiv.innerHTML = '<p style="color:#fbbf24;">Searching...</p>';
+      try {
+        const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`);
+        const data = await res.json();
+        if (data.error) {
+          resultDiv.innerHTML = `<p style="color:#f87171;">${data.error}</p>`;
+          return;
+        }
+        const boardHtml = data.board.length === 0
+          ? '<p style="color:#a0a0b0;">Board hidden or empty.</p>'
+          : data.board.map(gp => `
+              <button class="board-gamepass-btn" onclick="window.open('https://www.roblo
