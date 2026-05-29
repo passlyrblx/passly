@@ -65,19 +65,18 @@ mongoose.connect(MONGO_URI).then(async () => {
 
   const Room = mongoose.model('Room');
 
-  // Step 1: Remove any old default rooms that aren't the fixed IDs
+  // Remove old duplicate default rooms
   await Room.deleteMany({
     name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] },
     _id: { $nin: ["room1", "room2", "room3"] }
   });
 
-  // Step 2: Ensure the three fixed‑ID rooms exist
+  // Ensure the three fixed‑ID rooms exist
   const defaultRooms = [
     { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators." },
     { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players." },
     { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers." }
   ];
-
   for (const r of defaultRooms) {
     await Room.findOneAndUpdate(
       { _id: r._id },
@@ -446,8 +445,7 @@ app.get('/api/leaderboard', async (req, res) => {
     donors: Object.values(givenMap).sort((a,b) => b.amount - a.amount).slice(0,10)
   });
 });
-
-// ========== PASSKEY ==========
+// ========== PASSKEY ENDPOINTS ==========
 const challengeStore = new Map();
 
 app.post('/api/passkey/register-options', authenticateToken, async (req, res) => {
@@ -461,7 +459,7 @@ app.post('/api/passkey/register-options', authenticateToken, async (req, res) =>
     userID: user._id,
     userName: user.robloxUsername || user._id,
     attestationType: 'none',
-    authenticatorSelection: {             // ← NEW: makes the credential discoverable
+    authenticatorSelection: {
       residentKey: 'required',
       requireResidentKey: true,
       userVerification: 'preferred'
@@ -483,9 +481,17 @@ app.post('/api/passkey/register-verify', authenticateToken, async (req, res) => 
   if (!user) return res.status(404).json({ error: 'User not found' });
   const challenge = challengeStore.get(user._id);
   if (!challenge) return res.status(400).json({ error: 'Challenge expired' });
-  const verification = await verifyRegistrationResponse({ response: req.body, expectedChallenge: challenge, expectedOrigin: ORIGIN, expectedRPID: RP_ID });
+  const verification = await verifyRegistrationResponse({
+    response: req.body, expectedChallenge: challenge,
+    expectedOrigin: ORIGIN, expectedRPID: RP_ID
+  });
   if (verification.verified) {
-    user.credentials.push({ id: verification.registrationInfo.credentialID, publicKey: Buffer.from(verification.registrationInfo.credentialPublicKey), counter: verification.registrationInfo.counter, transports: req.body.response.transports || [] });
+    user.credentials.push({
+      id: verification.registrationInfo.credentialID,
+      publicKey: Buffer.from(verification.registrationInfo.credentialPublicKey),
+      counter: verification.registrationInfo.counter,
+      transports: req.body.response.transports || []
+    });
     await user.save();
     challengeStore.delete(user._id);
     return res.json({ success: true });
@@ -503,27 +509,67 @@ app.post('/api/passkey/login-options', async (req, res) => {
 app.post('/api/passkey/login-verify', async (req, res) => {
   try {
     const { loginKey, ...response } = req.body;
+    if (!loginKey) return res.status(400).json({ error: 'Missing login key' });
+
     const challenge = challengeStore.get(loginKey);
-    if (!challenge) return res.status(400).json({ error: 'Challenge expired' });
+    if (!challenge) return res.status(400).json({ error: 'Challenge expired. Try again.' });
+
     const User = mongoose.model('User');
     const user = await User.findOne({ 'credentials.id': response.id });
-    if (!user) return res.status(400).json({ error: 'No account linked' });
+    if (!user) {
+      return res.status(400).json({ error: 'No account linked to this passkey. Please log in with Roblox and set up a passkey again.' });
+    }
+
+    const credential = user.credentials.find(c => c.id === response.id);
+    if (!credential) {
+      return res.status(400).json({ error: 'Passkey not found on your account. Re‑register it.' });
+    }
+
     const verification = await verifyAuthenticationResponse({
-      response, expectedChallenge: challenge, expectedOrigin: ORIGIN, expectedRPID: RP_ID,
-      credential: { id: response.id, publicKey: new Uint8Array(user.credentials.find(c=>c.id===response.id).publicKey), counter: user.credentials.find(c=>c.id===response.id).counter }
+      response,
+      expectedChallenge: challenge,
+      expectedOrigin: ORIGIN,
+      expectedRPID: RP_ID,
+      credential: {
+        id: response.id,
+        publicKey: new Uint8Array(credential.publicKey),
+        counter: credential.counter
+      },
+      requireUserVerification: false
     });
+
     if (verification.verified) {
-      user.credentials.find(c=>c.id===response.id).counter = verification.authenticationInfo.newCounter;
+      credential.counter = verification.authenticationInfo.newCounter;
       await user.save();
       challengeStore.delete(loginKey);
-      const token = jwt.sign({ id: user._id, username: user.robloxUsername, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl }, JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign(
+        { id: user._id, username: user.robloxUsername, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
       return res.json({ success: true, token });
+    } else {
+      res.status(400).json({ error: 'Authentication failed. Try again or re‑register your passkey.' });
     }
-    res.status(400).json({ error: 'Authentication failed' });
-  } catch (e) { res.status(400).json({ error: 'Verification error' }); }
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: 'Verification error. Please try again.' });
+  }
 });
 
-// ========== GUEST ==========
+// Debug endpoint
+app.get('/api/passkey/debug', authenticateToken, async (req, res) => {
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({
+    userId: user._id,
+    credentialCount: user.credentials.length,
+    credentials: user.credentials.map(c => ({ id: c.id, counter: c.counter }))
+  });
+});
+
+// ========== GUEST LOGIN ==========
 app.post('/api/guest-login', async (req, res) => {
   const guestNum = Math.floor(10000+Math.random()*90000);
   const guestId = 'guest_'+Date.now()+'_'+guestNum;
