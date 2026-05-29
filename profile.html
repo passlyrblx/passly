@@ -7,7 +7,6 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
-  <script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@8.0.0/dist/bundle/index.umd.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
@@ -78,46 +77,43 @@
       <span class="user-name" id="userName">Loading...</span>
     </div>
   </nav>
+<div class="main-content">
+  <div class="debug-status" id="debugStatus">🔄 Initialising…</div>
+  <h1>👤 Profile Settings</h1>
 
-  <div class="main-content">
-    <div class="debug-status" id="debugStatus">🔄 Initialising…</div>
-    <h1>👤 Profile Settings</h1>
-
-    <div class="search-section">
-      <h3 style="color:#a78bfa; margin-bottom:10px;">🔍 Find a Player</h3>
-      <input type="text" id="searchUsername" class="search-input" placeholder="Enter Roblox username">
-      <button class="search-btn" onclick="searchPlayer()">Search</button>
-      <div id="searchResult" class="search-result"></div>
-    </div>
-
-    <div class="section-card">
-      <div class="profile-header">
-        <div class="profile-avatar" id="profileAvatar"></div>
-        <div class="profile-info">
-          <h2 id="profileName">Loading...</h2>
-          <p id="robloxUsernameDisplay">Roblox: @username</p>
-          <div id="guestBadge" class="guest-badge" style="display:none;">Guest</div>
-          <p id="profileStatus"><span class="status-dot dot-online" id="statusDot"></span><span id="statusText">Online</span></p>
-        </div>
-      </div>
-      <div id="loginPrompt" class="login-prompt" style="display:none;"><p>🔐 <strong>Log in with Roblox</strong> to edit your profile, board, and purchase ads.</p><button class="save-btn" onclick="window.location.href='/auth/roblox'" style="margin-top:10px;">Login with Roblox</button></div>
-      <div class="settings-group"><label class="settings-label">Custom Display Name</label><input type="text" class="custom-name-input" id="customDisplayName" placeholder="Leave blank to use Roblox name" maxlength="20"></div>
-      <div class="settings-group"><label class="settings-label">Show Booth (Gamepass Board)</label><select class="settings-select" id="showBooth"><option value="true">✅ Yes - Show my board to others</option><option value="false">❌ No - Hide my board</option></select></div>
-      <div class="settings-group"><label class="settings-label">Online Status Display</label><select class="settings-select" id="statusDotSelect" onchange="updateStatusPreview()"><option value="online">🟢 Green Dot - Show when online</option><option value="offline">⚫ Black Dot - Show when offline</option><option value="always-black">⚫ Always Black - Never show online status</option></select></div>
-      <div class="settings-group"><label class="settings-label">Show Room ID on Profile</label><select class="settings-select" id="showRoomId"><option value="true">✅ Yes - Others can see my room</option><option value="false">❌ No - Hide my current room</option></select></div>
-      <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
-      <div class="save-message" id="saveMessage">✅ Profile saved successfully!</div>
-      <button class="save-btn" style="background: #4ade80;" onclick="requireLogin(() => setupPasskey())" id="passkeySetupBtn">🔑 Set Up Passkey</button>
-      <div id="passkeyStatus" class="save-message" style="color:#fbbf24;"></div>
-    </div>
-
-    <div class="section-card">
-      <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
-      <div class="add-board-section"><input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;"><input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1"><button class="add-board-btn" onclick="requireLogin(() => addGamepassToBoard())">Add</button></div>
-      <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
-      <div class="board-gamepass-grid" id="boardGamepassGrid"><p style="color:#a0a0b0;">No gamepasses added yet.</p></div>
-    </div>
+  <div class="search-section">
+    <h3 style="color:#a78bfa; margin-bottom:10px;">🔍 Find a Player</h3>
+    <input type="text" id="searchUsername" class="search-input" placeholder="Enter Roblox username">
+    <button class="search-btn" onclick="searchPlayer()">Search</button>
+    <div id="searchResult" class="search-result"></div>
   </div>
+
+  <div class="section-card">
+    <div class="profile-header">
+      <div class="profile-avatar" id="profileAvatar"></div>
+      <div class="profile-info">
+        <h2 id="profileName">Loading...</h2>
+        <p id="robloxUsernameDisplay">Roblox: @username</p>
+        <div id="guestBadge" class="guest-badge" style="display:none;">Guest</div>
+        <p id="profileStatus"><span class="status-dot dot-online" id="statusDot"></span><span id="statusText">Online</span></p>
+      </div>
+    </div>
+    <div id="loginPrompt" class="login-prompt" style="display:none;"><p>🔐 <strong>Log in with Roblox</strong> to edit your profile, board, and purchase ads.</p><button class="save-btn" onclick="window.location.href='/auth/roblox'" style="margin-top:10px;">Login with Roblox</button></div>
+    <div class="settings-group"><label class="settings-label">Custom Display Name</label><input type="text" class="custom-name-input" id="customDisplayName" placeholder="Leave blank to use Roblox name" maxlength="20"></div>
+    <div class="settings-group"><label class="settings-label">Show Booth (Gamepass Board)</label><select class="settings-select" id="showBooth"><option value="true">✅ Yes - Show my board to others</option><option value="false">❌ No - Hide my board</option></select></div>
+    <div class="settings-group"><label class="settings-label">Online Status Display</label><select class="settings-select" id="statusDotSelect" onchange="updateStatusPreview()"><option value="online">🟢 Green Dot - Show when online</option><option value="offline">⚫ Black Dot - Show when offline</option><option value="always-black">⚫ Always Black - Never show online status</option></select></div>
+    <div class="settings-group"><label class="settings-label">Show Room ID on Profile</label><select class="settings-select" id="showRoomId"><option value="true">✅ Yes - Others can see my room</option><option value="false">❌ No - Hide my current room</option></select></div>
+    <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
+    <div class="save-message" id="saveMessage">✅ Profile saved successfully!</div>
+  </div>
+
+  <div class="section-card">
+    <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
+    <div class="add-board-section"><input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;"><input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1"><button class="add-board-btn" onclick="requireLogin(() => addGamepassToBoard())">Add</button></div>
+    <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
+    <div class="board-gamepass-grid" id="boardGamepassGrid"><p style="color:#a0a0b0;">No gamepasses added yet.</p></div>
+  </div>
+</div>
   <script>
     (function() {
       let token = localStorage.getItem('passly_token');
@@ -132,204 +128,190 @@
     let token = localStorage.getItem('passly_token');
     let userData = null;
 
-    function debugMsg(msg) { const el = document.getElementById('debugStatus'); if (el) el.innerHTML = msg; }
-
+    function debugMsg(msg) { const el = document.getElementById('debugStatus'); if (el) el.textContent = msg; }
     function authHeaders() {
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
       return headers;
     }
-
     function requireLogin(callback) {
       if (!token) {
-        document.getElementById('loginPrompt').style.display = 'block';
-        debugMsg('⚠️ Not logged in');
-        if (confirm('You need to log in with Roblox to do this. Go to login?')) window.location.href = '/auth/roblox';
+        alert('Please log in with Roblox first');
+        window.location.href = '/auth/roblox';
         return;
       }
       callback();
     }
 
     async function init() {
-      debugMsg('🔄 Loading user data…');
+      debugMsg('Loading user data...');
       if (token) {
         try {
-          const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} });
+          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
           if (res.ok) {
             userData = await res.json();
             userData.isGuest = false;
             document.getElementById('loginPrompt').style.display = 'none';
-          } else { localStorage.removeItem('passly_token'); token = null; }
-        } catch (e) {}
+          } else {
+            localStorage.removeItem('passly_token');
+            token = null;
+          }
+        } catch (e) { debugMsg('Error loading user'); }
       }
       if (!userData) {
         const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
         if (guest && guest.username) userData = { ...guest, isGuest: true };
         else {
-          const res = await fetch('/api/guest-login', { method:'POST' });
+          const res = await fetch('/api/guest-login', { method: 'POST' });
           const data = await res.json();
           userData = { ...data, isGuest: true };
           localStorage.setItem('passly_user', JSON.stringify(userData));
         }
-        document.getElementById('guestBadge').style.display = 'inline-block';
         document.getElementById('loginPrompt').style.display = 'block';
       }
 
       document.getElementById('userName').textContent = userData.displayName || userData.username;
       document.getElementById('profileName').textContent = userData.displayName || userData.username;
-      document.getElementById('robloxUsernameDisplay').textContent = `Roblox: @${userData.robloxUsername || 'N/A'}`;
+      document.getElementById('robloxUsernameDisplay').innerHTML = userData.robloxUsername ? `Roblox: @${userData.robloxUsername}` : '';
+      if (userData.isGuest) document.getElementById('guestBadge').style.display = 'inline-block';
 
-      const navAvatar = document.getElementById('userAvatar');
-      const profileAvatar = document.getElementById('profileAvatar');
-      function setAvatar(el, url, fallback) {
-        if (!url && !fallback) return;
-        const tryUrl = url || fallback;
-        el.style.backgroundImage = `url(${tryUrl})`;
-        el.onerror = function() {
-          if (url && fallback && tryUrl === url) el.style.backgroundImage = `url(${fallback})`;
-          else el.style.backgroundImage = '';
-        };
-      }
-      setAvatar(navAvatar, userData.avatarUrl, userData.avatarFallback);
-      setAvatar(profileAvatar, userData.avatarUrl, userData.avatarFallback);
+      // Avatar
+      const avatarUrl = userData.avatarUrl;
+      const avatarFallback = userData.avatarFallback || `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png`;
+      const setAvatar = (el) => {
+        if (avatarUrl) {
+          el.style.backgroundImage = `url(${avatarUrl})`;
+          el.onerror = () => { el.style.backgroundImage = `url(${avatarFallback})`; };
+        } else if (avatarFallback) {
+          el.style.backgroundImage = `url(${avatarFallback})`;
+        } else {
+          el.style.backgroundImage = '';
+        }
+      };
+      setAvatar(document.getElementById('userAvatar'));
+      setAvatar(document.getElementById('profileAvatar'));
 
+      // Profile settings
       if (userData.profile) {
-        document.getElementById('showBooth').value = userData.profile.showBooth.toString();
-        document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online';
-        document.getElementById('showRoomId').value = userData.profile.showRoomId.toString();
+        document.getElementById('showBooth').value = userData.profile.showBooth ? 'true' : 'false';
+        let dotSetting = userData.profile.statusDot || 'online';
+        document.getElementById('statusDotSelect').value = dotSetting;
+        document.getElementById('showRoomId').value = userData.profile.showRoomId ? 'true' : 'false';
+        updateStatusPreview();
       }
-      document.getElementById('customDisplayName').value = userData.customDisplayName || '';
-      updateStatusPreview();
-      renderBoard();
+      if (userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
 
-      if (userData.isGuest) {
-        document.getElementById('passkeySetupBtn').style.display = 'none';
-        debugMsg('👤 Guest – passkey not available');
-      } else {
-        debugMsg('✅ Logged in – you can set up a passkey');
+      // Board
+      if (userData.board && userData.board.length) {
+        const grid = document.getElementById('boardGamepassGrid');
+        grid.innerHTML = userData.board.map(gp => `
+          <div class="board-gamepass-btn">
+            <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+            <span class="board-gamepass-name">🆔 ${gp.id}</span>
+          </div>
+        `).join('');
       }
     }
 
     function updateStatusPreview() {
-      const status = document.getElementById('statusDotSelect').value;
+      const val = document.getElementById('statusDotSelect').value;
       const dot = document.getElementById('statusDot');
-      const text = document.getElementById('statusText');
-      dot.className = 'status-dot';
-      if (status === 'online') { dot.classList.add('dot-online'); text.textContent = 'Online'; }
-      else { dot.classList.add('dot-offline'); text.textContent = 'Offline'; }
+      const statusText = document.getElementById('statusText');
+      if (val === 'online') {
+        dot.className = 'status-dot dot-online';
+        statusText.textContent = 'Online';
+      } else {
+        dot.className = 'status-dot dot-offline';
+        statusText.textContent = 'Offline';
+      }
     }
 
     async function saveProfile() {
-      if (!token) return;
       const showBooth = document.getElementById('showBooth').value === 'true';
       const statusDot = document.getElementById('statusDotSelect').value;
       const showRoomId = document.getElementById('showRoomId').value === 'true';
       const customDisplayName = document.getElementById('customDisplayName').value.trim();
-      await fetch('/api/profile/update', { method:'POST', headers:authHeaders(), body:JSON.stringify({showBooth,statusDot,showRoomId,customDisplayName}) });
-      userData.profile = { showBooth, statusDot, showRoomId };
-      userData.customDisplayName = customDisplayName;
-      userData.displayName = customDisplayName || userData.robloxDisplayName;
-      document.getElementById('profileName').textContent = userData.displayName;
-      document.getElementById('userName').textContent = userData.displayName;
-      const msg = document.getElementById('saveMessage');
-      msg.style.display = 'block';
-      setTimeout(() => msg.style.display = 'none', 3000);
+      try {
+        const res = await fetch('/api/profile/update', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName })
+        });
+        if (res.ok) {
+          const msg = document.getElementById('saveMessage');
+          msg.style.display = 'block';
+          setTimeout(() => msg.style.display = 'none', 3000);
+          if (customDisplayName) userData.displayName = customDisplayName;
+          document.getElementById('profileName').textContent = userData.displayName || userData.username;
+        } else alert('Save failed');
+      } catch (e) { alert('Error saving'); }
     }
 
     async function searchPlayer() {
       const username = document.getElementById('searchUsername').value.trim();
-      const resultDiv = document.getElementById('searchResult');
-      if (!username) { resultDiv.innerHTML = '<p style="color:#f87171;">Enter a username</p>'; return; }
-      resultDiv.innerHTML = '<p style="color:#fbbf24;">Searching...</p>';
-      try {
-        const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`);
-        const data = await res.json();
-        if (data.error) { resultDiv.innerHTML = `<p style="color:#f87171;">${data.error}</p>`; return; }
-        const boardHtml = data.board.length === 0
-          ? '<p style="color:#a0a0b0;">Board hidden or empty.</p>'
-          : data.board.map(gp => `<button class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}','_blank')"><span class="board-gamepass-amount">R$ ${gp.price}</span><span class="board-gamepass-name">${gp.name}</span></button>`).join('');
-        resultDiv.innerHTML = `
-          <div style="display:flex; align-items:center; gap:15px; margin-bottom:10px;">
-            <div style="width:50px; height:50px; border-radius:50%; background:url(${data.avatarUrl}) center/cover;"></div>
-            <div><strong>${data.displayName}</strong><br><span style="color:#a0a0b0;">@${data.robloxUsername}</span></div>
-          </div>
-          <div class="board-gamepass-grid">${boardHtml}</div>`;
-      } catch (e) { resultDiv.innerHTML = '<p style="color:#f87171;">Error searching player.</p>'; }
-    }
-
-    function renderBoard() {
-      const grid = document.getElementById('boardGamepassGrid');
-      const board = userData?.board || [];
-      if (board.length === 0) { grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses added yet.</p>'; return; }
-      grid.innerHTML = board.map(gp => `
-        <div class="board-gamepass-btn" style="position:relative;">
-          <button class="remove-gp-btn" onclick="removeGamepassFromBoard('${gp.id}')">✕</button>
-          <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}','_blank')">R$ ${gp.price}</span>
-          <span class="board-gamepass-name" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}','_blank')">${gp.name || 'Gamepass'}</span>
-        </div>`).join('');
+      if (!username) return alert('Enter a username');
+      const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`);
+      const data = await res.json();
+      const container = document.getElementById('searchResult');
+      if (data.error) { container.innerHTML = `<p style="color:#ff4444;">${data.error}</p>`; return; }
+      let boardHtml = '';
+      if (data.board && data.board.length) {
+        boardHtml = `<div class="board-gamepass-grid">${data.board.map(gp => `<div class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span class="board-gamepass-amount">💰 ${gp.price} R$</span><span class="board-gamepass-name">${gp.id}</span></div>`).join('')}</div>`;
+      } else boardHtml = '<p>No gamepasses on board.</p>';
+      container.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div style="width:40px; height:40px; border-radius:50%; background:url(${data.avatarUrl || ''}) center/cover;"></div>
+          <div><strong>${data.displayName || data.robloxUsername}</strong><br><small>@${data.robloxUsername}</small></div>
+        </div>
+        ${boardHtml}
+      `;
     }
 
     async function addGamepassToBoard() {
-      if (!token) return;
       const assetId = document.getElementById('newGamepassId').value.trim();
       const price = parseInt(document.getElementById('newGamepassPrice').value);
-      if (!assetId || !price || price <= 0) {
-        document.getElementById('boardAddStatus').innerHTML = '<span style="color:#f87171;">Enter valid Asset ID and Robux amount</span>';
-        return;
-      }
-      const status = document.getElementById('boardAddStatus');
-      status.innerHTML = '<span style="color:#fbbf24;">Adding...</span>';
-      try {
-        const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) });
-        const data = await res.json();
-        if (data.success) {
-          userData.board = data.board;
-          renderBoard();
-          document.getElementById('newGamepassId').value = '';
-          document.getElementById('newGamepassPrice').value = '';
-          status.innerHTML = '<span style="color:#4ade80;">✅ Added!</span>';
-        } else status.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-      } catch (e) { status.innerHTML = '<span style="color:#f87171;">❌ Error adding gamepass.</span>'; }
-    }
-
-    async function removeGamepassFromBoard(assetId) {
-      if (!token) return;
-      if (!confirm('Remove this gamepass from your board?')) return;
-      const res = await fetch('/api/board/remove', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId }) });
+      if (!assetId || !price) { alert('Enter asset ID and Robux amount'); return; }
+      const res = await fetch('/api/board/add', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ assetId, price })
+      });
       const data = await res.json();
-      if (data.success) { userData.board = data.board; renderBoard(); }
+      if (data.error) alert(data.error);
+      else {
+        userData.board = data.board;
+        const grid = document.getElementById('boardGamepassGrid');
+        grid.innerHTML = data.board.map(gp => `
+          <div class="board-gamepass-btn">
+            <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+            <span class="board-gamepass-name">🆔 ${gp.id}</span>
+          </div>
+        `).join('');
+        document.getElementById('newGamepassId').value = '';
+        document.getElementById('newGamepassPrice').value = '';
+      }
     }
 
-    // ========== PASSKEY SETUP ==========
-    async function setupPasskey() {
-      debugMsg('🔑 Button clicked – starting passkey setup…');
-      if (!window.PublicKeyCredential) { document.getElementById('passkeyStatus').innerHTML = 'Passkeys not supported on this device.'; debugMsg('❌ Passkeys not supported'); return; }
-      const status = document.getElementById('passkeyStatus');
-      status.innerHTML = 'Setting up passkey...';
-      try {
-        const optionsRes = await fetch('/api/passkey/register-options', { method:'POST', headers:authHeaders() });
-        const contentType = optionsRes.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          const text = await optionsRes.text();
-          console.error('Expected JSON, got:', text.substring(0, 200));
-          status.innerHTML = 'Server returned HTML instead of JSON. Check the server logs.';
-          debugMsg('❌ Server error (HTML returned)');
-          return;
-        }
-        const options = await optionsRes.json();
-        if (options.error) { status.innerHTML = options.error; debugMsg('❌ Server error: ' + options.error); return; }
-
-        debugMsg('📲 Waiting for fingerprint…');
-        const regResponse = await SimpleWebAuthnBrowser.startRegistration(options);
-        debugMsg('📤 Sending to server for verification…');
-        const verifyRes = await fetch('/api/passkey/register-verify', { method:'POST', headers:authHeaders(), body:JSON.stringify(regResponse) });
-        const result = await verifyRes.json();
-        if (result.success) { status.innerHTML = '✅ Passkey set up successfully!'; debugMsg('✅ Passkey registered'); }
-        else { status.innerHTML = result.error || 'Registration failed.'; debugMsg('❌ ' + (result.error || 'Verification failed')); }
-      } catch (err) {
-        status.innerHTML = 'Error during passkey setup.';
-        debugMsg('❌ Error: ' + err.message);
-        console.error(err);
+    async function removeGamepass(assetId) {
+      if (!confirm('Remove this gamepass?')) return;
+      const res = await fetch('/api/board/remove', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ assetId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        userData.board = data.board;
+        const grid = document.getElementById('boardGamepassGrid');
+        grid.innerHTML = data.board.length ? data.board.map(gp => `
+          <div class="board-gamepass-btn">
+            <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+            <span class="board-gamepass-name">🆔 ${gp.id}</span>
+          </div>
+        `).join('') : '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
       }
     }
 
