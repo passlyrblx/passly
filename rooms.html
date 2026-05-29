@@ -122,7 +122,7 @@
     <div class="page-header">
       <h1>🚪 Public Rooms</h1>
       <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
-        <button class="create-btn" onclick="requireLoginThen(openCreateModal)">+ Create Room</button>
+        <button class="create-btn" id="createRoomBtn">+ Create Room</button>
         <button class="refresh-btn" onclick="loadRooms()">🔄 Refresh</button>
         <div class="join-by-id">
           <input type="text" id="joinRoomIdInput" placeholder="Room ID" maxlength="16">
@@ -157,9 +157,9 @@
           <div class="mute-popup" id="mutePopup"></div>
         </div>
       </div>
-      <button class="create-btn" style="margin-bottom:15px;" onclick="requireLoginThen(showBoard)">🎁 Show My Board</button>
-      <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="requireLoginThen(sendBoardToChat)">📤 Send Board to Chat</button>
-      <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="requireLoginThen(openAdModal)">📢 Advertise Board</button>
+      <button class="create-btn" style="margin-bottom:15px;" onclick="showBoard()">🎁 Show My Board</button>
+      <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="sendBoardToChat()">📤 Send Board to Chat</button>
+      <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="openAdModal()">📢 Advertise Board</button>
       <div class="queue-box" id="queueBox">
         ⏳ You are in queue position #<span id="queuePos">1</span>
         <button onclick="leaveQueue()" style="margin-left:10px; background:#ef4444; border:none; color:white; padding:6px 14px; border-radius:8px; cursor:pointer;">Leave Queue</button>
@@ -241,7 +241,7 @@
   <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
 </div>
 
-<!-- Player Board Modal (Donation) – now shows gamepasses, clicking one opens confirmation modal -->
+<!-- Player Board Modal (Donation) -->
 <div class="modal" id="playerBoardModal">
   <h2 id="playerBoardTitle">🎁 Player's Board</h2>
   <div id="playerBoardAvatar" style="width:60px; height:60px; border-radius:50%; margin:0 auto 10px; background-size:cover;"></div>
@@ -251,7 +251,7 @@
   <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
 </div>
 
-<!-- Donation Confirmation Modal (appears after selecting a gamepass) -->
+<!-- Donation Confirmation Modal -->
 <div class="modal donation-confirm-modal" id="donationConfirmModal">
   <div class="modal-content">
     <h2>💸 Confirm Donation</h2>
@@ -276,7 +276,7 @@
   </div>
 </div>
 
-<!-- Member Profile Modal (show donation stats) -->
+<!-- Member Profile Modal -->
 <div id="memberProfileModal" class="modal" style="display:none;">
   <h2>👤 Member Profile</h2>
   <div id="memberProfileAvatar" style="width:80px; height:80px; border-radius:50%; margin:0 auto; background-size:cover;"></div>
@@ -314,9 +314,9 @@
   let guestChatCooldown = false;
   let currentRoomFilter = 'all';
   let allRoomsCache = [];
-  let currentRoomPlayers = []; // store member objects
+  let currentRoomPlayers = [];
 
-  // Bad words filter (same as before)
+  // Bad words filter (unchanged)
   const BAD_WORDS_LIST = [
     'fuck', 'shit', 'ass', 'bitch', 'cunt', 'dick', 'pussy', 'twat', 'whore', 'slut', 'bastard', 'damn', 'hell', 'piss', 'cock',
     'faggot', 'nigga', 'nigger', 'retard', 'fck', 'fcuk', 'phuk', 'fuk', 'sh1t', 'sht', 'b1tch', 'btch', 'c0ck', 'd1ck', 'dck',
@@ -360,7 +360,7 @@
     callback();
   }
 
-  // User report modal functions (unchanged)
+  // User report modal (simplified)
   let currentReportUserId = null;
   function openUserModal(userId, username, avatarUrl) {
     if (userId === userData?.id || (isGuest && userId === guestData.id)) {
@@ -370,45 +370,98 @@
     currentReportUserId = userId;
     document.getElementById('modalUsername').innerText = username;
     if (avatarUrl) {
-      const avatarDiv = document.getElementById('modalAvatar');
-      avatarDiv.style.backgroundImage = `url(${avatarUrl})`;
-      avatarDiv.style.backgroundSize = 'cover';
+      document.getElementById('modalAvatar').style.backgroundImage = `url(${avatarUrl})`;
+      document.getElementById('modalAvatar').style.backgroundSize = 'cover';
     }
-    const reportBtn = document.getElementById('reportUserBtn');
-    if (!userId.startsWith('Guest_')) {
-      reportBtn.style.display = 'inline-block';
-      reportBtn.onclick = () => reportUser();
-    } else {
-      reportBtn.style.display = 'none';
-    }
+    document.getElementById('reportUserBtn').style.display = 'inline-block';
+    document.getElementById('reportUserBtn').onclick = () => reportUser();
     document.getElementById('userModal').style.display = 'block';
   }
   function closeUserModal() { document.getElementById('userModal').style.display = 'none'; currentReportUserId = null; }
-  async function reportUser() { /* same as before */ }
-
-  // Chat display (unchanged)
-  function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false) {
-    // same implementation as before
+  async function reportUser() {
+    if (!currentReportUserId) return;
+    const reason = prompt('Report this user. Reason:');
+    if (!reason) return;
+    const res = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ reportedUserId: currentReportUserId, reason })
+    });
+    const data = await res.json();
+    alert(data.success ? 'Report sent.' : 'Failed.');
+    closeUserModal();
   }
 
-  window.sendMessage = async function() { /* same */ };
-  socket.on('chat-message', (data) => { /* same */ });
-  socket.on('chat-error', (errMsg) => { showError(errMsg); });
+  // Chat display
+  function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false) {
+    const chatBox = document.getElementById('chatBox');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-msg';
+    const avatarDiv = document.createElement('div');
+    avatarDiv.className = 'chat-pfp';
+    avatarDiv.style.cursor = 'pointer';
+    avatarDiv.onclick = () => openUserModal(userId, username, avatarUrl);
+    if (avatarUrl) {
+      avatarDiv.style.backgroundImage = `url(${avatarUrl})`;
+      avatarDiv.style.backgroundSize = 'cover';
+      avatarDiv.style.backgroundPosition = 'center';
+    }
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'msg-content';
+    const usernameSpan = document.createElement('span');
+    usernameSpan.className = 'msg-username';
+    let badge = '';
+    if (isOwner) badge = ' <span style="background:#ef4444; padding:2px 6px; border-radius:8px; font-size:0.7rem;">OWNER</span>';
+    else if (isAdmin) badge = ' <span style="background:#10b981; padding:2px 6px; border-radius:8px; font-size:0.7rem;">ADMIN</span>';
+    usernameSpan.innerHTML = username + badge;
+    const messageDiv = document.createElement('div');
+    messageDiv.innerHTML = filterMessage(message);
+    contentDiv.appendChild(usernameSpan);
+    contentDiv.appendChild(messageDiv);
+    msgDiv.appendChild(avatarDiv);
+    msgDiv.appendChild(contentDiv);
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  window.sendMessage = function() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    if (isGuest) {
+      if (guestChatCooldown) { showError('Guest cooldown: 1 per 25 sec.'); return; }
+      guestChatCooldown = true;
+      setTimeout(() => { guestChatCooldown = false; }, 25000);
+      socket.emit('chat-message', { text: msg, guestName: guestData.displayName || 'Guest' });
+    } else {
+      if (!userData) return;
+      socket.emit('chat-message', filterMessage(msg));
+    }
+    input.value = '';
+  };
+
+  socket.on('chat-message', (data) => {
+    addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner);
+  });
+  socket.on('chat-error', (errMsg) => showError(errMsg));
   socket.on('room-closed', (data) => { alert(data.message); leaveRoom(); });
   socket.on('force-leave', (data) => { alert(data.reason); leaveRoom(); });
-  window.sendBoardToChat = async function() { /* same */ };
+
+  window.sendBoardToChat = async function() {
+    if (!currentRoom || !userData.board || !userData.board.length) { alert('No gamepasses on your board.'); return; }
+    if (boardCooldown) { alert('Please wait 30 seconds.'); return; }
+    socket.emit('chat-board', userData.board.map(gp => ({ id: gp.id, price: gp.price })));
+    boardCooldown = true;
+    setTimeout(() => { boardCooldown = false; }, 30000);
+  };
 
   if (token) socket.emit('authenticate', token);
   else if (isGuest && guestData.id) socket.emit('guest-auth', guestData.id);
 
-  // ========== MEMBERS LIST FUNCTIONS ==========
+  // Member list functions
   function updateMembersList(players) {
     const container = document.getElementById('memberList');
-    if (!container) return;
-    if (!players || players.length === 0) {
-      container.innerHTML = '<p>No members in this room.</p>';
-      return;
-    }
+    if (!players || !players.length) { container.innerHTML = '<p>No members.</p>'; return; }
     container.innerHTML = players.map(p => `
       <div class="member-item" onclick="showMemberProfile('${p.userId}', '${escapeHtml(p.username)}', '${p.avatarUrl || ''}')">
         <div class="member-avatar" style="background-image:url('${p.avatarUrl || ''}'); background-size:cover;"></div>
@@ -417,11 +470,9 @@
     `).join('');
   }
 
-  async function showMemberProfile(userId, username, avatarUrl) {
-    // Fetch donation stats for this user
+  window.showMemberProfile = async function(userId, username, avatarUrl) {
     try {
       const res = await fetch(`/api/user/${userId}/stats`, { headers: authHeaders() });
-      if (!res.ok) throw new Error();
       const data = await res.json();
       document.getElementById('memberProfileName').innerText = username;
       if (avatarUrl) document.getElementById('memberProfileAvatar').style.backgroundImage = `url(${avatarUrl})`;
@@ -430,17 +481,14 @@
       document.getElementById('memberGiven').innerText = data.given || 0;
       document.getElementById('memberProfileModal').style.display = 'block';
       document.getElementById('modalOverlay').style.display = 'block';
-    } catch (e) {
-      alert('Could not load member stats.');
-    }
-  }
+    } catch(e) { alert('Could not load member stats.'); }
+  };
   function closeMemberProfileModal() {
     document.getElementById('memberProfileModal').style.display = 'none';
     document.getElementById('modalOverlay').style.display = 'none';
   }
-  // Need a backend endpoint /api/user/:userId/stats – we'll add in server.js later. For now, we'll use /api/user/:userId/board and also fetch donations? Alternatively, we can add a new endpoint. I'll note it.
 
-  // ========== DONATION CONFIRMATION MODAL ==========
+  // Donation confirmation modal
   let currentDonation = null;
   function openDonationConfirm(receiverId, receiverName, gamepassId, amount) {
     currentDonation = { receiverId, receiverName, gamepassId, amount };
@@ -448,14 +496,12 @@
     document.getElementById('donationReceiverName').innerText = receiverName;
     document.getElementById('donationConfirmModal').style.display = 'block';
     document.getElementById('modalOverlay').style.display = 'block';
-    document.getElementById('donationConfirmStatus').innerHTML = '';
   }
   function closeDonationConfirmModal() {
     document.getElementById('donationConfirmModal').style.display = 'none';
     document.getElementById('modalOverlay').style.display = 'none';
     currentDonation = null;
   }
-  // Buy button opens Roblox link and stores pending donation
   document.getElementById('donationBuyBtn').onclick = async () => {
     if (!currentDonation) return;
     const { receiverId, gamepassId, amount } = currentDonation;
@@ -468,14 +514,11 @@
       });
       const data = await res.json();
       if (data.error) { alert(data.error); return; }
-      sessionStorage.setItem('pendingDonation', JSON.stringify({
-        receiverId, gamepassId, amount, receiverName: currentDonation.receiverName, timestamp: Date.now()
-      }));
+      sessionStorage.setItem('pendingDonation', JSON.stringify({ receiverId, gamepassId, amount, receiverName: currentDonation.receiverName, timestamp: Date.now() }));
       window.open(data.url, '_blank');
-      document.getElementById('donationConfirmStatus').innerHTML = '<span style="color:#fbbf24;">Purchase opened in new tab. Click "Verify" after buying.</span>';
-    } catch (err) { alert('Error initiating donation.'); }
+      document.getElementById('donationConfirmStatus').innerHTML = '<span style="color:#fbbf24;">Purchase opened. Click Verify after buying.</span>';
+    } catch(err) { alert('Error initiating donation.'); }
   };
-  // Verify button
   document.getElementById('donationVerifyBtn').onclick = async () => {
     if (!currentDonation) return;
     const { receiverId, gamepassId, amount } = currentDonation;
@@ -490,90 +533,273 @@
       });
       const data = await res.json();
       if (data.success) {
-        statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Donation verified and recorded!</span>';
-        setTimeout(() => {
-          closeDonationConfirmModal();
-          closePlayerBoardModal();
-        }, 2000);
+        statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Donation recorded!</span>';
+        setTimeout(() => { closeDonationConfirmModal(); closePlayerBoardModal(); }, 2000);
       } else {
         statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
       }
-    } catch (err) { statusDiv.innerHTML = '<span style="color:#f87171;">Error verifying.</span>'; }
+    } catch(err) { statusDiv.innerHTML = '<span style="color:#f87171;">Error verifying.</span>'; }
   };
 
-  // Override confirmDonate function to use the new modal
   window.confirmDonate = function(receiverId, gamepassId, amount, receiverName) {
     openDonationConfirm(receiverId, receiverName, gamepassId, amount);
   };
+// Room loading with filter
+function setRoomFilter(filter) {
+  currentRoomFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    if (btn.dataset.filter === filter) btn.classList.add('active');
+    else btn.classList.remove('active');
+  });
+  renderRooms(allRoomsCache);
+}
+function renderRooms(rooms) {
+  const grid = document.getElementById('roomsGrid');
+  let filtered = rooms;
+  if (currentRoomFilter !== 'all') filtered = rooms.filter(r => r.type === currentRoomFilter);
+  if (!filtered.length) { grid.innerHTML = '<p>No rooms found.</p>'; return; }
+  grid.innerHTML = filtered.map(room => `
+    <div class="room-card">
+      <div class="room-name">${escapeHtml(room.name)}</div>
+      <div class="room-type ${room.type === 'VIP' ? 'vip' : ''}">${room.type}</div>
+      <div class="room-desc">${escapeHtml(room.desc || 'No description')}</div>
+      <div class="room-stats">
+        <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
+        <button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button>
+      </div>
+    </div>
+  `).join('');
+}
+async function loadRooms() {
+  const grid = document.getElementById('roomsGrid');
+  grid.innerHTML = '<p>Loading rooms…</p>';
+  try {
+    const res = await fetch('/api/rooms');
+    const allRooms = await res.json();
+    allRoomsCache = allRooms.filter(r => r.type !== 'Private');
+    renderRooms(allRoomsCache);
+  } catch(e) { grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms.</p>'; }
+}
 
-  // ========== ROOM LOADING & FILTERING ==========
-  async function loadRooms() { /* same as before */ }
-  function setRoomFilter(filter) { /* same */ }
-  function renderRooms(rooms) { /* same */ }
-
-  // ========== ROOM JOIN & VIEW ==========
-  window.joinRoomById = async function(id) { /* same as before, but also call showRoomView */ };
-  function showRoomView(room) {
-    currentRoom = room;
-    document.getElementById('roomsListPage').style.display = 'none';
-    document.getElementById('roomViewContainer').style.display = 'block';
-    document.getElementById('membersPanel').style.display = 'block';
-    document.getElementById('viewRoomName').textContent = room.name;
-    document.getElementById('viewRoomDesc').textContent = room.desc || '';
-    document.getElementById('queueBox').style.display = 'none';
-    document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong>`;
-    // Update player list in room view (optional) but we also have members panel
-    updateMembersList(room.players.map(pid => ({ userId: pid, username: 'Loading...', avatarUrl: '' })));
-    // Fetch player details for members list
-    fetchPlayerDetails(room.players);
-    socket.emit('join-room', room._id);
-    if (adPollInterval) clearInterval(adPollInterval);
-    lastAdCheck = Date.now();
-    checkAdBroadcasts();
-    adPollInterval = setInterval(checkAdBroadcasts, 10000);
-    isSpeaking = false;
-    updateSpeakButton();
-    mutedUsers.clear();
-    updateMutePopup();
-  }
-  async function fetchPlayerDetails(playerIds) {
-    const members = [];
-    for (const pid of playerIds) {
-      try {
-        const res = await fetch(`/api/user/${pid}/stats`, { headers: authHeaders() });
-        if (res.ok) {
-          const data = await res.json();
-          members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl });
-        } else {
-          members.push({ userId: pid, username: pid.startsWith('Guest_') ? 'Guest' : 'Player', avatarUrl: '' });
-        }
-      } catch(e) { members.push({ userId: pid, username: 'Unknown', avatarUrl: '' }); }
+window.joinRoomById = async function(id) {
+  if (!id) id = document.getElementById('joinRoomIdInput').value.trim();
+  if (!id) { showError('Enter a room ID.'); return; }
+  showError('Joining room...');
+  let url, body;
+  if (isGuest && guestData.id) {
+    url = `/api/rooms/guest/join/${id}`;
+    body = { guestId: guestData.id, guestName: guestData.displayName || 'Guest' };
+  } else if (token) {
+    url = `/api/rooms/join/${id}`;
+    body = {};
+  } else { showError('Login or continue as guest.'); return; }
+  try {
+    const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+    if (token) options.headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, options);
+    const data = await res.json();
+    if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
+    if (data.queued) {
+      document.getElementById('roomsListPage').style.display = 'none';
+      document.getElementById('roomViewContainer').style.display = 'block';
+      document.getElementById('membersPanel').style.display = 'block';
+      document.getElementById('viewRoomName').textContent = 'Room (Queued)';
+      document.getElementById('queueBox').style.display = 'block';
+      document.getElementById('queuePos').textContent = data.position;
+      currentRoom = { id, queued: true };
+      return;
     }
-    updateMembersList(members);
+    if (data.success && data.room) showRoomView(data.room);
+  } catch(e) { showError('Network error.'); }
+};
+
+// Room creation
+window.setCreateRoomType = function(type) {
+  roomTypeForCreate = type;
+  document.querySelectorAll('#roomTypeBtns .type-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.type === type);
+  });
+  const vipWarning = document.getElementById('vipRoomWarning');
+  if (type === 'VIP' && userData && !['vip','admin','owner'].includes(userData.role)) {
+    vipWarning.style.display = 'block';
+  } else if (vipWarning) vipWarning.style.display = 'none';
+};
+window.openCreateModal = function() {
+  if (!token && !isGuest) { alert('Login required'); return; }
+  document.getElementById('modalOverlay').style.display = 'block';
+  document.getElementById('createModal').style.display = 'block';
+  setCreateRoomType('Public');
+};
+window.closeModal = function() {
+  document.getElementById('modalOverlay').style.display = 'none';
+  document.getElementById('createModal').style.display = 'none';
+};
+window.createRoom = async function() {
+  if (!token) { alert('Login required'); return; }
+  const name = document.getElementById('roomNameInput').value.trim();
+  const desc = document.getElementById('roomDescInput').value.trim();
+  if (!name) { showError('Enter room name.'); return; }
+  if (roomTypeForCreate === 'VIP' && userData && !['vip','admin','owner'].includes(userData.role)) {
+    showError('VIP role required.');
+    return;
   }
-  async function leaveRoom() { /* same, but also hide members panel */ }
-  // ... rest of functions (toggleSpeak, showBoard, etc.) unchanged
-// Room creation (same as before)
-function setCreateRoomType(type) { /* ... */ }
-function openCreateModal() { /* ... */ }
-function closeModal() { /* ... */ }
-window.createRoom = async function() { /* ... */ }
+  try {
+    const res = await fetch('/api/rooms/create', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ name, desc, type: roomTypeForCreate })
+    });
+    const room = await res.json();
+    if (room.error) { showError(room.error); return; }
+    closeModal();
+    await joinRoomById(room._id);
+    loadRooms();
+  } catch(e) { showError('Error creating room.'); }
+};
 
-// Voice functions (same)
-async function toggleSpeak() { /* ... */ }
-function updateSpeakButton() { /* ... */ }
-function toggleMutePopup() { /* ... */ }
-function updateMutePopup() { /* ... */ }
-function toggleMuteUser(userId, mute) { /* ... */ }
+function showRoomView(room) {
+  currentRoom = room;
+  document.getElementById('roomsListPage').style.display = 'none';
+  document.getElementById('roomViewContainer').style.display = 'block';
+  document.getElementById('membersPanel').style.display = 'block';
+  document.getElementById('viewRoomName').textContent = room.name;
+  document.getElementById('viewRoomDesc').textContent = room.desc || '';
+  document.getElementById('queueBox').style.display = 'none';
+  document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong>`;
+  updateMembersList(room.players.map(pid => ({ userId: pid, username: 'Loading...', avatarUrl: '' })));
+  fetchPlayerDetails(room.players);
+  socket.emit('join-room', room._id);
+  if (adPollInterval) clearInterval(adPollInterval);
+  lastAdCheck = Date.now();
+  checkAdBroadcasts();
+  adPollInterval = setInterval(checkAdBroadcasts, 10000);
+  isSpeaking = false;
+  updateSpeakButton();
+  mutedUsers.clear();
+  updateMutePopup();
+}
+
+async function fetchPlayerDetails(playerIds) {
+  const members = [];
+  for (const pid of playerIds) {
+    try {
+      const res = await fetch(`/api/user/${pid}/stats`, { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl });
+      } else members.push({ userId: pid, username: pid.startsWith('Guest_') ? 'Guest' : 'Player', avatarUrl: '' });
+    } catch(e) { members.push({ userId: pid, username: 'Unknown', avatarUrl: '' }); }
+  }
+  updateMembersList(members);
+}
+
+async function leaveRoom() {
+  if (adPollInterval) clearInterval(adPollInterval);
+  if (isSpeaking) await toggleSpeak();
+  socket.emit('leave-room');
+  if (isGuest && guestData.id) await fetch('/api/rooms/guest/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guestId: guestData.id }) });
+  else if (token) await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
+  currentRoom = null;
+  document.getElementById('roomsListPage').style.display = 'block';
+  document.getElementById('roomViewContainer').style.display = 'none';
+  document.getElementById('membersPanel').style.display = 'none';
+  loadRooms();
+}
+async function leaveQueue() { await leaveRoom(); }
+// Voice
+async function toggleSpeak() {
+  if (!currentRoom) return;
+  if (!isSpeaking) {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(localStream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+      processor.onaudioprocess = (e) => {
+        if (!isSpeaking || !currentRoom) return;
+        const input = e.inputBuffer.getChannelData(0);
+        const buffer = new Int16Array(input.length);
+        for (let i = 0; i < input.length; i++) buffer[i] = Math.max(-1, Math.min(1, input[i])) * 0x7FFF;
+        socket.emit('voice-data', buffer.buffer);
+      };
+      window.currentAudioProcessor = processor;
+      isSpeaking = true;
+    } catch(err) { alert('Microphone access denied.'); return; }
+  } else {
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
+    if (window.currentAudioProcessor) window.currentAudioProcessor.disconnect();
+    isSpeaking = false;
+  }
+  updateSpeakButton();
+}
+function updateSpeakButton() {
+  const btn = document.getElementById('speakButton');
+  btn.textContent = isSpeaking ? '🔇 Stop Speaking' : '🎤 Speak';
+  if (isSpeaking) btn.classList.add('active');
+  else btn.classList.remove('active');
+}
+function toggleMutePopup() {
+  const popup = document.getElementById('mutePopup');
+  popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+  if (popup.style.display === 'block') updateMutePopup();
+}
+function updateMutePopup() {
+  const popup = document.getElementById('mutePopup');
+  if (!currentRoom) return;
+  popup.innerHTML = (currentRoom.players || []).map(pid => {
+    const isMe = (token && userData && pid === userData.id) || (isGuest && pid === guestData.id);
+    return `<div class="player-mute-row"><input type="checkbox" id="mute-${pid}" ${mutedUsers.has(pid) ? 'checked' : ''} onchange="toggleMuteUser('${pid}', this.checked)" ${isMe ? 'disabled' : ''}><label for="mute-${pid}">${isMe ? 'You' : 'Player'}</label></div>`;
+  }).join('');
+}
+function toggleMuteUser(userId, mute) { if (mute) mutedUsers.add(userId); else mutedUsers.delete(userId); }
 socket.off('voice-data');
-socket.on('voice-data', (data) => { /* ... */ });
+socket.on('voice-data', (data) => {
+  if (mutedUsers.has(data.userId)) return;
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
+  const channel = buffer.getChannelData(0);
+  const int16 = new Int16Array(data.audio);
+  for (let i = 0; i < int16.length; i++) channel[i] = int16[i] / 0x7FFF;
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  source.start();
+});
 
-// Board, ads (same as before)
-async function showBoard() { /* ... */ }
-function closeBoardModal() { /* ... */ }
-async function addGamepassToBoard() { /* ... */ }
-async function removeGamepass(assetId) { /* ... */ }
-async function openDonate(receiverId) {
+// Board
+window.showBoard = async function() {
+  if (!userData) return;
+  const modal = document.getElementById('boardModal');
+  const grid = document.getElementById('boardGamepassGrid');
+  const board = userData.board || [];
+  if (!board.length) grid.innerHTML = '<p>No gamepasses added.</p>';
+  else grid.innerHTML = board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price} Robux</span><span class="board-gamepass-name">${gp.id}</span></div>`).join('');
+  modal.style.display = 'block';
+  document.getElementById('modalOverlay').style.display = 'block';
+};
+window.closeBoardModal = function() {
+  document.getElementById('boardModal').style.display = 'none';
+  document.getElementById('modalOverlay').style.display = 'none';
+};
+window.addGamepassToBoard = async function() {
+  const assetId = document.getElementById('newGamepassId').value.trim();
+  const price = parseInt(document.getElementById('newGamepassPrice').value);
+  if (!assetId || !price) { alert('Enter asset ID and price'); return; }
+  const res = await fetch('/api/board/add', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId, price }) });
+  const data = await res.json();
+  if (data.error) alert(data.error);
+  else { userData.board = data.board; showBoard(); document.getElementById('newGamepassId').value = ''; document.getElementById('newGamepassPrice').value = ''; }
+};
+window.removeGamepass = async function(assetId) {
+  if (!confirm('Remove this gamepass?')) return;
+  const res = await fetch('/api/board/remove', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId }) });
+  if (res.ok) { userData.board = (await res.json()).board; showBoard(); }
+};
+
+// Donation modal opening (from player board)
+window.openDonate = async function(receiverId) {
   if (!token) { alert('Login to donate'); return; }
   try {
     const res = await fetch(`/api/user/${receiverId}/board`, { headers: authHeaders() });
@@ -581,74 +807,108 @@ async function openDonate(receiverId) {
     if (data.error) throw new Error(data.error);
     document.getElementById('playerBoardTitle').textContent = `🎁 ${data.displayName}'s Board`;
     document.getElementById('playerBoardName').textContent = data.displayName;
-    if (data.avatarUrl) {
-      document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
-      document.getElementById('playerBoardAvatar').style.backgroundSize = 'cover';
-    }
+    if (data.avatarUrl) document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
     const grid = document.getElementById('playerBoardGrid');
-    if (!data.board || data.board.length === 0) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses on this player\'s board.</p>';
-    else {
-      grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn" onclick="confirmDonate('${receiverId}', '${gp.id}', ${gp.price}, '${data.displayName}')"><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('');
-    }
+    if (!data.board.length) grid.innerHTML = '<p>No gamepasses.</p>';
+    else grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn" onclick="confirmDonate('${receiverId}', '${gp.id}', ${gp.price}, '${data.displayName}')"><span class="board-gamepass-amount">💰 ${gp.price} Robux</span><span class="board-gamepass-name">${gp.id}</span></div>`).join('');
     document.getElementById('playerBoardModal').style.display = 'block';
     document.getElementById('modalOverlay').style.display = 'block';
-  } catch (e) { alert('Could not load player\'s board: ' + e.message); }
-}
-function closePlayerBoardModal() { /* ... */ }
-function openAdModal() { /* ... */ }
-function closeAdModal() { /* ... */ }
+  } catch(e) { alert('Could not load board.'); }
+};
+window.closePlayerBoardModal = function() {
+  document.getElementById('playerBoardModal').style.display = 'none';
+  document.getElementById('modalOverlay').style.display = 'none';
+};
+
+// Ads
+window.openAdModal = function() {
+  if (!token) { alert('Login required'); return; }
+  document.getElementById('adModal').style.display = 'block';
+  document.getElementById('modalOverlay').style.display = 'block';
+};
+window.closeAdModal = function() {
+  document.getElementById('adModal').style.display = 'none';
+  document.getElementById('modalOverlay').style.display = 'none';
+};
 let selectedAdTier, selectedAdGamepassId;
-function openAdVerification(tier) { /* ... */ }
-function closeAdVerifyModal() { /* ... */ }
-function openAdGamepass() { /* ... */ }
-async function verifyAdPurchase() { /* ... */ }
-async function checkAdBroadcasts() { /* ... */ }
-function escapeHtml(str) { /* ... */ }
-async function init() {
-  if (token) {
-    try {
-      const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) {
-        userData = await res.json();
-        userData.isGuest = false;
-        document.getElementById('loginPrompt').style.display = 'none';
-        if (userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') {
-          const vipBtn = document.createElement('button');
-          vipBtn.className = 'type-btn';
-          vipBtn.setAttribute('data-type', 'VIP');
-          vipBtn.textContent = 'VIP';
-          vipBtn.onclick = () => setCreateRoomType('VIP');
-          document.getElementById('roomTypeBtns').appendChild(vipBtn);
-        }
-      } else { localStorage.removeItem('passly_token'); token = null; isGuest = true; }
-    } catch (e) {}
-  }
-  if (!userData && isGuest && guestData.id) {
-    userData = { ...guestData, isGuest: true };
-    document.getElementById('loginPrompt').style.display = 'block';
-  } else if (!userData && !isGuest) {
-    const res = await fetch('/api/guest-login', { method: 'POST' });
+window.openAdVerification = function(tier) {
+  selectedAdTier = tier;
+  selectedAdGamepassId = tier === 'vip' ? '1859054633' : (tier === '5k' ? '1862184808' : '1860026243');
+  document.getElementById('adVerifyTierText').innerHTML = tier === 'vip' ? 'VIP Role' : (tier === '5k' ? '5,000 Robux' : '10,000 Robux');
+  closeAdModal();
+  document.getElementById('adVerifyModal').style.display = 'block';
+  document.getElementById('modalOverlay').style.display = 'block';
+};
+window.closeAdVerifyModal = function() {
+  document.getElementById('adVerifyModal').style.display = 'none';
+  document.getElementById('modalOverlay').style.display = 'none';
+};
+window.openAdGamepass = function() { window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank'); };
+window.verifyAdPurchase = async function() {
+  const statusDiv = document.getElementById('adVerifyStatus');
+  statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying...</span>';
+  try {
+    const res = await fetch('/api/verify-ad', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ tier: selectedAdTier }) });
     const data = await res.json();
-    guestData = data;
-    localStorage.setItem('passly_user', JSON.stringify(data));
-    isGuest = true;
-    userData = { ...data, isGuest: true };
-    document.getElementById('loginPrompt').style.display = 'block';
-    socket.emit('guest-auth', data.id);
-  }
-  const displayName = userData?.displayName || userData?.username || (isGuest ? guestData.displayName : 'Guest');
-  document.getElementById('userName').textContent = displayName;
-  const avatarEl = document.getElementById('userAvatar');
-  function setAvatar(el, url, fallback) {
-    if (!url && !fallback) { el.style.backgroundImage = ''; return; }
-    const tryUrl = url || fallback;
-    el.style.backgroundImage = `url(${tryUrl})`;
-    el.onerror = function() { if (url && fallback && tryUrl === url) el.style.backgroundImage = `url(${fallback})`; else el.style.backgroundImage = ''; };
-  }
-  setAvatar(avatarEl, userData?.avatarUrl, userData?.avatarFallback);
-  loadRooms();
+    if (data.success) {
+      statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Verified!</span>';
+      setTimeout(() => { closeAdVerifyModal(); if (selectedAdTier === 'vip') window.location.reload(); }, 2000);
+    } else statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+  } catch(e) { statusDiv.innerHTML = '<span style="color:#f87171;">Error.</span>'; }
+};
+async function checkAdBroadcasts() {
+  if (!currentRoom || !currentRoom.id) return;
+  try {
+    const res = await fetch(`/api/ads/broadcast?roomId=${currentRoom.id}&since=${lastAdCheck}`);
+    const ads = await res.json();
+    ads.forEach(ad => addChatMessage(`📢 AD: ${ad.advertiserName}`, ad.message || 'Check my board!', 'system', null));
+    lastAdCheck = Date.now();
+  } catch(e) {}
 }
-init();
+function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+    // Initialisation
+    async function init() {
+      if (token) {
+        try {
+          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
+          if (res.ok) {
+            userData = await res.json();
+            userData.isGuest = false;
+            document.getElementById('loginPrompt').style.display = 'none';
+            if (userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') {
+              const vipBtn = document.createElement('button');
+              vipBtn.className = 'type-btn';
+              vipBtn.setAttribute('data-type', 'VIP');
+              vipBtn.textContent = 'VIP';
+              vipBtn.onclick = () => setCreateRoomType('VIP');
+              document.getElementById('roomTypeBtns').appendChild(vipBtn);
+            }
+          } else { localStorage.removeItem('passly_token'); token = null; isGuest = true; }
+        } catch(e) {}
+      }
+      if (!userData && isGuest && guestData.id) {
+        userData = { ...guestData, isGuest: true };
+        document.getElementById('loginPrompt').style.display = 'block';
+      } else if (!userData && !isGuest) {
+        const res = await fetch('/api/guest-login', { method: 'POST' });
+        const data = await res.json();
+        guestData = data;
+        localStorage.setItem('passly_user', JSON.stringify(data));
+        isGuest = true;
+        userData = { ...data, isGuest: true };
+        document.getElementById('loginPrompt').style.display = 'block';
+        socket.emit('guest-auth', data.id);
+      }
+      const displayName = userData?.displayName || userData?.username || (isGuest ? guestData.displayName : 'Guest');
+      document.getElementById('userName').textContent = displayName;
+      const avatarEl = document.getElementById('userAvatar');
+      if (userData?.avatarUrl) avatarEl.style.backgroundImage = `url(${userData.avatarUrl})`;
+      else if (userData?.avatarFallback) avatarEl.style.backgroundImage = `url(${userData.avatarFallback})`;
+      loadRooms();
+      // Attach event to the create room button (in case onclick fails)
+      document.getElementById('createRoomBtn').onclick = openCreateModal;
+    }
+    init();
   </script>
 </body>
 </html>
