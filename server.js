@@ -6,6 +6,24 @@ const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
 const mongoose = require('mongoose');
+const morgan = require('morgan');
+const winston = require('winston');
+
+// Logger setup
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({ format: winston.format.simple() }));
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -15,7 +33,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
 
-// ----- MongoDB Connection & Schemas -----
+// MongoDB connection & schemas
 mongoose.connect(MONGO_URI).then(async () => {
   console.log('MongoDB connected');
 
@@ -114,12 +132,14 @@ mongoose.connect(MONGO_URI).then(async () => {
   server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
 }).catch(err => { console.error('MongoDB error:', err); process.exit(1); });
 
-// ----- Middleware -----
+// Middleware
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname)));
+app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
+// Roblox OAuth config
 const ROBLOX_CONFIG = {
   clientId: process.env.ROBLOX_CLIENT_ID,
   clientSecret: process.env.ROBLOX_CLIENT_SECRET,
@@ -131,6 +151,7 @@ const ROBLOX_CONFIG = {
 };
 const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K };
 
+// OAuth state model
 const oauthStateSchema = new mongoose.Schema({
   state: { type: String, required: true, unique: true },
   createdAt: { type: Date, default: Date.now, expires: 600 }
@@ -147,7 +168,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// ----- PAGES -----
+// ========== PAGE ROUTES ==========
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
@@ -155,7 +176,6 @@ app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderb
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
-
 // ========== OAUTH ==========
 app.get('/auth/roblox', async (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
@@ -397,6 +417,7 @@ io.on('connection', (socket) => {
     socket.join(roomId);
   });
 
+  // Chat message with admin/owner badge detection
   socket.on('chat-message', async (msg) => {
     if (!userId || !currentRoomId) return;
     const User = mongoose.model('User');
@@ -404,15 +425,21 @@ io.on('connection', (socket) => {
     if (!user) return;
     const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
     const avatarUrl = user.avatarUrl || '';
+    // Determine if user is admin or owner
+    const isOwner = (userId === OWNER_ROBLOX_ID);
+    const isAdmin = ADMINS.has(userId) || isOwner;
     io.to(currentRoomId).emit('chat-message', {
       userId,
       username,
       message: msg,
       avatarUrl,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isAdmin,
+      isOwner
     });
   });
 
+  // Board send with cooldown (handled client-side, but can add server check)
   socket.on('chat-board', async (boardData) => {
     if (!userId || !currentRoomId) return;
     const User = mongoose.model('User');
@@ -570,7 +597,117 @@ app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   const url = `https://www.roblox.com/game-pass/${gamepassId}`;
   res.json({ url });
 });
-// ========== FALLBACK (THIS MUST BE THE VERY LAST ROUTE) ==========
+// ========== ADMIN & MODERATION ==========
+const OWNER_ROBLOX_ID = '3115362000'; // Replace with your actual Roblox ID
+const ADMINS = new Set(); // store user IDs
+const BANNED = new Set(); // store user IDs
+let REPORTS = [];
+
+// Helper to check admin/owner
+async function isAdminOrOwner(req) {
+  const user = await mongoose.model('User').findById(req.user.id);
+  if (!user) return false;
+  if (user._id === OWNER_ROBLOX_ID) return true;
+  return ADMINS.has(user._id);
+}
+
+// Check banned middleware (applied after authentication)
+app.use((req, res, next) => {
+  if (req.user && BANNED.has(req.user.id)) {
+    return res.status(403).json({ error: 'Your account has been banned.' });
+  }
+  next();
+});
+
+// Endpoint to check if current user is admin
+app.get('/api/admin/check', authenticateToken, async (req, res) => {
+  const isAdmin = await isAdminOrOwner(req);
+  res.json({ isAdmin });
+});
+
+// Get all admin data (reports, banned list)
+app.get('/api/admin/data', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const bannedUsersWithNames = await Promise.all(Array.from(BANNED).map(async (userId) => {
+    const user = await mongoose.model('User').findById(userId);
+    return { userId, username: user?.robloxUsername || 'Unknown' };
+  }));
+  const reportsWithNames = await Promise.all(REPORTS.map(async (report) => {
+    const reportedUser = await mongoose.model('User').findById(report.reportedId);
+    const reporterUser = await mongoose.model('User').findById(report.reporterId);
+    return {
+      ...report,
+      reportedUsername: reportedUser?.robloxUsername || 'Unknown',
+      reporterUsername: reporterUser?.robloxUsername || 'Unknown'
+    };
+  }));
+  res.json({ reports: reportsWithNames, banned: bannedUsersWithNames });
+});
+
+// Grant admin (owner only)
+app.post('/api/admin/grant', authenticateToken, async (req, res) => {
+  if (req.user.id !== OWNER_ROBLOX_ID) return res.status(403).json({ error: 'Owner only' });
+  const { userId } = req.body;
+  ADMINS.add(userId);
+  res.json({ success: true });
+});
+
+// Ban user (admin only)
+app.post('/api/admin/ban', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const { userId } = req.body;
+  BANNED.add(userId);
+  io.to(userId).emit('force-logout', { reason: 'You have been banned.' });
+  res.json({ success: true });
+});
+
+// Unban user (admin only)
+app.post('/api/admin/unban', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  BANNED.delete(req.body.userId);
+  res.json({ success: true });
+});
+
+// Submit a report
+app.post('/api/report', authenticateToken, async (req, res) => {
+  const { reportedUserId, reason } = req.body;
+  REPORTS.push({
+    _id: crypto.randomBytes(8).toString('hex'),
+    reportedId: reportedUserId,
+    reporterId: req.user.id,
+    reason,
+    timestamp: Date.now()
+  });
+  res.json({ success: true });
+});
+
+// Resolve a report (admin only)
+app.post('/api/admin/resolve-report', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403);
+  REPORTS = REPORTS.filter(r => r._id !== req.body.reportId);
+  res.json({ success: true });
+});
+
+// Search user (admin only)
+app.get('/api/admin/search-user', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403);
+  const user = await mongoose.model('User').findOne({ robloxUsername: new RegExp(`^${req.query.username}$`, 'i') });
+  if (!user) return res.json({ error: 'User not found' });
+  res.json({ id: user._id, username: user.robloxUsername });
+});
+
+// Broadcast message to all rooms (admin only)
+app.post('/api/admin/broadcast', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403);
+  io.emit('admin-message', { roomId: 'GLOBAL', message: req.body.message });
+  res.json({ success: true });
+});
+
+// Health check for frontend
+app.get('/api/health', (req, res) => {
+  res.status(200).send('ok');
+});
+// ========== FALLBACK (MUST BE LAST) ==========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
