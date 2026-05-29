@@ -8,13 +8,9 @@
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0a0a14;
-      color: white;
-      min-height: 100vh;
-    }
+    /* … same as before … */
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display:flex; gap:25px; }
@@ -41,34 +37,16 @@
     .logout-btn { background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.3); color:#fca5a5; }
     .logout-btn:hover { background:rgba(239,68,68,0.25); }
     .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin-top:20px; text-align:center; display:none; }
-
     .ad-cloud {
-      position: fixed;
-      top: -100px;
-      left: 10%;
-      background: rgba(30,30,50,0.95);
-      border: 2px solid #8b5cf6;
-      border-radius: 20px;
-      padding: 20px 35px;
-      z-index: 300;
-      box-shadow: 0 10px 40px rgba(139,92,246,0.3);
-      text-align: center;
-      font-size: 1.1rem;
-      backdrop-filter: blur(10px);
-      cursor: pointer;
-      animation: cloudZigZag 12s ease-in-out forwards;
+      position:fixed; top:-100px; left:10%; background:rgba(30,30,50,0.95); border:2px solid #8b5cf6; border-radius:20px; padding:20px 35px;
+      z-index:300; box-shadow:0 10px 40px rgba(139,92,246,0.3); text-align:center; font-size:1.1rem; backdrop-filter:blur(10px);
+      cursor:pointer; animation:cloudZigZag 12s ease-in-out forwards;
     }
     @keyframes cloudZigZag {
-      0%   { top: -100px; left: 10%; opacity: 0; }
-      5%   { top: 5%; left: 10%; opacity: 1; }
-      25%  { top: 20%; left: 80%; }
-      50%  { top: 50%; left: 20%; }
-      75%  { top: 70%; left: 70%; }
-      90%  { top: 85%; left: 30%; opacity: 1; }
-      100% { top: 100vh; left: 50%; opacity: 0; }
+      0% { top:-100px; left:10%; opacity:0; } 5% { top:5%; left:10%; opacity:1; } 25% { top:20%; left:80%; }
+      50% { top:50%; left:20%; } 75% { top:70%; left:70%; } 90% { top:85%; left:30%; opacity:1; } 100% { top:100vh; left:50%; opacity:0; }
     }
-    .ad-cloud:hover { border-color: #a78bfa; box-shadow: 0 10px 40px rgba(139,92,246,0.5); }
-
+    .ad-cloud:hover { border-color:#a78bfa; box-shadow:0 10px 40px rgba(139,92,246,0.5); }
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -84,6 +62,7 @@
       <a href="/rooms">🚪 Rooms</a>
       <a href="/leaderboard">🏆 Leaderboard</a>
       <a href="/profile">👤 Profile</a>
+      <a href="/advertisement">📢 Advertise</a>
     </div>
     <div class="user-box">
       <div class="user-avatar" id="userAvatar"></div>
@@ -97,37 +76,24 @@
     <div class="welcome-section">
       <h1>Welcome, <span class="username-highlight" id="dashUsername">Player</span>! 👋</h1>
       <span id="guestBadge" class="guest-badge">Guest</span>
-      <p style="color: #a0a0b0; margin-top: 5px;">Your donation hub is ready</p>
+      <p style="color:#a0a0b0; margin-top:5px;">Your donation hub is ready</p>
     </div>
-
     <div class="current-room">
       <h3>📍 Current Room</h3>
-      <p id="currentRoomDisplay" style="color: #b0b0c0;">Not in any room</p>
-      <p id="queueStatus" style="color: #fbbf24; margin-top: 5px; display: none;"></p>
+      <p id="currentRoomDisplay" style="color:#b0b0c0;">Not in any room</p>
+      <p id="queueStatus" style="color:#fbbf24; margin-top:5px; display:none;"></p>
     </div>
-
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-value" id="totalReceived">0</div>
-        <div class="stat-label">💰 Total Robux Received</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="totalGiven">0</div>
-        <div class="stat-label">💸 Total Robux Given</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="adStatusText">No Ad</div>
-        <div class="stat-label">📢 Advertisement Status</div>
-      </div>
+      <div class="stat-card"><div class="stat-value" id="totalReceived">0</div><div class="stat-label">💰 Total Robux Received</div></div>
+      <div class="stat-card"><div class="stat-value" id="totalGiven">0</div><div class="stat-label">💸 Total Robux Given</div></div>
+      <div class="stat-card"><div class="stat-value" id="adStatusText">No Ad</div><div class="stat-label">📢 Advertisement Status</div></div>
     </div>
-
     <div class="quick-actions">
       <a href="/rooms" class="action-btn">🚪 Browse Rooms</a>
       <a href="/leaderboard" class="action-btn">🏆 View Leaderboard</a>
       <a href="/profile" class="action-btn">👤 Edit Profile</a>
       <button class="action-btn logout-btn" onclick="logout()">🚪 Logout</button>
     </div>
-
     <div id="loginPrompt" class="login-prompt">
       <p>🔐 <strong>Log in with Roblox</strong> to donate, advertise, and create rooms.</p>
       <button class="action-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
@@ -148,60 +114,40 @@
       }
     })();
 
-    function authHeaders() {
-      const h = { 'Content-Type': 'application/json' };
-      if (token) h['Authorization'] = `Bearer ${token}`;
-      return h;
-    }
+    function authHeaders() { const h = { 'Content-Type':'application/json' }; if (token) h['Authorization'] = `Bearer ${token}`; return h; }
 
     async function loadDashboard() {
       try {
         if (token) {
-          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
-          if (res.ok) {
-            userData = await res.json();
-            userData.isGuest = false;
-          } else {
-            localStorage.removeItem('passly_token');
-            token = null;
-          }
+          const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} });
+          if (res.ok) { userData = await res.json(); userData.isGuest = false; }
+          else { localStorage.removeItem('passly_token'); token = null; }
         }
-
         if (!userData) {
           const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
-          if (guest && guest.username) {
-            userData = { ...guest, isGuest: true };
-          } else {
-            const res = await fetch('/api/guest-login', { method: 'POST' });
+          if (guest && guest.username) userData = { ...guest, isGuest: true };
+          else {
+            const res = await fetch('/api/guest-login', { method:'POST' });
             const data = await res.json();
             userData = { ...data, isGuest: true };
             localStorage.setItem('passly_user', JSON.stringify(userData));
           }
         }
-
         document.getElementById('dashUsername').textContent = userData.displayName || userData.username;
         document.getElementById('userName').textContent = userData.displayName || userData.username;
-
         if (userData.isGuest) {
           document.getElementById('guestBadge').style.display = 'inline-block';
           document.getElementById('loginPrompt').style.display = 'block';
-        } else {
-          document.getElementById('guestBadge').style.display = 'none';
-          document.getElementById('loginPrompt').style.display = 'none';
-        }
+        } else { document.getElementById('guestBadge').style.display = 'none'; document.getElementById('loginPrompt').style.display = 'none'; }
 
-        // Avatar with fallback
         const avatarEl = document.getElementById('userAvatar');
         function setAvatar(el, url, fallback) {
           if (!url && !fallback) return;
           const tryUrl = url || fallback;
           el.style.backgroundImage = `url(${tryUrl})`;
           el.onerror = function() {
-            if (url && fallback && tryUrl === url) {
-              el.style.backgroundImage = `url(${fallback})`;
-            } else {
-              el.style.backgroundImage = '';
-            }
+            if (url && fallback && tryUrl === url) el.style.backgroundImage = `url(${fallback})`;
+            else el.style.backgroundImage = '';
           };
         }
         setAvatar(avatarEl, userData.avatarUrl, userData.avatarFallback);
@@ -213,30 +159,43 @@
           document.getElementById('adStatusText').textContent = `${userData.ad.showsLeft} clouds left`;
           startAdDisplay();
         }
-
         if (userData.roomId) {
           document.getElementById('currentRoomDisplay').textContent = 'You are in a room';
-          if (userData.inQueue) {
-            document.getElementById('queueStatus').style.display = 'block';
-            document.getElementById('queueStatus').textContent = '⏳ You are in queue';
-          }
+          if (userData.inQueue) { document.getElementById('queueStatus').style.display = 'block'; document.getElementById('queueStatus').textContent = '⏳ You are in queue'; }
         }
-
         loadAds();
         setInterval(loadAds, 30000);
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) { console.error(e); }
     }
 
-    function startAdDisplay() { /* unchanged */ }
-    function showAdCloud(ad) { /* unchanged */ }
-    async function loadAds() { /* unchanged */ }
-    async function logout() {
-      localStorage.removeItem('passly_token');
-      localStorage.removeItem('passly_user');
-      window.location.href = '/';
+    function startAdDisplay() {
+      if (!userData.ad || !userData.ad.active || userData.ad.showsLeft <= 0) return;
+      showAdCloud(userData.ad);
+      userData.ad.showsLeft--;
+      if (userData.ad.showsLeft > 0) setTimeout(() => startAdDisplay(), 10000);
+      else { document.getElementById('adStatusText').textContent = 'No Ad'; userData.ad.active = false; }
     }
+
+    function showAdCloud(ad) {
+      const cloud = document.createElement('div');
+      cloud.className = 'ad-cloud';
+      let adLink = `https://www.roblox.com/users/${ad.userId}/profile`;
+      if (ad.gamepassId) adLink = `https://www.roblox.com/game-pass/${ad.gamepassId}`;
+      cloud.innerHTML = `🎯 <strong>${ad.username || 'Player'}</strong>'s Board<br><span style="font-size:0.9rem; color:#a78bfa;">Click to donate!</span>${ad.message ? `<p style="color:#ffd700; font-style:italic;">"${ad.message}"</p>` : ''}`;
+      cloud.onclick = () => window.open(adLink, '_blank');
+      document.getElementById('adContainer').appendChild(cloud);
+      setTimeout(() => cloud.remove(), 12500);
+    }
+
+    async function loadAds() {
+      try {
+        const res = await fetch('/api/ads');
+        const ads = await res.json();
+        ads.forEach(ad => { if (ad.userId !== userData.id) showAdCloud(ad); });
+      } catch (e) {}
+    }
+
+    async function logout() { localStorage.removeItem('passly_token'); localStorage.removeItem('passly_user'); window.location.href = '/'; }
 
     loadDashboard();
   </script>
