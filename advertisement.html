@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passly - Advertisement</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
+  <meta name="theme-color" content="#8b5cf6">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0a0a14; color: white; min-height: 100vh; }
+    .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
+    .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .nav-links { display:flex; gap:25px; }
+    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
+    .nav-links a:hover { color:#a78bfa; }
+    .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,0.1); padding:8px 16px; border-radius:12px; }
+    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; background-position:center; }
+    .user-name { font-weight:600; color:#c4b5fd; }
+    .main-content { padding:30px; max-width:600px; margin:0 auto; }
+    h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
+    .section-card { background: rgba(20,20,40,0.6); border-radius: 20px; padding: 25px; border: 1px solid rgba(139,92,246,0.2); margin-bottom: 20px; }
+    .ad-buttons { display:flex; gap:15px; margin-bottom:15px; }
+    .ad-btn { flex:1; padding:16px; background:rgba(139,92,246,0.2); border:2px solid rgba(139,92,246,0.3); border-radius:14px; color:white; cursor:pointer; transition:all 0.3s; text-align:center; }
+    .ad-btn:hover { background:rgba(139,92,246,0.3); border-color:#8b5cf6; transform:translateY(-2px); }
+    .ad-btn .tier { font-size:1.4rem; font-weight:bold; color:#c4b5fd; display:block; }
+    .ad-btn .shows { font-size:0.85rem; color:#a78bfa; display:block; margin-top:5px; }
+    .ad-status { background:rgba(30,30,50,0.6); border-radius:10px; padding:15px; margin-top:15px; display:none; }
+    .delete-ad-btn { width:100%; padding:12px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.3); border-radius:10px; color:#fca5a5; cursor:pointer; margin-top:10px; display:none; transition:all 0.3s; }
+    .delete-ad-btn:hover { background:rgba(239,68,68,0.3); }
+    .save-message { background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px; color:#4ade80; text-align:center; margin-top:15px; display:none; }
+    .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin:20px 0; text-align:center; }
+
+    .gp-link-btn {
+      background: transparent;
+      border: 1px solid #ffd700;
+      color: #ffd700;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 15px;
+      width: 100%;
+    }
+    .gp-link-btn:hover { background: rgba(255,215,0,0.1); }
+    .modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.98); border-radius:20px; padding:30px; z-index:600; width:90%; max-width:600px; border:1px solid rgba(139,92,246,0.3); display:none; }
+    .modal h2 { margin-bottom:20px; color:#a78bfa; }
+    .modal-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:10px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
+
+    @media (max-width:768px) {
+      .navbar { flex-direction:column; gap:15px; padding:15px; }
+      .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
+      h1 { font-size:1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-logo">Passly</div>
+    <div class="nav-links">
+      <a href="/dashboard">🏠 Home</a>
+      <a href="/rooms">🚪 Rooms</a>
+      <a href="/leaderboard">🏆 Leaderboard</a>
+      <a href="/profile">👤 Profile</a>
+      <a href="/advertisement">📢 Advertise</a>   <!-- new link -->
+    </div>
+    <div class="user-box">
+      <div class="user-avatar" id="userAvatar"></div>
+      <span class="user-name" id="userName">Loading...</span>
+    </div>
+  </nav>
+
+  <div class="main-content">
+    <h1>📢 Advertise Your Board</h1>
+
+    <div class="section-card">
+      <p style="color:#a0a0b0; margin-bottom:20px;">Choose a tier, go to the Roblox gamepass page to purchase, then come back and verify.</p>
+      <textarea id="adMessage" placeholder="Your message (optional)" style="width:100%; height:60px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; padding:10px; margin-bottom:15px;"></textarea>
+      <div class="ad-buttons">
+        <button class="ad-btn" onclick="openAdVerification('5k')">
+          <span class="tier">5,000 Robux</span>
+          <span class="shows">1 Broadcast + 1 Cloud</span>
+        </button>
+        <button class="ad-btn" onclick="openAdVerification('10k')">
+          <span class="tier">10,000 Robux</span>
+          <span class="shows">1 Broadcast + 3 Clouds</span>
+        </button>
+      </div>
+      <div class="ad-status" id="adStatusBox"></div>
+      <button class="delete-ad-btn" id="deleteAdBtn" onclick="deleteAd()">🗑️ Delete Current Ad</button>
+      <div id="adVerifyStatus" class="save-message" style="margin-top:15px;"></div>
+    </div>
+  </div>
+
+  <!-- Ad Verification Modal -->
+  <div class="modal" id="adVerifyModal">
+    <h2>📢 Advertise Your Board</h2>
+    <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
+    <button class="gp-link-btn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
+    <p style="color:#a0a0b0; font-size:0.85rem; margin-top:5px;">After purchasing, come back and click below.</p>
+    <button class="modal-btn" onclick="verifyAdPurchase()">✅ Verify Purchase</button>
+    <div id="adVerifyStatusMsg" style="margin-top:10px; text-align:center;"></div>
+    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
+  </div>
+
+  <script>
+    let token = localStorage.getItem('passly_token');
+    let userData = null;
+    let selectedAdTier = null;
+    let selectedAdGamepassId = null;
+
+    function authHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      return headers;
+    }
+
+    async function init() {
+      if (!token) {
+        document.getElementById('userName').textContent = 'Guest';
+        return;
+      }
+      try {
+        const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          userData = await res.json();
+          document.getElementById('userName').textContent = userData.displayName || userData.username;
+          if (userData.avatarUrl) {
+            document.getElementById('userAvatar').style.backgroundImage = `url(${userData.avatarUrl})`;
+          }
+          updateAdUI();
+        }
+      } catch (e) {}
+    }
+
+    function updateAdUI() {
+      const statusBox = document.getElementById('adStatusBox');
+      const deleteBtn = document.getElementById('deleteAdBtn');
+      if (userData?.ad && userData.ad.active) {
+        statusBox.style.display = 'block';
+        statusBox.innerHTML = `<strong>📢 Active Ad</strong><br>Tier: ${userData.ad.tier.toLocaleString()} Robux<br>Clouds Left: ${userData.ad.showsLeft}<br>${userData.ad.message ? `Message: "${userData.ad.message}"` : ''}`;
+        deleteBtn.style.display = 'block';
+      } else {
+        statusBox.style.display = 'none';
+        deleteBtn.style.display = 'none';
+      }
+    }
+
+    function openAdVerification(tier) {
+      if (!token) { alert('Login required'); return; }
+      selectedAdTier = tier;
+      selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
+      document.getElementById('adVerifyTierText').textContent = `Tier: ${tier === '5k' ? '5,000' : '10,000'} Robux`;
+      document.getElementById('adVerifyStatusMsg').textContent = '';
+      document.getElementById('adVerifyModal').style.display = 'block';
+    }
+
+    function closeAdVerifyModal() { document.getElementById('adVerifyModal').style.display = 'none'; }
+
+    function openAdGamepass() {
+      window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank');
+    }
+
+    async function verifyAdPurchase() {
+      if (!token) { alert('Login required'); return; }
+      const message = document.getElementById('adMessage').value.trim();
+      const statusDiv = document.getElementById('adVerifyStatusMsg');
+      statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
+      try {
+        const res = await fetch('/api/purchase-ad', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ tier: selectedAdTier, message })
+        });
+        const data = await res.json();
+        if (data.success) {
+          statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased successfully!</span>';
+          userData.ad = data.ad;
+          updateAdUI();
+          setTimeout(closeAdVerifyModal, 3000);
+        } else {
+          statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+        }
+      } catch (e) {
+        statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>';
+      }
+    }
+
+    async function deleteAd() {
+      if (!confirm('Delete your current ad?')) return;
+      await fetch('/api/delete-ad', { method: 'POST', headers: authHeaders() });
+      userData.ad = null;
+      updateAdUI();
+    }
+
+    init();
+  </script>
+</body>
+</html>
