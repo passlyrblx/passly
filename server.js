@@ -6,7 +6,6 @@ const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
 const mongoose = require('mongoose');
-const { generateRegistrationOptions, verifyRegistrationResponse } = require('@simplewebauthn/server');
 
 const app = express();
 const server = http.createServer(app);
@@ -15,9 +14,6 @@ const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } })
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
-const RP_ID = process.env.RP_ID || 'localhost';
-const RP_NAME = 'Passly';
-const ORIGIN = process.env.ORIGIN || 'http://localhost:3000';
 
 // ----- MongoDB Connection & Schemas -----
 mongoose.connect(MONGO_URI).then(async () => {
@@ -38,8 +34,6 @@ mongoose.connect(MONGO_URI).then(async () => {
     inQueue: Boolean,
     donations: { received: Number, given: Number },
     board: [{ id: String, name: String, price: Number }],
-    credentials: [{ id: String, publicKey: Buffer, counter: Number, transports: [String] }],
-    currentRegistrationChallenge: String,
     createdAt: { type: Date, default: Date.now }
   });
 
@@ -573,61 +567,10 @@ app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   if (!receiverId || !gamepassId || !amount) {
     return res.status(400).json({ error: 'Missing fields' });
   }
-  // For production: call Roblox API to create a purchase link
-  // For demo: just return the gamepass URL
   const url = `https://www.roblox.com/game-pass/${gamepassId}`;
   res.json({ url });
 });
-// ========== PASKEY (WebAuthn) ==========
-app.post('/api/webauthn/register/begin', authenticateToken, async (req, res) => {
-  const User = mongoose.model('User');
-  const user = await User.findById(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  const options = await generateRegistrationOptions({
-    rpName: RP_NAME,
-    rpID: RP_ID,
-    userID: new Uint8Array(Buffer.from(user._id)),
-    userName: user.robloxUsername || user.customDisplayName || 'user',
-    attestationType: 'none',
-    authenticatorSelection: { userVerification: 'preferred' }
-  });
-
-  // Store the challenge temporarily in the user document
-  user.currentRegistrationChallenge = options.challenge;
-  await user.save();
-
-  res.json(options);
-});
-
-app.post('/api/webauthn/register/complete', authenticateToken, async (req, res) => {
-  const User = mongoose.model('User');
-  const user = await User.findById(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  const verification = await verifyRegistrationResponse({
-    response: req.body,
-    expectedChallenge: user.currentRegistrationChallenge,
-    expectedOrigin: ORIGIN,
-    expectedRPID: RP_ID
-  });
-
-  if (verification.verified && verification.registrationInfo) {
-    user.credentials.push({
-      id: verification.registrationInfo.credentialID,
-      publicKey: Buffer.from(verification.registrationInfo.credentialPublicKey),
-      counter: verification.registrationInfo.counter,
-      transports: req.body.transports || []
-    });
-    user.currentRegistrationChallenge = undefined;
-    await user.save();
-    res.json({ verified: true });
-  } else {
-    res.status(400).json({ error: 'Verification failed' });
-  }
-});
-
-// ========== FALLBACK – THIS MUST BE THE VERY LAST ROUTE ==========
+// ========== FALLBACK (THIS MUST BE THE VERY LAST ROUTE) ==========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
