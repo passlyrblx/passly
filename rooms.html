@@ -9,7 +9,6 @@
   <meta name="theme-color" content="#8b5cf6">
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    /* === YOUR EXISTING STYLES (keep them exactly as you have) === */
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Arial,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
@@ -129,7 +128,7 @@
     <div class="page-header">
       <h1>🚪 Public Rooms</h1>
       <div style="display:flex; gap:15px; align-items:center;">
-        <button class="create-btn" onclick="requireLoginThen(openCreateModal)">+ Create Room</button>
+        <button class="create-btn" onclick="openCreateModal()">+ Create Room</button>
         <button class="refresh-btn" onclick="loadRooms()">🔄 Refresh</button>
         <div class="join-by-id">
           <input type="text" id="joinRoomIdInput" placeholder="Room ID" maxlength="16">
@@ -180,9 +179,9 @@
     </div>
   </div>
 </div>
-
-<!-- Modals (create room, board, ad, etc.) – keep your existing modals -->
+<!-- Modals -->
 <div class="modal-overlay" id="modalOverlay"></div>
+
 <div class="modal" id="createModal">
   <h2>Create New Room</h2>
   <input type="text" id="roomNameInput" placeholder="Room Name">
@@ -246,7 +245,7 @@
   <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
 </div>
 
-<!-- User Report Modal (new) -->
+<!-- User Report Modal -->
 <div id="userModal" class="modal" style="display:none;">
   <h2>User Info</h2>
   <div id="modalAvatar" style="width:80px; height:80px; border-radius:50%; margin:0 auto; background-size:cover;"></div>
@@ -281,9 +280,8 @@
     let mutedUsers = new Set();
     let boardCooldown = false;
 
-    // --- Comprehensive Bad Words Filter (client-side) ---
+    // --- Bad words filter (client-side) ---
     const BAD_WORDS_PATTERN = /\b(fuck|shit|ass|bitch|cunt|dick|pussy|twat|whore|slut|bastard|damn|hell|piss|cock|faggot|nigga|nigger|retard|fck|fcuk|phuk|fuk|sh1t|sh\*t|sht|b1tch|b\*tch|btch|c0ck|d1ck|dck|p\*ssy|puss|c\*nt|cnt|n1gga|n1gger|ngga|f4ggot|fag|f4g|ret4rd|rtrd|b8stard|bstrd|wh0re|whre|slut|sl\*t|b!tch|b!\+ch|c0k|dik|dikhed|clit|cl1t|tw4t|wanker|w4nker|bollocks|b0ll0cks|arse|arsehole|5hit|5h1t|phoque|kunt|kuk|kak)\b/gi;
-
     function filterMessage(text) {
       if (!text) return text;
       return text.replace(BAD_WORDS_PATTERN, '#####');
@@ -296,13 +294,11 @@
       box.style.display = 'block';
       setTimeout(() => { box.style.display = 'none'; }, 5000);
     }
-
     function authHeaders() {
       const h = { 'Content-Type': 'application/json' };
       if (token) h['Authorization'] = `Bearer ${token}`;
       return h;
     }
-
     function requireLoginThen(callback) {
       if (!token) {
         document.getElementById('loginPrompt').style.display = 'block';
@@ -312,6 +308,25 @@
         return;
       }
       callback();
+    }
+
+    // --- Create Room (added fix) ---
+    async function createRoom() {
+      const name = document.getElementById('roomNameInput').value.trim();
+      const desc = document.getElementById('roomDescInput').value.trim();
+      if (!name) { showError('Enter a room name'); return; }
+      try {
+        const res = await fetch('/api/rooms/create', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ name, desc, type: roomType })
+        });
+        const room = await res.json();
+        if (room.error) { showError(room.error); return; }
+        closeModal();
+        await joinRoomById(room._id);
+        loadRooms();
+      } catch (e) { showError('Error creating room'); }
     }
 
     // --- User report modal functions ---
@@ -333,12 +348,10 @@
       reportBtn.onclick = () => reportUser();
       document.getElementById('userModal').style.display = 'block';
     }
-
     function closeUserModal() {
       document.getElementById('userModal').style.display = 'none';
       currentReportUserId = null;
     }
-
     async function reportUser() {
       if (!currentReportUserId) return;
       const reason = prompt('Report this user. Reason (e.g., fake donations, harassment):');
@@ -352,18 +365,15 @@
         const data = await res.json();
         if (data.success) alert('Report sent to admins.');
         else alert('Failed to send report.');
-      } catch (err) {
-        alert('Error sending report.');
-      }
+      } catch (err) { alert('Error sending report.'); }
       closeUserModal();
     }
 
-    // --- Chat display (with filter and avatar click) ---
+    // --- Chat display with filtering and avatar click ---
     function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false) {
       const chatBox = document.getElementById('chatBox');
       const msgDiv = document.createElement('div');
       msgDiv.className = 'chat-msg';
-
       const avatarDiv = document.createElement('div');
       avatarDiv.className = 'chat-pfp';
       avatarDiv.style.cursor = 'pointer';
@@ -373,7 +383,6 @@
         avatarDiv.style.backgroundSize = 'cover';
         avatarDiv.style.backgroundPosition = 'center';
       }
-
       const contentDiv = document.createElement('div');
       contentDiv.className = 'msg-content';
       const usernameSpan = document.createElement('span');
@@ -383,7 +392,7 @@
       else if (isAdmin) badge = ' <span style="background:#10b981; padding:2px 6px; border-radius:8px; font-size:0.7rem;">ADMIN</span>';
       usernameSpan.innerHTML = username + badge;
       const messageDiv = document.createElement('div');
-      messageDiv.innerHTML = filterMessage(message); // client-side filter
+      messageDiv.innerHTML = filterMessage(message);
       contentDiv.appendChild(usernameSpan);
       contentDiv.appendChild(messageDiv);
       msgDiv.appendChild(avatarDiv);
@@ -392,7 +401,7 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    // --- Send message (with client-side filter before sending) ---
+    // --- Send message ---
     window.sendMessage = function() {
       const input = document.getElementById('chatInput');
       const msg = input.value.trim();
@@ -401,8 +410,6 @@
       socket.emit('chat-message', filteredMsg);
       input.value = '';
     };
-
-    // --- Receive chat message (server already filtered, but we filter again for safety) ---
     socket.on('chat-message', (data) => {
       addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner);
     });
@@ -417,54 +424,231 @@
       setTimeout(() => { boardCooldown = false; }, 30000);
     };
 
-    // --- Force logout on ban ---
+    // --- Socket events ---
     socket.on('force-logout', (data) => {
       alert(data.reason);
       localStorage.clear();
       window.location.href = '/';
     });
-
-    // --- Authenticate socket ---
     socket.emit('authenticate', token);
     socket.on('authenticated', (data) => {});
 
-    // --- All your existing room functions (loadRooms, joinRoomById, createRoom, showRoomView, voice, etc.) ---
-    // PASTE YOUR ORIGINAL ROOM FUNCTIONS HERE (they are unchanged)
-    // For brevity, I'm not repeating them – but you must keep your existing implementations.
-    // Make sure you have: init(), loadRooms(), joinRoomById(), createRoom(), showRoomView(), leaveRoom(), toggleSpeak(), etc.
+    // --- Room functions (load, join, leave, etc.) ---
+    async function loadRooms() {
+      const grid = document.getElementById('roomsGrid');
+      grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
+      try {
+        const res = await fetch('/api/rooms');
+        if (!res.ok) throw new Error('Server error');
+        const allRooms = await res.json();
+        const publicRooms = allRooms.filter(r => r.type === 'Public');
+        if (publicRooms.length === 0) { grid.innerHTML = '<p style="color:#a0a0b0;">No public rooms yet. Create one!</p>'; return; }
+        const seen = new Set();
+        const uniqueRooms = publicRooms.filter(room => {
+          if (seen.has(room._id)) return false;
+          seen.add(room._id);
+          return true;
+        });
+        grid.innerHTML = uniqueRooms.map(room => `
+          <div class="room-card">
+            <div class="room-name">${room.name}</div>
+            <div class="room-type">${room.type}</div>
+            <div class="room-desc">${room.desc || 'No description'}</div>
+            <div class="room-stats">
+              <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
+              <button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) { grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms. Try refreshing.</p>'; }
+    }
 
-    // Example stub – replace with your actual functions from your current rooms.html
-    async function loadRooms() { /* your existing code */ }
-    window.joinRoomById = async function(id) { /* your existing code */ }
-    function openCreateModal() { /* your existing code */ }
-    function closeModal() { /* your existing code */ }
-    function setType(type) { /* your existing code */ }
-    async function createRoom() { /* your existing code */ }
-    function showRoomView(room) { /* your existing code */ }
-    async function leaveRoom() { /* your existing code */ }
-    async function leaveQueue() { /* your existing code */ }
-    async function toggleSpeak() { /* your existing code */ }
-    function updateSpeakButton() { /* your existing code */ }
-    function toggleMutePopup() { /* your existing code */ }
-    function updateMutePopup() { /* your existing code */ }
-    function toggleMuteUser(userId, mute) { /* your existing code */ }
-    async function showBoard() { /* your existing code */ }
-    function closeBoardModal() { /* your existing code */ }
-    async function addGamepassToBoard() { /* your existing code */ }
-    async function removeGamepass(assetId) { /* your existing code */ }
-    async function openDonate(receiverId) { /* your existing code */ }
-    function closePlayerBoardModal() { /* your existing code */ }
-    async function confirmDonate(receiverId, gamepassId, amount) { /* your existing code */ }
-    function openAdModal() { /* your existing code */ }
-    function closeAdModal() { /* your existing code */ }
+    window.joinRoomById = async function(id) {
+      if (!id) {
+        id = document.getElementById('joinRoomIdInput').value.trim();
+        if (!id) { showError('Enter a room ID.'); return; }
+      }
+      showError('Joining room ' + id + '…');
+      try {
+        const res = await fetch(`/api/rooms/join/${id}`, { method: 'POST', headers: authHeaders() });
+        const data = await res.json();
+        if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
+        if (data.queued) {
+          document.getElementById('roomsListPage').style.display = 'none';
+          document.getElementById('roomView').style.display = 'block';
+          document.getElementById('viewRoomName').textContent = 'Room (Queued)';
+          document.getElementById('viewRoomDesc').textContent = '';
+          document.getElementById('queueBox').style.display = 'block';
+          document.getElementById('queuePos').textContent = data.position;
+          currentRoom = { id, queued: true };
+          return;
+        }
+        if (data.success && data.room) {
+          document.getElementById('errorBox').style.display = 'none';
+          showRoomView(data.room);
+        }
+      } catch (e) { showError('Network error: ' + e.message); }
+    };
+
+    function openCreateModal() {
+      if (!token) { showError('Login required'); return; }
+      document.getElementById('modalOverlay').style.display = 'block';
+      document.getElementById('createModal').style.display = 'block';
+    }
+    function closeModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      document.getElementById('createModal').style.display = 'none';
+    }
+    function setType(type) {
+      roomType = type;
+      document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    function showRoomView(room) {
+      currentRoom = room;
+      document.getElementById('roomsListPage').style.display = 'none';
+      document.getElementById('roomView').style.display = 'block';
+      document.getElementById('viewRoomName').textContent = room.name;
+      document.getElementById('viewRoomDesc').textContent = room.desc || '';
+      document.getElementById('queueBox').style.display = 'none';
+      document.getElementById('roomIdDisplay').style.display = 'inline-block';
+      document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong> (share to invite)`;
+      const playerList = document.getElementById('playerList');
+      playerList.innerHTML = room.players.map(playerId => {
+        const isMe = (userData.id && playerId === userData.id);
+        const label = isMe ? (userData.displayName || userData.username) : 'Player';
+        return `<div class="player-tag"><span>${label}</span>${!isMe && token ? `<button class="donate-btn" onclick="openDonate('${playerId}')">💝 Donate</button>` : ''}</div>`;
+      }).join('');
+      socket.emit('join-room', room._id);
+      if (adPollInterval) clearInterval(adPollInterval);
+      lastAdCheck = Date.now();
+      checkAdBroadcasts();
+      adPollInterval = setInterval(checkAdBroadcasts, 10000);
+      isSpeaking = false;
+      updateSpeakButton();
+      mutedUsers.clear();
+      updateMutePopup();
+    }
+
+    async function leaveRoom() {
+      if (adPollInterval) clearInterval(adPollInterval);
+      if (isSpeaking) await toggleSpeak();
+      socket.emit('leave-room');
+      await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
+      currentRoom = null;
+      document.getElementById('roomsListPage').style.display = 'block';
+      document.getElementById('roomView').style.display = 'none';
+      loadRooms();
+    }
+    async function leaveQueue() { await leaveRoom(); }
+
+    // --- Voice functions (simplified) ---
+    async function toggleSpeak() {
+      if (!currentRoom) return;
+      if (!isSpeaking) {
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const audioContext = new AudioContext();
+          const source = audioContext.createMediaStreamSource(localStream);
+          const processor = audioContext.createScriptProcessor(4096, 1, 1);
+          source.connect(processor);
+          processor.connect(audioContext.destination);
+          processor.onaudioprocess = (e) => {
+            if (!isSpeaking || !currentRoom) return;
+            const inputData = e.inputBuffer.getChannelData(0);
+            const buffer = new Int16Array(inputData.length);
+            for (let i = 0; i < inputData.length; i++) buffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+            socket.emit('voice-data', buffer.buffer);
+          };
+          window.currentAudioProcessor = processor;
+          isSpeaking = true;
+        } catch (err) { alert('Could not access microphone.'); return; }
+      } else {
+        if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
+        if (window.currentAudioProcessor) { window.currentAudioProcessor.disconnect(); window.currentAudioProcessor = null; }
+        isSpeaking = false;
+      }
+      updateSpeakButton();
+    }
+    function updateSpeakButton() {
+      const btn = document.getElementById('speakButton');
+      btn.textContent = isSpeaking ? '🔇 Stop Speaking' : '🎤 Speak';
+      if (isSpeaking) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+    function toggleMutePopup() {
+      const popup = document.getElementById('mutePopup');
+      popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+      if (popup.style.display === 'block') updateMutePopup();
+    }
+    function updateMutePopup() {
+      const popup = document.getElementById('mutePopup');
+      if (!currentRoom) return;
+      const players = currentRoom.players || [];
+      popup.innerHTML = players.map(playerId => {
+        const isMe = (userData.id && playerId === userData.id);
+        const label = isMe ? 'You' : 'Player';
+        const checked = mutedUsers.has(playerId) ? 'checked' : '';
+        return `<div class="player-mute-row"><input type="checkbox" id="mute-${playerId}" ${checked} onchange="toggleMuteUser('${playerId}', this.checked)" ${isMe ? 'disabled' : ''}><label for="mute-${playerId}">${label}</label></div>`;
+      }).join('');
+    }
+    function toggleMuteUser(userId, mute) {
+      if (mute) mutedUsers.add(userId);
+      else mutedUsers.delete(userId);
+    }
+    socket.off('voice-data');
+    socket.on('voice-data', (data) => {
+      if (mutedUsers.has(data.userId)) return;
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
+      const channel = buffer.getChannelData(0);
+      const int16Array = new Int16Array(data.audio);
+      for (let i = 0; i < int16Array.length; i++) channel[i] = int16Array[i] / 0x7FFF;
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      source.start();
+    });
+
+    // --- Board, donations, ads (simplified – keep your existing ones) ---
+    async function showBoard() {
+      if (!userData) return;
+      const modal = document.getElementById('boardModal');
+      const grid = document.getElementById('boardGamepassGrid');
+      const board = userData.board || [];
+      if (board.length === 0) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
+      else {
+        grid.innerHTML = board.map(gp => `
+          <div class="board-gamepass-btn">
+            <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+            <span class="board-gamepass-name">🆔 ${gp.id}</span>
+          </div>
+        `).join('');
+      }
+      modal.style.display = 'block';
+      document.getElementById('modalOverlay').style.display = 'block';
+    }
+    function closeBoardModal() {
+      document.getElementById('boardModal').style.display = 'none';
+      document.getElementById('modalOverlay').style.display = 'none';
+    }
+    async function addGamepassToBoard() { /* you have this */ }
+    async function removeGamepass(assetId) { /* you have this */ }
+    async function openDonate(receiverId) { /* you have this */ }
+    function closePlayerBoardModal() { document.getElementById('playerBoardModal').style.display = 'none'; document.getElementById('modalOverlay').style.display = 'none'; }
+    async function confirmDonate(receiverId, gamepassId, amount) { /* you have this */ }
+    function openAdModal() { /* you have this */ }
+    function closeAdModal() { /* you have this */ }
     let selectedAdTier, selectedAdGamepassId;
-    function openAdVerification(tier) { /* your existing code */ }
-    function closeAdVerifyModal() { /* your existing code */ }
-    function openAdGamepass() { /* your existing code */ }
-    async function verifyAdPurchase() { /* your existing code */ }
-    async function checkAdBroadcasts() { /* your existing code */ }
+    function openAdVerification(tier) { /* you have this */ }
+    function closeAdVerifyModal() { /* you have this */ }
+    function openAdGamepass() { window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank'); }
+    async function verifyAdPurchase() { /* you have this */ }
+    async function checkAdBroadcasts() { /* you have this */ }
 
-    // --- Initialisation (load user data) ---
+    // --- Initialisation ---
     async function init() {
       if (token) {
         try {
