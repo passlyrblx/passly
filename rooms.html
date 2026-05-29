@@ -65,13 +65,13 @@ mongoose.connect(MONGO_URI).then(async () => {
 
   const Room = mongoose.model('Room');
 
-  // Step 1: Remove old default rooms that aren't the fixed IDs
+  // Remove old duplicate default rooms
   await Room.deleteMany({
     name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] },
     _id: { $nin: ["room1", "room2", "room3"] }
   });
 
-  // Step 2: Ensure the three fixed‑ID rooms exist
+  // Ensure the three fixed‑ID rooms exist
   const defaultRooms = [
     { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators." },
     { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players." },
@@ -262,7 +262,6 @@ app.post('/api/rooms/join/:roomId', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const user = await User.findById(userId);
 
-  // Leave previous room if any
   if (user.roomId && user.roomId !== room._id) {
     const oldRoom = await Room.findById(user.roomId);
     if (oldRoom) {
@@ -515,7 +514,6 @@ app.post('/api/passkey/login-verify', async (req, res) => {
     if (!challenge) return res.status(400).json({ error: 'Challenge expired. Try again.' });
 
     const User = mongoose.model('User');
-    // Search for the user by credential ID
     const user = await User.findOne({ 'credentials.id': response.id });
     if (!user) {
       return res.status(400).json({ error: 'No account linked to this passkey. Please log in with Roblox and set up a passkey again.' });
