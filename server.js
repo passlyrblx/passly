@@ -280,33 +280,53 @@ app.post('/api/rooms/create', authenticateToken, async (req, res) => {
 app.post('/api/rooms/join/:roomId', authenticateToken, async (req, res) => {
   const room = await Room.findById(req.params.roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
+
   const userId = req.user.id;
   const user = await User.findById(userId);
-  if (user.roomId && user.roomId !== room._id) {
-    const oldRoom = await Room.findById(user.roomId);
-    if (oldRoom) {
-      oldRoom.players = oldRoom.players.filter(id => id !== userId);
-      oldRoom.queue = oldRoom.queue.filter(id => id !== userId);
-      if (oldRoom.queue.length && oldRoom.players.length < oldRoom.maxPlayers) oldRoom.players.push(oldRoom.queue.shift());
-      await oldRoom.save();
+
+  // Clean up stale room references
+  if (user.roomId) {
+    const storedRoom = await Room.findById(user.roomId);
+    if (!storedRoom || storedRoom._id !== room._id) {
+      if (storedRoom) {
+        storedRoom.players = storedRoom.players.filter(id => id !== userId);
+        storedRoom.queue = storedRoom.queue.filter(id => id !== userId);
+        if (storedRoom.queue.length && storedRoom.players.length < storedRoom.maxPlayers)
+          storedRoom.players.push(storedRoom.queue.shift());
+        await storedRoom.save();
+      }
+      user.roomId = null;
+      user.inQueue = false;
+      await user.save();
     }
   }
+
   if (room.players.includes(userId)) {
-    await User.findByIdAndUpdate(userId, { roomId: room._id, inQueue: false });
+    if (!user.roomId || user.roomId !== room._id) {
+      user.roomId = room._id;
+      user.inQueue = false;
+      await user.save();
+    }
     return res.json({ success: true, room });
   }
+
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(userId)) {
       room.queue.push(userId);
       await room.save();
-      await User.findByIdAndUpdate(userId, { roomId: room._id, inQueue: true });
+      user.roomId = room._id;
+      user.inQueue = true;
+      await user.save();
       return res.json({ queued: true, position: room.queue.length });
     }
     return res.json({ queued: true, position: room.queue.indexOf(userId) + 1 });
   }
+
   room.players.push(userId);
   await room.save();
-  await User.findByIdAndUpdate(userId, { roomId: room._id, inQueue: false });
+  user.roomId = room._id;
+  user.inQueue = false;
+  await user.save();
   res.json({ success: true, room });
 });
 
@@ -318,7 +338,8 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   if (room) {
     room.players = room.players.filter(id => id !== userId);
     room.queue = room.queue.filter(id => id !== userId);
-    if (room.queue.length && room.players.length < room.maxPlayers) room.players.push(room.queue.shift());
+    if (room.queue.length && room.players.length < room.maxPlayers)
+      room.players.push(room.queue.shift());
     await room.save();
   }
   await User.findByIdAndUpdate(userId, { roomId: null, inQueue: false });
@@ -495,10 +516,8 @@ app.post('/api/passkey/login-verify', async (req, res) => {
     const user = await User.findOne({ 'credentials.id': response.id });
     if (!user) return res.status(400).json({ error: 'No account linked to this passkey' });
     const verification = await verifyAuthenticationResponse({
-      response,
-      expectedChallenge: challenge,
-      expectedOrigin: ORIGIN,
-      expectedRPID: RP_ID,
+      response, expectedChallenge: challenge,
+      expectedOrigin: ORIGIN, expectedRPID: RP_ID,
       credential: {
         id: response.id,
         publicKey: new Uint8Array(user.credentials.find(c => c.id === response.id).publicKey),
