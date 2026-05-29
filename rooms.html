@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Passly - Donations Never Stop</title>
-  <!-- PWA support on ALL pages -->
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
@@ -82,7 +81,6 @@
     .spinner { border:4px solid rgba(139,92,246,0.2); border-top:4px solid #8b5cf6; border-radius:50%; width:40px; height:40px; animation:spin 0.8s linear infinite; margin:0 auto; }
     @keyframes spin { to { transform:rotate(360deg); } }
 
-    /* Voice & Mute Controls */
     .voice-controls { display:flex; gap:10px; align-items:center; margin-bottom:15px; flex-wrap:wrap; }
     .voice-btn { padding:10px 20px; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:bold; display:flex; align-items:center; gap:8px; }
     .voice-btn.speak { background:#22c55e; }
@@ -98,8 +96,6 @@
     .ad-mini-board-item { background: #22c55e; color: white; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
     .ad-mini-board-item:hover { background: #16a34a; }
     .ad-message-text { font-style: italic; color: #ffd700; margin-top: 4px; }
-
-    /* Verify button inside player board */
     .verify-donate-btn { background: #f59e0b; color: white; border: none; border-radius: 8px; padding: 4px 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
     .verify-donate-btn:hover { background: #d97706; }
 
@@ -152,7 +148,6 @@
       <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
       <div class="player-list" id="playerList"></div>
 
-      <!-- Voice & Mute Controls -->
       <div class="voice-controls">
         <button class="voice-btn speak" id="speakButton" onclick="toggleSpeak()">🎤 Speak</button>
         <div style="position:relative;">
@@ -233,7 +228,7 @@
     <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
   </div>
 
-  <!-- Player Board Modal (for donations) -->
+  <!-- Player Board Modal -->
   <div class="modal" id="playerBoardModal">
     <h2 id="playerBoardTitle">🎁 Player's Board</h2>
     <div id="playerBoardAvatar" style="width:60px; height:60px; border-radius:50%; margin:0 auto 10px; background-size:cover;"></div>
@@ -313,10 +308,19 @@
 
         // Avatar with fallback
         const avatarEl = document.getElementById('userAvatar');
-        if (userData.avatarUrl) {
-          avatarEl.style.backgroundImage = `url(${userData.avatarUrl})`;
-          avatarEl.onerror = () => { avatarEl.style.backgroundImage = ''; };
+        function setAvatar(el, url, fallback) {
+          if (!url && !fallback) return;
+          const tryUrl = url || fallback;
+          el.style.backgroundImage = `url(${tryUrl})`;
+          el.onerror = function() {
+            if (url && fallback && tryUrl === url) {
+              el.style.backgroundImage = `url(${fallback})`;
+            } else {
+              el.style.backgroundImage = '';
+            }
+          };
         }
+        setAvatar(avatarEl, userData.avatarUrl, userData.avatarFallback);
 
         loadRooms();
       } catch (e) {}
