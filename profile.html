@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,17 +38,6 @@
     .settings-select:focus, .custom-name-input:focus { border-color:#8b5cf6; }
     .save-btn { width:100%; padding:14px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:12px; color:white; font-size:1.1rem; font-weight:600; cursor:pointer; transition:all 0.3s; margin-bottom:15px; }
     .save-btn:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(139,92,246,0.3); }
-    .ad-section { margin-top:10px; }
-    .ad-section h2 { margin-bottom:15px; color:#a78bfa; }
-    .ad-section p { color:#a0a0b0; margin-bottom:20px; line-height:1.5; }
-    .ad-buttons { display:flex; gap:15px; margin-bottom:15px; }
-    .ad-btn { flex:1; padding:16px; background:rgba(139,92,246,0.2); border:2px solid rgba(139,92,246,0.3); border-radius:14px; color:white; cursor:pointer; transition:all 0.3s; text-align:center; }
-    .ad-btn:hover { background:rgba(139,92,246,0.3); border-color:#8b5cf6; transform:translateY(-2px); }
-    .ad-btn .tier { font-size:1.4rem; font-weight:bold; color:#c4b5fd; display:block; }
-    .ad-btn .shows { font-size:0.85rem; color:#a78bfa; display:block; margin-top:5px; }
-    .ad-status { background:rgba(30,30,50,0.6); border-radius:10px; padding:15px; margin-top:15px; display:none; }
-    .delete-ad-btn { width:100%; padding:12px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.3); border-radius:10px; color:#fca5a5; cursor:pointer; margin-top:10px; display:none; transition:all 0.3s; }
-    .delete-ad-btn:hover { background:rgba(239,68,68,0.3); }
     .save-message { background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px; color:#4ade80; text-align:center; margin-top:15px; display:none; }
     .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin:20px 0; text-align:center; }
     .search-section { background:rgba(20,20,40,0.6); border-radius:20px; padding:20px; border:1px solid rgba(139,92,246,0.2); margin-bottom:20px; }
@@ -66,16 +56,10 @@
     .add-board-section { display:flex; gap:10px; margin-top:10px; align-items:center; flex-wrap:wrap; }
     .add-board-section input { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; min-width:120px; }
     .add-board-btn { padding:12px 20px; background:#8b5cf6; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600; }
-    .gp-link-btn { background:transparent; border:1px solid #ffd700; color:#ffd700; padding:12px 20px; border-radius:10px; font-weight:bold; cursor:pointer; margin-top:15px; width:100%; }
-    .gp-link-btn:hover { background:rgba(255,215,0,0.1); }
-    .modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.98); border-radius:20px; padding:30px; z-index:600; width:90%; max-width:600px; border:1px solid rgba(139,92,246,0.3); display:none; }
-    .modal h2 { margin-bottom:20px; color:#a78bfa; }
-    .modal-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:10px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
       h1 { font-size:1.8rem; }
-      .ad-buttons { flex-direction:column; }
     }
   </style>
 </head>
@@ -99,6 +83,7 @@
     <div class="debug-status" id="debugStatus">🔄 Initialising…</div>
     <h1>👤 Profile Settings</h1>
 
+    <!-- SEARCH -->
     <div class="search-section">
       <h3 style="color:#a78bfa; margin-bottom:10px;">🔍 Find a Player</h3>
       <input type="text" id="searchUsername" class="search-input" placeholder="Enter Roblox username">
@@ -106,6 +91,7 @@
       <div id="searchResult" class="search-result"></div>
     </div>
 
+    <!-- PROFILE CARD -->
     <div class="section-card">
       <div class="profile-header">
         <div class="profile-avatar" id="profileAvatar"></div>
@@ -127,35 +113,13 @@
       <div id="passkeyStatus" class="save-message" style="color:#fbbf24;"></div>
     </div>
 
+    <!-- BOARD MANAGEMENT -->
     <div class="section-card">
       <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
       <div class="add-board-section"><input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;"><input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1"><button class="add-board-btn" onclick="requireLogin(() => addGamepassToBoard())">Add</button></div>
       <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
       <div class="board-gamepass-grid" id="boardGamepassGrid"><p style="color:#a0a0b0;">No gamepasses added yet.</p></div>
     </div>
-
-    <div class="section-card">
-      <h3 style="color:#a78bfa; margin-bottom:15px;">📢 Advertise Your Board</h3>
-      <p style="color:#a0a0b0; margin-bottom:20px;">Purchase an advertisement to show your donation board to all Passly users. Choose a tier, go to the Roblox page to buy the gamepass, then come back and verify.</p>
-      <textarea id="adMessage" placeholder="Your message (optional)" style="width:100%; height:60px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; padding:10px; margin-bottom:15px;"></textarea>
-      <div class="ad-buttons">
-        <button class="ad-btn" onclick="requireLogin(() => openAdVerification('5k'))"><span class="tier">5,000 Robux</span><span class="shows">1 Broadcast + 1 Cloud</span></button>
-        <button class="ad-btn" onclick="requireLogin(() => openAdVerification('10k'))"><span class="tier">10,000 Robux</span><span class="shows">1 Broadcast + 3 Clouds</span></button>
-      </div>
-      <div class="ad-status" id="adStatusBox"></div>
-      <button class="delete-ad-btn" id="deleteAdBtn" onclick="requireLogin(() => deleteAd())">🗑️ Delete Current Ad</button>
-    </div>
-  </div>
-
-  <!-- Ad Verification Modal -->
-  <div class="modal" id="adVerifyModal">
-    <h2>📢 Advertise Your Board</h2>
-    <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
-    <button class="gp-link-btn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
-    <p style="color:#a0a0b0; font-size:0.85rem; margin-top:5px;">After purchasing, come back and click below.</p>
-    <button class="modal-btn" onclick="verifyAdPurchase()">✅ Verify Purchase</button>
-    <div id="adVerifyStatus" style="margin-top:10px; text-align:center;"></div>
-    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
   </div>
   <script>
     (function() {
@@ -170,8 +134,6 @@
     
     let token = localStorage.getItem('passly_token');
     let userData = null;
-    let selectedAdTier = null;
-    let selectedAdGamepassId = null;
 
     function debugMsg(msg) { const el = document.getElementById('debugStatus'); if (el) el.innerHTML = msg; }
 
@@ -184,7 +146,7 @@
     function requireLogin(callback) {
       if (!token) {
         document.getElementById('loginPrompt').style.display = 'block';
-        debugMsg('⚠️ Not logged in – cannot perform this action');
+        debugMsg('⚠️ Not logged in');
         if (confirm('You need to log in with Roblox to do this. Go to login?')) window.location.href = '/auth/roblox';
         return;
       }
@@ -195,7 +157,7 @@
       debugMsg('🔄 Loading user data…');
       if (token) {
         try {
-          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
+          const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} });
           if (res.ok) {
             userData = await res.json();
             userData.isGuest = false;
@@ -207,7 +169,7 @@
         const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
         if (guest && guest.username) userData = { ...guest, isGuest: true };
         else {
-          const res = await fetch('/api/guest-login', { method: 'POST' });
+          const res = await fetch('/api/guest-login', { method:'POST' });
           const data = await res.json();
           userData = { ...data, isGuest: true };
           localStorage.setItem('passly_user', JSON.stringify(userData));
@@ -241,7 +203,6 @@
       }
       document.getElementById('customDisplayName').value = userData.customDisplayName || '';
       updateStatusPreview();
-      updateAdUI();
       renderBoard();
 
       if (userData.isGuest) {
@@ -276,23 +237,6 @@
       const msg = document.getElementById('saveMessage');
       msg.style.display = 'block';
       setTimeout(() => msg.style.display = 'none', 3000);
-    }
-
-    async function deleteAd() {
-      if (!confirm('Delete your current ad?')) return;
-      await fetch('/api/delete-ad', { method:'POST', headers:authHeaders() });
-      userData.ad = null;
-      updateAdUI();
-    }
-
-    function updateAdUI() {
-      const statusBox = document.getElementById('adStatusBox');
-      const deleteBtn = document.getElementById('deleteAdBtn');
-      if (userData?.ad && userData.ad.active) {
-        statusBox.style.display = 'block';
-        statusBox.innerHTML = `<strong>📢 Active Ad</strong><br>Tier: ${userData.ad.tier.toLocaleString()} Robux<br>Clouds Left: ${userData.ad.showsLeft}<br>${userData.ad.message ? `Message: "${userData.ad.message}"` : ''}`;
-        deleteBtn.style.display = 'block';
-      } else { statusBox.style.display = 'none'; deleteBtn.style.display = 'none'; }
     }
 
     async function searchPlayer() {
@@ -367,47 +311,30 @@
       status.innerHTML = 'Setting up passkey...';
       try {
         const optionsRes = await fetch('/api/passkey/register-options', { method:'POST', headers:authHeaders() });
+        // DEBUG: check if we got JSON
+        const contentType = optionsRes.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await optionsRes.text();
+          console.error('Expected JSON, got:', text.substring(0, 200));
+          status.innerHTML = 'Server returned HTML instead of JSON. Check the server logs.';
+          debugMsg('❌ Server error (HTML returned)');
+          return;
+        }
         const options = await optionsRes.json();
         if (options.error) { status.innerHTML = options.error; debugMsg('❌ Server error: ' + options.error); return; }
+
         debugMsg('📲 Waiting for fingerprint…');
         const regResponse = await SimpleWebAuthnBrowser.startRegistration(options);
         debugMsg('📤 Sending to server for verification…');
         const verifyRes = await fetch('/api/passkey/register-verify', { method:'POST', headers:authHeaders(), body:JSON.stringify(regResponse) });
         const result = await verifyRes.json();
-        if (result.success) { status.innerHTML = '✅ Passkey set up successfully!'; debugMsg('✅ Passkey registered – you can now log in with it'); }
+        if (result.success) { status.innerHTML = '✅ Passkey set up successfully!'; debugMsg('✅ Passkey registered'); }
         else { status.innerHTML = result.error || 'Registration failed.'; debugMsg('❌ ' + (result.error || 'Verification failed')); }
-      } catch (err) { status.innerHTML = 'Error during passkey setup.'; debugMsg('❌ Error: ' + err.message); console.error(err); }
-    }
-
-    // ========== ADVERTISEMENT FLOW ==========
-    function openAdVerification(tier) {
-      if (!token) { alert('Login required'); return; }
-      selectedAdTier = tier;
-      selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
-      document.getElementById('adVerifyTierText').textContent = `Tier: ${tier==='5k'?'5,000':'10,000'} Robux`;
-      document.getElementById('adVerifyStatus').textContent = '';
-      document.getElementById('adVerifyModal').style.display = 'block';
-    }
-
-    function closeAdVerifyModal() { document.getElementById('adVerifyModal').style.display = 'none'; }
-
-    function openAdGamepass() { window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank'); }
-
-    async function verifyAdPurchase() {
-      if (!token) { alert('Login required'); return; }
-      const message = document.getElementById('adMessage').value.trim();
-      const statusDiv = document.getElementById('adVerifyStatus');
-      statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
-      try {
-        const res = await fetch('/api/purchase-ad', { method:'POST', headers:authHeaders(), body:JSON.stringify({ tier:selectedAdTier, message }) });
-        const data = await res.json();
-        if (data.success) {
-          statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased successfully! Your board will appear soon.</span>';
-          userData.ad = data.ad;
-          updateAdUI();
-          setTimeout(closeAdVerifyModal, 3000);
-        } else statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-      } catch (e) { statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>'; }
+      } catch (err) {
+        status.innerHTML = 'Error during passkey setup.';
+        debugMsg('❌ Error: ' + err.message);
+        console.error(err);
+      }
     }
 
     init();
