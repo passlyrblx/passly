@@ -188,11 +188,11 @@
       <p style="color:#a0a0b0; margin-bottom:20px;">Purchase an advertisement to show your donation board to all Passly users. Choose a tier, go to the Roblox page to buy the gamepass, then come back and verify.</p>
       <textarea id="adMessage" placeholder="Your message (optional)" style="width:100%; height:60px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; padding:10px; margin-bottom:15px;"></textarea>
       <div class="ad-buttons">
-        <button class="ad-btn" onclick="openAdVerification('5k')">
+        <button class="ad-btn" onclick="requireLogin(() => openAdVerification('5k'))">
           <span class="tier">5,000 Robux</span>
           <span class="shows">1 Broadcast + 1 Cloud</span>
         </button>
-        <button class="ad-btn" onclick="openAdVerification('10k')">
+        <button class="ad-btn" onclick="requireLogin(() => openAdVerification('10k'))">
           <span class="tier">10,000 Robux</span>
           <span class="shows">1 Broadcast + 3 Clouds</span>
         </button>
@@ -203,7 +203,7 @@
   </div>
 
   <!-- Ad Verification Modal -->
-  <div class="modal" id="adVerifyModal" style="display:none;">
+  <div class="modal" id="adVerifyModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.98); border-radius:20px; padding:30px; z-index:600; width:90%; max-width:600px; border:1px solid rgba(139,92,246,0.3);">
     <h2>📢 Advertise Your Board</h2>
     <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
     <button class="gp-link-btn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
@@ -366,10 +366,69 @@
       }
     }
 
-    async function searchPlayer() { /* unchanged */ }
-    function renderBoard() { /* unchanged */ }
-    async function addGamepassToBoard() { /* unchanged */ }
-    async function removeGamepassFromBoard(assetId) { /* unchanged */ }
+    async function searchPlayer() {
+      const username = document.getElementById('searchUsername').value.trim();
+      const resultDiv = document.getElementById('searchResult');
+      if (!username) { resultDiv.innerHTML = '<p style="color:#f87171;">Enter a username</p>'; return; }
+      resultDiv.innerHTML = '<p style="color:#fbbf24;">Searching...</p>';
+      try {
+        const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`);
+        const data = await res.json();
+        if (data.error) { resultDiv.innerHTML = `<p style="color:#f87171;">${data.error}</p>`; return; }
+        const boardHtml = data.board.length === 0
+          ? '<p style="color:#a0a0b0;">Board hidden or empty.</p>'
+          : data.board.map(gp => `<button class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span class="board-gamepass-amount">R$ ${gp.price}</span><span class="board-gamepass-name">${gp.name}</span></button>`).join('');
+        resultDiv.innerHTML = `
+          <div style="display:flex; align-items:center; gap:15px; margin-bottom:10px;">
+            <div style="width:50px; height:50px; border-radius:50%; background:url(${data.avatarUrl}) center/cover;"></div>
+            <div><strong>${data.displayName}</strong><br><span style="color:#a0a0b0;">@${data.robloxUsername}</span></div>
+          </div>
+          <div class="board-gamepass-grid">${boardHtml}</div>`;
+      } catch (e) { resultDiv.innerHTML = '<p style="color:#f87171;">Error searching player.</p>'; }
+    }
+
+    function renderBoard() {
+      const grid = document.getElementById('boardGamepassGrid');
+      const board = userData?.board || [];
+      if (board.length === 0) { grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses added yet.</p>'; return; }
+      grid.innerHTML = board.map(gp => `
+        <div class="board-gamepass-btn" style="position:relative;">
+          <button class="remove-gp-btn" onclick="removeGamepassFromBoard('${gp.id}')">✕</button>
+          <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price}</span>
+          <span class="board-gamepass-name" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">${gp.name || 'Gamepass'}</span>
+        </div>`).join('');
+    }
+
+    async function addGamepassToBoard() {
+      if (!token) return;
+      const assetId = document.getElementById('newGamepassId').value.trim();
+      const price = parseInt(document.getElementById('newGamepassPrice').value);
+      if (!assetId || !price || price <= 0) {
+        document.getElementById('boardAddStatus').innerHTML = '<span style="color:#f87171;">Enter valid Asset ID and Robux amount</span>';
+        return;
+      }
+      const status = document.getElementById('boardAddStatus');
+      status.innerHTML = '<span style="color:#fbbf24;">Adding...</span>';
+      try {
+        const res = await fetch('/api/board/add', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId, price }) });
+        const data = await res.json();
+        if (data.success) {
+          userData.board = data.board;
+          renderBoard();
+          document.getElementById('newGamepassId').value = '';
+          document.getElementById('newGamepassPrice').value = '';
+          status.innerHTML = '<span style="color:#4ade80;">✅ Added!</span>';
+        } else { status.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`; }
+      } catch (e) { status.innerHTML = '<span style="color:#f87171;">❌ Error adding gamepass.</span>'; }
+    }
+
+    async function removeGamepassFromBoard(assetId) {
+      if (!token) return;
+      if (!confirm('Remove this gamepass from your board?')) return;
+      const res = await fetch('/api/board/remove', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId }) });
+      const data = await res.json();
+      if (data.success) { userData.board = data.board; renderBoard(); }
+    }
 
     // ========== PASSKEY SETUP ==========
     async function setupPasskey() {
