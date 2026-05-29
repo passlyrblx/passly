@@ -190,6 +190,20 @@ app.get('/api/user', authenticateToken, async (req, res) => {
   });
 });
 
+// NEW: Get user stats for member profile (received/given, display name, avatar)
+app.get('/api/user/:userId/stats', authenticateToken, async (req, res) => {
+  const User = mongoose.model('User');
+  const user = await User.findById(req.params.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({
+    received: user.donations?.received || 0,
+    given: user.donations?.given || 0,
+    displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
+    username: user.robloxUsername,
+    avatarUrl: user.avatarUrl
+  });
+});
+
 app.post('/api/accept-tos', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
@@ -529,7 +543,6 @@ app.post('/api/guest-login', async (req, res) => {
   await user.save();
   res.json({ id: guestId, username, displayName: username, isGuest: true });
 });
-// Pending donation map (in‑memory, expires after 1 hour)
 const pendingDonations = new Map();
 
 app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
