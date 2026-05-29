@@ -224,7 +224,7 @@ app.post('/api/board/remove', authenticateToken, async (req, res) => {
   const user = await mongoose.model('User').findById(req.user.id);
   res.json({ success: true, board: user.board });
 });
-// ROOMS API
+// ROOMS API (including guest join)
 app.get('/api/rooms', async (req, res) => {
   const rooms = await mongoose.model('Room').find();
   res.json(rooms);
@@ -239,6 +239,7 @@ app.post('/api/rooms/create', authenticateToken, async (req, res) => {
   await mongoose.model('User').findByIdAndUpdate(req.user.id, { roomId: room._id, inQueue: false });
   res.json(room);
 });
+// Regular join (authenticated)
 app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
   const roomId = req.params.id;
   const Room = mongoose.model('Room');
@@ -257,6 +258,25 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
   io.to(roomId).emit('player-joined', { userId: req.user.id, username: req.user.displayName });
   res.json({ success: true, room });
 });
+// Guest join
+app.post('/api/rooms/guest/join/:id', async (req, res) => {
+  const roomId = req.params.id;
+  const { guestId, guestName } = req.body;
+  if (!guestId) return res.status(400).json({ error: 'Guest ID required' });
+  const Room = mongoose.model('Room');
+  const room = await Room.findById(roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (room.players.includes(guestId)) return res.json({ success: true, room, alreadyIn: true });
+  if (room.players.length >= room.maxPlayers) {
+    if (!room.queue.includes(guestId)) { room.queue.push(guestId); await room.save(); }
+    const position = room.queue.indexOf(guestId) + 1;
+    return res.json({ queued: true, position });
+  }
+  room.players.push(guestId);
+  await room.save();
+  io.to(roomId).emit('player-joined', { userId: guestId, username: guestName || 'Guest' });
+  res.json({ success: true, room });
+});
 app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
@@ -268,7 +288,8 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
     if (room.queue.length > 0 && room.players.length < room.maxPlayers) {
       const nextId = room.queue.shift();
       room.players.push(nextId);
-      await User.findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false });
+      const UserModel = mongoose.model('User');
+      await UserModel.findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false });
       io.to(room._id).emit('player-joined', { userId: nextId });
       io.to(room._id).emit('queue-updated', { queue: room.queue });
     }
@@ -278,8 +299,28 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   await User.findByIdAndUpdate(req.user.id, { roomId: null, inQueue: false });
   res.json({ success: true });
 });
+app.post('/api/rooms/guest/leave', async (req, res) => {
+  const { guestId } = req.body;
+  if (!guestId) return res.status(400).json({ error: 'Guest ID required' });
+  const Room = mongoose.model('Room');
+  const room = await Room.findOne({ players: guestId });
+  if (room) {
+    room.players = room.players.filter(id => id !== guestId);
+    if (room.queue.length > 0 && room.players.length < room.maxPlayers) {
+      const nextId = room.queue.shift();
+      room.players.push(nextId);
+      const UserModel = mongoose.model('User');
+      await UserModel.findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false });
+      io.to(room._id).emit('player-joined', { userId: nextId });
+      io.to(room._id).emit('queue-updated', { queue: room.queue });
+    }
+    await room.save();
+    io.to(room._id).emit('player-left', { userId: guestId });
+  }
+  res.json({ success: true });
+});
 
-// ========== IMPROVED SERVER-SIDE BAD WORD FILTER ==========
+// ========== SERVER-SIDE BAD WORD FILTER ==========
 const BAD_WORDS_LIST_SERVER = [
   'fuck', 'shit', 'ass', 'bitch', 'cunt', 'dick', 'pussy', 'twat', 'whore', 'slut', 'bastard', 'damn', 'hell', 'piss', 'cock',
   'faggot', 'nigga', 'nigger', 'retard', 'fck', 'fcuk', 'phuk', 'fuk', 'sh1t', 'sht', 'b1tch', 'btch', 'c0ck', 'd1ck', 'dck',
@@ -304,38 +345,139 @@ function filterMessageServer(text) {
   }
   return text;
 }
-// =========================================================
+// ===================================================
 
-// SOCKET.IO
+// Guest chat cooldown map (25 seconds)
+const guestChatCooldown = new Map();
+
+// SOCKET.IO with admin command 'r.close' to delete room
 io.on('connection', (socket) => {
-  let currentRoomId = null, userId = null;
+  let currentRoomId = null;
+  let userId = null;
+  let guestId = null;
+  let isGuest = false;
+
   socket.on('authenticate', (token) => {
     if (!token) return;
-    try { const decoded = jwt.verify(token, JWT_SECRET); userId = decoded.id; socket.userId = userId; } catch (e) {}
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.id;
+      socket.userId = userId;
+      isGuest = false;
+    } catch (e) {}
   });
-  socket.on('join-room', async (roomId) => { if (currentRoomId) socket.leave(currentRoomId); currentRoomId = roomId; socket.join(roomId); });
+  socket.on('guest-auth', (guestIdParam) => {
+    if (!guestIdParam) return;
+    guestId = guestIdParam;
+    socket.guestId = guestId;
+    isGuest = true;
+  });
+  socket.on('join-room', async (roomId) => {
+    if (currentRoomId) socket.leave(currentRoomId);
+    currentRoomId = roomId;
+    socket.join(roomId);
+  });
+
   socket.on('chat-message', async (msg) => {
-    if (!userId || !currentRoomId) return;
-    const filteredMsg = filterMessageServer(msg);
-    const User = mongoose.model('User');
-    const user = await User.findById(userId);
-    if (!user) return;
-    const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
-    const avatarUrl = user.avatarUrl || '';
-    const isOwner = (userId === OWNER_ROBLOX_ID);
-    const isAdmin = ADMINS.has(userId) || isOwner;
-    io.to(currentRoomId).emit('chat-message', { userId, username, message: filteredMsg, avatarUrl, timestamp: Date.now(), isAdmin, isOwner });
+    if (!currentRoomId) return;
+
+    // Cooldown for guests
+    if (isGuest && guestId) {
+      const last = guestChatCooldown.get(guestId);
+      const now = Date.now();
+      if (last && now - last < 25000) {
+        socket.emit('chat-error', 'You can only send one message every 25 seconds as a guest.');
+        return;
+      }
+      guestChatCooldown.set(guestId, now);
+    }
+
+    let messageText = msg;
+    let senderName = '';
+    let senderAvatar = '';
+    let isAdmin = false;
+    let isOwner = false;
+    let senderId = userId || guestId;
+
+    if (isGuest) {
+      if (typeof msg === 'object') {
+        messageText = msg.text;
+        senderName = msg.guestName || 'Guest';
+      } else {
+        senderName = 'Guest';
+      }
+    } else if (userId) {
+      const User = mongoose.model('User');
+      const user = await User.findById(userId);
+      if (user) {
+        senderName = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
+        senderAvatar = user.avatarUrl || '';
+        isOwner = (userId === OWNER_ROBLOX_ID);
+        isAdmin = ADMINS.has(userId) || isOwner;
+      }
+    }
+
+    // === ADMIN COMMAND: r.close ===
+    if (!isGuest && (isAdmin || isOwner) && messageText.trim().toLowerCase() === 'r.close') {
+      // Delete the room
+      const Room = mongoose.model('Room');
+      const room = await Room.findById(currentRoomId);
+      if (room) {
+        // Notify all users in the room that it's closing
+        io.to(currentRoomId).emit('room-closed', { message: 'This room has been closed by an admin.' });
+        // Force disconnect all sockets in the room
+        const sockets = await io.in(currentRoomId).fetchSockets();
+        for (const sock of sockets) {
+          sock.emit('force-leave', { reason: 'Room was closed by admin.' });
+          sock.leave(currentRoomId);
+        }
+        // Delete the room from database
+        await Room.deleteOne({ _id: currentRoomId });
+        // Also remove roomId from users
+        const UserModel = mongoose.model('User');
+        await UserModel.updateMany({ roomId: currentRoomId }, { $unset: { roomId: "", inQueue: "" } });
+        console.log(`Room ${currentRoomId} deleted by admin ${senderName}`);
+      }
+      return; // do not broadcast the command message
+    }
+
+    // Filter bad words
+    const filteredMsg = filterMessageServer(messageText);
+    io.to(currentRoomId).emit('chat-message', {
+      userId: senderId,
+      username: senderName,
+      message: filteredMsg,
+      avatarUrl: senderAvatar,
+      timestamp: Date.now(),
+      isAdmin,
+      isOwner
+    });
   });
+
   socket.on('chat-board', async (boardData) => {
     if (!userId || !currentRoomId) return;
     const User = mongoose.model('User');
     const user = await User.findById(userId);
     if (!user) return;
     const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
-    io.to(currentRoomId).emit('chat-board', { userId, username, board: boardData, avatarUrl: user.avatarUrl });
+    io.to(currentRoomId).emit('chat-board', {
+      userId,
+      username,
+      board: boardData,
+      avatarUrl: user.avatarUrl
+    });
   });
-  socket.on('voice-data', (audioBuffer) => { if (!userId || !currentRoomId) return; socket.to(currentRoomId).emit('voice-data', { userId, audio: audioBuffer }); });
-  socket.on('leave-room', () => { if (currentRoomId) socket.leave(currentRoomId); currentRoomId = null; });
+
+  socket.on('voice-data', (audioBuffer) => {
+    if ((!userId && !guestId) || !currentRoomId) return;
+    const senderId = userId || guestId;
+    socket.to(currentRoomId).emit('voice-data', { userId: senderId, audio: audioBuffer });
+  });
+
+  socket.on('leave-room', () => {
+    if (currentRoomId) socket.leave(currentRoomId);
+    currentRoomId = null;
+  });
 });
 
 // LEADERBOARD
@@ -403,7 +545,7 @@ app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   res.json({ url: `https://www.roblox.com/game-pass/${gamepassId}` });
 });
 // ADMIN & MODERATION
-const OWNER_ROBLOX_ID = '3115362000';
+const OWNER_ROBLOX_ID = '3115362000'; // Replace with your actual Roblox ID
 const ADMINS = new Set();
 const BANNED = new Set();
 let REPORTS = [];
