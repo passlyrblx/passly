@@ -143,31 +143,37 @@ app.get('/auth/roblox/callback', async (req, res) => {
     const displayName = users[userId].customDisplayName || robloxDisplayName;
     const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl }, JWT_SECRET, { expiresIn: '7d' });
 
-    // SET COOKIE so token survives browser restarts
-    res.cookie('passly_token', jwtToken, {
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax'
-    });
-
+    res.cookie('passly_token', jwtToken, { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
     res.redirect(`/dashboard#token=${jwtToken}`);
   } catch (err) {
     console.error('OAuth error:', err.response?.data || err.message);
     res.send('<h1>Login Failed</h1><a href="/">Go back</a>');
   }
 });
-
 // ========== USER API ==========
 app.get('/api/user', authenticateToken, (req, res) => {
   const user = users[req.user.id];
   if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const avatarUrl = user.avatarUrl || '';
+  const avatarFallback = avatarUrl ? 
+    `https://www.roblox.com/bust-thumbnail/image?userId=${user.id}&width=150&height=150&format=png` : '';
+
   const ad = Object.values(ads).find(a => a.userId === user.id && a.active);
+
   res.json({
-    id: user.id, robloxUsername: user.robloxUsername, robloxDisplayName: user.robloxDisplayName,
-    displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl,
-    profile: user.profile, roomId: user.roomId, inQueue: user.inQueue,
-    donations: user.donations, ad: ad || null, customDisplayName: user.customDisplayName,
+    id: user.id,
+    robloxUsername: user.robloxUsername || '',
+    robloxDisplayName: user.robloxDisplayName || '',
+    displayName: user.customDisplayName || user.robloxDisplayName || '',
+    avatarUrl: avatarUrl,
+    avatarFallback: avatarFallback,
+    profile: user.profile,
+    roomId: user.roomId,
+    inQueue: user.inQueue,
+    donations: user.donations,
+    ad: ad || null,
+    customDisplayName: user.customDisplayName || null,
     board: user.board || []
   });
 });
@@ -394,19 +400,17 @@ app.get('/api/rooms/:roomId/ad-broadcasts', (req, res) => {
 
 // ========== LEADERBOARD (daily / weekly / total) ==========
 app.get('/api/leaderboard', (req, res) => {
-  const period = req.query.period || 'total';   // daily, weekly, total
+  const period = req.query.period || 'total';
   const now = Date.now();
   const oneDay = 24 * 60 * 60 * 1000;
   const oneWeek = 7 * oneDay;
 
-  // Filter donations based on period
   const filteredDonations = Object.values(donations).filter(d => {
     if (period === 'daily') return (now - d.timestamp) <= oneDay;
     if (period === 'weekly') return (now - d.timestamp) <= oneWeek;
-    return true; // total
+    return true;
   });
 
-  // Aggregate received and given per user
   const receivedMap = {};
   const givenMap = {};
 
@@ -422,21 +426,27 @@ app.get('/api/leaderboard', (req, res) => {
     givenMap[donorId].amount += amount;
   });
 
-  const receivers = Object.values(receivedMap)
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 10);
-
-  const donors = Object.values(givenMap)
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 10);
+  const receivers = Object.values(receivedMap).sort((a, b) => b.amount - a.amount).slice(0, 10);
+  const donors = Object.values(givenMap).sort((a, b) => b.amount - a.amount).slice(0, 10);
 
   res.json({ receivers, donors });
 });
 
-// ========== GUEST ==========
+// ========== GUEST LOGIN (returns JWT) ==========
 app.post('/api/guest-login', (req, res) => {
   const guestNum = Math.floor(10000 + Math.random() * 90000);
-  res.json({ username: `Guest#${guestNum}`, isGuest: true });
+  const guestId = 'guest_' + Date.now() + '_' + guestNum;
+  const guestUsername = `Guest#${guestNum}`;
+
+  const guestUser = {
+    id: guestId,
+    username: guestUsername,
+    displayName: guestUsername,
+    isGuest: true
+  };
+
+  const token = jwt.sign(guestUser, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, username: guestUsername, isGuest: true });
 });
 
 // ========== DEFAULT ROOMS ==========
