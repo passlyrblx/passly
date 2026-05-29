@@ -1,4 +1,3 @@
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -6,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
-const fs = require('fs');
+const mongoose = require('mongoose');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,40 +13,91 @@ const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } })
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
 
-if (!fs.existsSync(path.join(__dirname, 'data'))) {
-  fs.mkdirSync(path.join(__dirname, 'data'));
-}
+// ----- MongoDB connection -----
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
-const DB_USERS = path.join(__dirname, 'data', 'users.json');
-const DB_ROOMS = path.join(__dirname, 'data', 'rooms.json');
-const DB_DONATIONS = path.join(__dirname, 'data', 'donations.json');
-const DB_ADS = path.join(__dirname, 'data', 'ads.json');
-const DB_ADBROADCASTS = path.join(__dirname, 'data', 'adbroadcasts.json');
+// ----- Mongoose Schemas -----
+const userSchema = new mongoose.Schema({
+  _id: String,
+  robloxUsername: String,
+  robloxDisplayName: String,
+  customDisplayName: String,
+  avatarUrl: String,
+  profile: {
+    showBooth: { type: Boolean, default: true },
+    statusDot: { type: String, default: 'online' },
+    showRoomId: { type: Boolean, default: true }
+  },
+  roomId: String,
+  inQueue: Boolean,
+  donations: {
+    received: { type: Number, default: 0 },
+    given: { type: Number, default: 0 }
+  },
+  board: [{ id: String, name: String, price: Number }],
+  createdAt: { type: Date, default: Date.now }
+});
 
-function readJSON(f) { try { if(fs.existsSync(f)) return JSON.parse(fs.readFileSync(f,'utf8')); } catch(e){} return {}; }
-function writeJSON(f, d) { try{ fs.writeFileSync(f, JSON.stringify(d,null,2)); } catch(e){} }
+const roomSchema = new mongoose.Schema({
+  _id: String,
+  name: String,
+  desc: String,
+  type: String,
+  players: [String],
+  queue: [String],
+  maxPlayers: { type: Number, default: 18 },
+  createdBy: String,
+  createdAt: { type: Date, default: Date.now }
+});
 
-let users = readJSON(DB_USERS);
-let rooms = readJSON(DB_ROOMS);
-let donations = readJSON(DB_DONATIONS);
-let ads = readJSON(DB_ADS);
-let adBroadcasts = readJSON(DB_ADBROADCASTS);
+const donationSchema = new mongoose.Schema({
+  _id: String,
+  donorId: String,
+  donorName: String,
+  receiverId: String,
+  receiverName: String,
+  gamepassId: String,
+  amount: Number,
+  timestamp: { type: Date, default: Date.now }
+});
 
-function saveUsers() { writeJSON(DB_USERS, users); }
-function saveRooms() { writeJSON(DB_ROOMS, rooms); }
-function saveDonations() { writeJSON(DB_DONATIONS, donations); }
-function saveAds() { writeJSON(DB_ADS, ads); }
-function saveAdBroadcasts() { writeJSON(DB_ADBROADCASTS, adBroadcasts); }
+const adSchema = new mongoose.Schema({
+  _id: String,
+  userId: String,
+  username: String,
+  tier: Number,
+  gamepassId: String,
+  broadcastsLeft: Number,
+  showsLeft: Number,
+  active: Boolean,
+  message: String,
+  purchasedAt: { type: Date, default: Date.now }
+});
 
-setInterval(() => {
-  const now = Date.now();
-  for (const roomId in adBroadcasts) {
-    adBroadcasts[roomId] = (adBroadcasts[roomId] || []).filter(b => now - b.timestamp < 600000);
-    if (adBroadcasts[roomId].length === 0) delete adBroadcasts[roomId];
-  }
-  saveAdBroadcasts();
-}, 60000);
+const adBroadcastSchema = new mongoose.Schema({
+  roomId: String,
+  board: [mongoose.Schema.Types.Mixed],
+  advertiserName: String,
+  advertiserId: String,
+  message: String,
+  timestamp: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+const Room = mongoose.model('Room', roomSchema);
+const Donation = mongoose.model('Donation', donationSchema);
+const Ad = mongoose.model('Ad', adSchema);
+const AdBroadcast = mongoose.model('AdBroadcast', adBroadcastSchema);
+
+// Clean old broadcasts every 10 minutes
+setInterval(async () => {
+  const cutoff = new Date(Date.now() - 600000);
+  await AdBroadcast.deleteMany({ timestamp: { $lt: cutoff } });
+}, 600000);
 
 app.set('trust proxy', 1);
 app.use(express.json());
@@ -124,7 +174,6 @@ app.get('/auth/roblox/callback', async (req, res) => {
     const robloxUsername = profile.name || 'Player';
     const robloxDisplayName = profile.displayName || robloxUsername;
 
-    // 🔥 Fetch avatar using the Thumbnails API (most reliable)
     let avatarUrl = '';
     try {
       const thumbRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`);
@@ -132,27 +181,25 @@ app.get('/auth/roblox/callback', async (req, res) => {
         avatarUrl = thumbRes.data.data[0].imageUrl || '';
       }
     } catch (e) {
-      // Fallback to old headshot URL
       avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
     }
 
-    if (!users[userId]) {
-      users[userId] = {
-        id: userId, robloxUsername, robloxDisplayName, customDisplayName: null, avatarUrl,
-        profile: { showBooth: true, statusDot: 'online', showRoomId: true },
-        roomId: null, inQueue: false,
-        donations: { received: 0, given: 0 },
-        board: [],
-        createdAt: new Date().toISOString()
-      };
-    } else {
-      users[userId].robloxUsername = robloxUsername;
-      users[userId].robloxDisplayName = robloxDisplayName;
-      users[userId].avatarUrl = avatarUrl;
-    }
-    saveUsers();
+    await User.findOneAndUpdate(
+      { _id: userId },
+      {
+        $set: { robloxUsername, robloxDisplayName, avatarUrl },
+        $setOnInsert: {
+          profile: { showBooth: true, statusDot: 'online', showRoomId: true },
+          donations: { received: 0, given: 0 },
+          board: [],
+          createdAt: new Date()
+        }
+      },
+      { upsert: true, new: true }
+    );
 
-    const displayName = users[userId].customDisplayName || robloxDisplayName;
+    const user = await User.findById(userId);
+    const displayName = user.customDisplayName || robloxDisplayName;
     const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl }, JWT_SECRET, { expiresIn: '7d' });
 
     res.cookie('passly_token', jwtToken, { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
@@ -163,55 +210,52 @@ app.get('/auth/roblox/callback', async (req, res) => {
   }
 });
 // ========== USER API ==========
-app.get('/api/user', authenticateToken, (req, res) => {
-  const user = users[req.user.id];
+app.get('/api/user', authenticateToken, async (req, res) => {
+  const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  // Already stored avatarUrl from login (Thumbnails API), use that
   const avatarUrl = user.avatarUrl || '';
-  // Fallback for really old users who might not have the new avatarUrl yet
-  const avatarFallback = avatarUrl ? '' : `https://www.roblox.com/bust-thumbnail/image?userId=${user.id}&width=150&height=150&format=png`;
-
-  const ad = Object.values(ads).find(a => a.userId === user.id && a.active);
+  const avatarFallback = avatarUrl ? '' : `https://www.roblox.com/bust-thumbnail/image?userId=${user._id}&width=150&height=150&format=png`;
+  const activeAd = await Ad.findOne({ userId: user._id, active: true });
 
   res.json({
-    id: user.id,
+    id: user._id,
     robloxUsername: user.robloxUsername || '',
     robloxDisplayName: user.robloxDisplayName || '',
     displayName: user.customDisplayName || user.robloxDisplayName || '',
-    avatarUrl: avatarUrl,
-    avatarFallback: avatarFallback,
+    avatarUrl,
+    avatarFallback,
     profile: user.profile,
     roomId: user.roomId,
     inQueue: user.inQueue,
     donations: user.donations,
-    ad: ad || null,
+    ad: activeAd || null,
     customDisplayName: user.customDisplayName || null,
     board: user.board || []
   });
 });
 
-app.post('/api/profile/update', authenticateToken, (req, res) => {
-  const user = users[req.user.id];
-  if (!user) return res.status(404).json({ error: 'User not found' });
+app.post('/api/profile/update', authenticateToken, async (req, res) => {
   const { showBooth, statusDot, showRoomId, customDisplayName } = req.body;
-  if (showBooth !== undefined) user.profile.showBooth = showBooth;
-  if (statusDot) user.profile.statusDot = statusDot;
-  if (showRoomId !== undefined) user.profile.showRoomId = showRoomId;
-  if (customDisplayName !== undefined) user.customDisplayName = customDisplayName.trim().substring(0,20) || null;
-  saveUsers();
+  const update = {};
+  if (showBooth !== undefined) update['profile.showBooth'] = showBooth;
+  if (statusDot) update['profile.statusDot'] = statusDot;
+  if (showRoomId !== undefined) update['profile.showRoomId'] = showRoomId;
+  if (customDisplayName !== undefined) update.customDisplayName = customDisplayName.trim().substring(0,20) || null;
+
+  await User.findByIdAndUpdate(req.user.id, { $set: update });
   res.json({ success: true });
 });
 
 // ========== SEARCH ==========
-app.get('/api/search', (req, res) => {
+app.get('/api/search', async (req, res) => {
   const query = (req.query.username || '').toLowerCase().trim();
   if (!query) return res.status(400).json({ error: 'Username required' });
-  const found = Object.values(users).find(u => u.robloxUsername && u.robloxUsername.toLowerCase() === query);
+  const found = await User.findOne({ robloxUsername: new RegExp(`^${query}$`, 'i') });
   if (!found) return res.json({ error: 'User not found' });
-  const showBoard = found.profile?.showBooth !== false;
+  const showBoard = found.profile.showBooth !== false;
   res.json({
-    id: found.id,
+    id: found._id,
     robloxUsername: found.robloxUsername,
     displayName: found.customDisplayName || found.robloxDisplayName,
     avatarUrl: found.avatarUrl,
@@ -220,12 +264,12 @@ app.get('/api/search', (req, res) => {
 });
 
 // ========== PUBLIC BOARD ==========
-app.get('/api/user/:userId/board', authenticateToken, (req, res) => {
-  const user = users[req.params.userId];
+app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
+  const user = await User.findById(req.params.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const showBoard = user.profile?.showBooth !== false;
+  const showBoard = user.profile.showBooth !== false;
   res.json({
-    id: user.id,
+    id: user._id,
     displayName: user.customDisplayName || user.robloxDisplayName,
     avatarUrl: user.avatarUrl,
     board: showBoard ? (user.board || []) : []
@@ -236,249 +280,283 @@ app.get('/api/user/:userId/board', authenticateToken, (req, res) => {
 app.post('/api/board/add', authenticateToken, async (req, res) => {
   const { assetId, price } = req.body;
   if (!assetId || !price) return res.status(400).json({ error: 'Asset ID and Robux amount required' });
-  const user = users[req.user.id];
+  const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  if (!user.board) user.board = [];
+
   if (user.board.some(gp => gp.id === assetId)) return res.status(400).json({ error: 'Gamepass already on board' });
+
   try {
-    const check = await axios.get(`https://inventory.roblox.com/v1/users/${user.id}/items/GamePass/${assetId}`, { timeout: 5000 });
+    const check = await axios.get(`https://inventory.roblox.com/v1/users/${user._id}/items/GamePass/${assetId}`, { timeout: 5000 });
     if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
   } catch (e) { return res.status(400).json({ error: 'Ownership verification failed' }); }
+
   user.board.push({ id: assetId, name: 'Gamepass', price: parseInt(price) });
-  saveUsers();
+  await user.save();
   res.json({ success: true, board: user.board });
 });
 
-app.post('/api/board/remove', authenticateToken, (req, res) => {
+app.post('/api/board/remove', authenticateToken, async (req, res) => {
   const { assetId } = req.body;
-  const user = users[req.user.id];
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (!user.board) user.board = [];
-  user.board = user.board.filter(gp => gp.id !== assetId);
-  saveUsers();
+  await User.findByIdAndUpdate(req.user.id, { $pull: { board: { id: assetId } } });
+  const user = await User.findById(req.user.id);
   res.json({ success: true, board: user.board });
 });
 
 // ========== ROOMS ==========
-app.get('/api/rooms', (req, res) => res.json(Object.values(rooms)));
-
-app.post('/api/rooms/create', authenticateToken, (req, res) => {
-  const { name, desc, type } = req.body;
-  if (!name) return res.status(400).json({ error: 'Room name required' });
-  const alreadyInRoom = Object.values(rooms).some(r => r.createdBy === req.user.id || r.players.includes(req.user.id));
-  if (alreadyInRoom) return res.status(400).json({ error: 'You must leave your current room first.' });
-  const roomId = crypto.randomBytes(8).toString('hex');
-  const userId = req.user.id;
-  rooms[roomId] = {
-    id: roomId, name, desc: desc||'', type: type||'Public',
-    players: [userId], queue: [], maxPlayers: 18,
-    createdBy: userId, createdAt: new Date().toISOString()
-  };
-  if (users[userId]) { users[userId].roomId = roomId; users[userId].inQueue = false; saveUsers(); }
-  saveRooms();
-  res.json(rooms[roomId]);
+app.get('/api/rooms', async (req, res) => {
+  const rooms = await Room.find({});
+  res.json(rooms);
 });
 
-app.post('/api/rooms/join/:roomId', authenticateToken, (req, res) => {
-  const room = rooms[req.params.roomId];
+app.post('/api/rooms/create', authenticateToken, async (req, res) => {
+  const { name, desc, type } = req.body;
+  if (!name) return res.status(400).json({ error: 'Room name required' });
+
+  const alreadyInRoom = await Room.findOne({
+    $or: [{ createdBy: req.user.id }, { players: req.user.id }]
+  });
+  if (alreadyInRoom) return res.status(400).json({ error: 'You must leave your current room first.' });
+
+  const roomId = crypto.randomBytes(8).toString('hex');
+  await Room.create({
+    _id: roomId, name, desc: desc || '', type: type || 'Public',
+    players: [req.user.id], queue: [], maxPlayers: 18, createdBy: req.user.id
+  });
+  await User.findByIdAndUpdate(req.user.id, { roomId, inQueue: false });
+  const room = await Room.findById(roomId);
+  res.json(room);
+});
+
+app.post('/api/rooms/join/:roomId', authenticateToken, async (req, res) => {
+  const room = await Room.findById(req.params.roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   const userId = req.user.id;
-  if (users[userId]?.roomId && rooms[users[userId].roomId] && users[userId].roomId !== room.id) {
-    const old = rooms[users[userId].roomId];
-    old.players = old.players.filter(id => id !== userId);
-    old.queue = old.queue.filter(id => id !== userId);
-    if (old.queue.length && old.players.length < old.maxPlayers) old.players.push(old.queue.shift());
+  const user = await User.findById(userId);
+
+  if (user.roomId && user.roomId !== room._id) {
+    const oldRoom = await Room.findById(user.roomId);
+    if (oldRoom) {
+      oldRoom.players = oldRoom.players.filter(id => id !== userId);
+      oldRoom.queue = oldRoom.queue.filter(id => id !== userId);
+      if (oldRoom.queue.length && oldRoom.players.length < oldRoom.maxPlayers) {
+        oldRoom.players.push(oldRoom.queue.shift());
+      }
+      await oldRoom.save();
+    }
   }
+
   if (room.players.includes(userId)) {
-    users[userId].roomId = room.id; users[userId].inQueue = false; saveUsers();
+    await User.findByIdAndUpdate(userId, { roomId: room._id, inQueue: false });
     return res.json({ success: true, room });
   }
+
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(userId)) {
       room.queue.push(userId);
-      users[userId].roomId = room.id; users[userId].inQueue = true;
-      saveUsers(); saveRooms();
+      await room.save();
+      await User.findByIdAndUpdate(userId, { roomId: room._id, inQueue: true });
       return res.json({ queued: true, position: room.queue.length });
     }
     return res.json({ queued: true, position: room.queue.indexOf(userId) + 1 });
   }
+
   room.players.push(userId);
-  users[userId].roomId = room.id; users[userId].inQueue = false;
-  saveUsers(); saveRooms();
+  await room.save();
+  await User.findByIdAndUpdate(userId, { roomId: room._id, inQueue: false });
   res.json({ success: true, room });
 });
 
-app.post('/api/rooms/leave', authenticateToken, (req, res) => {
+app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   const userId = req.user.id;
-  const room = rooms[users[userId]?.roomId];
+  const user = await User.findById(userId);
+  if (!user || !user.roomId) return res.json({ success: true });
+
+  const room = await Room.findById(user.roomId);
   if (room) {
     room.players = room.players.filter(id => id !== userId);
     room.queue = room.queue.filter(id => id !== userId);
-    if (room.queue.length && room.players.length < room.maxPlayers) room.players.push(room.queue.shift());
-    saveRooms();
+    if (room.queue.length && room.players.length < room.maxPlayers) {
+      room.players.push(room.queue.shift());
+    }
+    await room.save();
   }
-  if (users[userId]) { users[userId].roomId = null; users[userId].inQueue = false; saveUsers(); }
+  await User.findByIdAndUpdate(userId, { roomId: null, inQueue: false });
   res.json({ success: true });
 });
 
 // ========== DONATIONS ==========
 app.post('/api/donate', authenticateToken, async (req, res) => {
   const { receiverId, gamepassId, amount } = req.body;
-  const donor = users[req.user.id];
-  const receiver = users[receiverId];
+  const donor = await User.findById(req.user.id);
+  const receiver = await User.findById(receiverId);
   if (!donor || !receiver) return res.status(404).json({ error: 'User not found' });
+
   try {
-    const check = await axios.get(`https://inventory.roblox.com/v1/users/${donor.id}/items/GamePass/${gamepassId}`, { timeout: 5000 });
+    const check = await axios.get(`https://inventory.roblox.com/v1/users/${donor._id}/items/GamePass/${gamepassId}`, { timeout: 5000 });
     if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
-  } catch(e) { return res.status(400).json({ error: 'Verification failed' }); }
-  const recent = Object.values(donations).find(d => d.donorId===donor.id && d.receiverId===receiverId && d.gamepassId===gamepassId && (Date.now()-d.timestamp)<300000);
+  } catch (e) { return res.status(400).json({ error: 'Verification failed' }); }
+
+  const recent = await Donation.findOne({
+    donorId: donor._id, receiverId, gamepassId,
+    timestamp: { $gt: new Date(Date.now() - 300000) }
+  });
   if (recent) return res.status(400).json({ error: 'Wait 5 minutes' });
+
   const donationId = crypto.randomBytes(8).toString('hex');
-  donations[donationId] = { id: donationId, donorId: donor.id, donorName: donor.robloxUsername, receiverId, receiverName: receiver.robloxUsername, gamepassId, amount, timestamp: Date.now() };
+  await Donation.create({
+    _id: donationId, donorId: donor._id, donorName: donor.robloxUsername,
+    receiverId, receiverName: receiver.robloxUsername, gamepassId, amount, timestamp: new Date()
+  });
+
   donor.donations.given += amount;
   receiver.donations.received += amount;
-  saveDonations(); saveUsers();
+  await donor.save();
+  await receiver.save();
+
   res.json({ success: true, message: `${donor.robloxUsername} donated ${amount} Robux to ${receiver.robloxUsername}!` });
 });
 
-app.get('/api/donations', (req, res) => {
-  const now = Date.now();
-  for (const k in donations) if (now - donations[k].timestamp > 300000) delete donations[k];
-  res.json(Object.values(donations));
+app.get('/api/donations', async (req, res) => {
+  const donations = await Donation.find({ timestamp: { $gt: new Date(Date.now() - 300000) } });
+  res.json(donations);
 });
 
 // ========== ADS ==========
-function broadcastAd(ad) {
-  const publicRoomIds = Object.keys(rooms).filter(id => rooms[id].type === 'Public');
+async function broadcastAd(ad) {
+  const publicRoomIds = (await Room.find({ type: 'Public' })).map(r => r._id);
   if (publicRoomIds.length === 0) return;
+
   const targetCount = Math.ceil(publicRoomIds.length * 0.75);
-  const shuffled = [...publicRoomIds].sort(() => Math.random() - 0.5);
+  const shuffled = publicRoomIds.sort(() => Math.random() - 0.5);
   const selected = shuffled.slice(0, targetCount);
-  const advertiser = users[ad.userId];
+
+  const advertiser = await User.findById(ad.userId);
   if (!advertiser) return;
-  selected.forEach(roomId => {
-    if (!adBroadcasts[roomId]) adBroadcasts[roomId] = [];
-    adBroadcasts[roomId].push({
-      board: advertiser.board || [],
-      advertiserName: advertiser.customDisplayName || advertiser.robloxDisplayName,
-      advertiserId: advertiser.id,
-      message: ad.message || '',
-      timestamp: Date.now()
-    });
-  });
-  saveAdBroadcasts();
+
+  const broadcasts = selected.map(roomId => ({
+    roomId,
+    board: advertiser.board || [],
+    advertiserName: advertiser.customDisplayName || advertiser.robloxDisplayName,
+    advertiserId: advertiser._id,
+    message: ad.message || '',
+    timestamp: new Date()
+  }));
+  await AdBroadcast.insertMany(broadcasts);
 }
 
 app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   const { tier, message } = req.body;
-  const user = users[req.user.id];
+  const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  if (Object.values(ads).some(a => a.userId===user.id && a.active)) return res.status(400).json({ error: 'Delete existing ad first' });
+
+  const existingAd = await Ad.findOne({ userId: user._id, active: true });
+  if (existingAd) return res.status(400).json({ error: 'Delete existing ad first' });
+
   const gpId = GAMEPASSES[tier];
   if (!gpId) return res.status(400).json({ error: 'Invalid tier' });
+
   try {
-    const check = await axios.get(`https://inventory.roblox.com/v1/users/${user.id}/items/GamePass/${gpId}`, { timeout: 5000 });
+    const check = await axios.get(`https://inventory.roblox.com/v1/users/${user._id}/items/GamePass/${gpId}`, { timeout: 5000 });
     if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
-  } catch(e) { return res.status(400).json({ error: 'Verification failed' }); }
+  } catch (e) { return res.status(400).json({ error: 'Verification failed' }); }
+
   const tierAmount = tier === '5k' ? 5000 : 10000;
   const adId = crypto.randomBytes(8).toString('hex');
-  const newAd = {
-    id: adId, userId: user.id, username: user.robloxUsername,
-    tier: tierAmount, gamepassId: gpId,
-    broadcastsLeft: 1,
-    showsLeft: tier === '5k' ? 1 : 3,
-    active: true,
-    message: message?.trim().substring(0, 200) || '',
-    purchasedAt: new Date().toISOString()
-  };
-  ads[adId] = newAd;
-  saveAds();
-  broadcastAd(newAd);
+  const newAd = await Ad.create({
+    _id: adId, userId: user._id, username: user.robloxUsername,
+    tier: tierAmount, gamepassId: gpId, broadcastsLeft: 1,
+    showsLeft: tier === '5k' ? 1 : 3, active: true,
+    message: message?.trim().substring(0, 200) || '', purchasedAt: new Date()
+  });
+
+  await broadcastAd(newAd);
   newAd.broadcastsLeft = 0;
-  saveAds();
+  await newAd.save();
+
   res.json({ success: true, ad: newAd });
 });
 
-app.post('/api/delete-ad', authenticateToken, (req, res) => {
-  for (const k in ads) if (ads[k].userId === req.user.id) { delete ads[k]; saveAds(); return res.json({success:true}); }
+app.post('/api/delete-ad', authenticateToken, async (req, res) => {
+  await Ad.deleteMany({ userId: req.user.id, active: true });
   res.json({ success: true });
 });
 
-app.get('/api/ads', (req, res) => res.json(Object.values(ads).filter(a => a.active && a.showsLeft>0)));
-
-app.get('/api/rooms/:roomId/ad-broadcasts', (req, res) => {
-  const since = parseInt(req.query.since) || 0;
-  res.json((adBroadcasts[req.params.roomId] || []).filter(b => b.timestamp > since));
+app.get('/api/ads', async (req, res) => {
+  const activeAds = await Ad.find({ active: true, showsLeft: { $gt: 0 } });
+  res.json(activeAds);
 });
 
-// ========== LEADERBOARD (daily / weekly / total) ==========
-app.get('/api/leaderboard', (req, res) => {
+app.get('/api/rooms/:roomId/ad-broadcasts', async (req, res) => {
+  const since = parseInt(req.query.since) || 0;
+  const broadcasts = await AdBroadcast.find({
+    roomId: req.params.roomId,
+    timestamp: { $gt: new Date(since) }
+  });
+  res.json(broadcasts);
+});
+
+// ========== LEADERBOARD ==========
+app.get('/api/leaderboard', async (req, res) => {
   const period = req.query.period || 'total';
   const now = Date.now();
   const oneDay = 24 * 60 * 60 * 1000;
   const oneWeek = 7 * oneDay;
 
-  const filteredDonations = Object.values(donations).filter(d => {
-    if (period === 'daily') return (now - d.timestamp) <= oneDay;
-    if (period === 'weekly') return (now - d.timestamp) <= oneWeek;
-    return true;
-  });
+  let dateFilter = {};
+  if (period === 'daily') dateFilter = { timestamp: { $gte: new Date(now - oneDay) } };
+  else if (period === 'weekly') dateFilter = { timestamp: { $gte: new Date(now - oneWeek) } };
 
-  const receivedMap = {};
-  const givenMap = {};
-
-  filteredDonations.forEach(d => {
-    const receiverId = d.receiverId;
-    const donorId = d.donorId;
-    const amount = d.amount || 0;
-
-    if (!receivedMap[receiverId]) receivedMap[receiverId] = { username: d.receiverName || 'Unknown', amount: 0 };
+  const donations = await Donation.find(dateFilter);
+  const receivedMap = {}, givenMap = {};
+  donations.forEach(d => {
+    const { receiverId, receiverName, donorId, donorName, amount } = d;
+    if (!receivedMap[receiverId]) receivedMap[receiverId] = { username: receiverName, amount: 0 };
     receivedMap[receiverId].amount += amount;
-
-    if (!givenMap[donorId]) givenMap[donorId] = { username: d.donorName || 'Unknown', amount: 0 };
+    if (!givenMap[donorId]) givenMap[donorId] = { username: donorName, amount: 0 };
     givenMap[donorId].amount += amount;
   });
 
-  const receivers = Object.values(receivedMap).sort((a, b) => b.amount - a.amount).slice(0, 10);
-  const donors = Object.values(givenMap).sort((a, b) => b.amount - a.amount).slice(0, 10);
-
+  const receivers = Object.values(receivedMap).sort((a,b) => b.amount - a.amount).slice(0,10);
+  const donors = Object.values(givenMap).sort((a,b) => b.amount - a.amount).slice(0,10);
   res.json({ receivers, donors });
 });
 
-// ========== GUEST LOGIN (returns JWT) ==========
-app.post('/api/guest-login', (req, res) => {
+// ========== GUEST LOGIN ==========
+app.post('/api/guest-login', async (req, res) => {
   const guestNum = Math.floor(10000 + Math.random() * 90000);
   const guestId = 'guest_' + Date.now() + '_' + guestNum;
   const guestUsername = `Guest#${guestNum}`;
 
-  const guestUser = {
-    id: guestId,
-    username: guestUsername,
-    displayName: guestUsername,
-    isGuest: true
-  };
+  await User.findOneAndUpdate(
+    { _id: guestId },
+    { $set: { robloxUsername: guestUsername, robloxDisplayName: guestUsername } },
+    { upsert: true, new: true }
+  );
 
+  const guestUser = { id: guestId, username: guestUsername, displayName: guestUsername, isGuest: true };
   const token = jwt.sign(guestUser, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, username: guestUsername, isGuest: true });
 });
 
 // ========== DEFAULT ROOMS ==========
-if (Object.keys(rooms).length === 0) {
-  const defaultRooms = [
-    { name: "Chill Donations", desc: "Relax and donate to small creators." },
-    { name: "Big Donators", desc: "High donation rooms with active players." },
-    { name: "Anime Fans", desc: "A room for anime lovers." }
-  ];
-  defaultRooms.forEach(r => {
-    const roomId = crypto.randomBytes(8).toString('hex');
-    rooms[roomId] = {
-      id: roomId, name: r.name, desc: r.desc, type: 'Public',
-      players: [], queue: [], maxPlayers: 18,
-      createdBy: 'system', createdAt: new Date().toISOString()
-    };
-  });
-  saveRooms();
-}
+(async () => {
+  const count = await Room.countDocuments();
+  if (count === 0) {
+    const defaultRooms = [
+      { name: "Chill Donations", desc: "Relax and donate to small creators." },
+      { name: "Big Donators", desc: "High donation rooms with active players." },
+      { name: "Anime Fans", desc: "A room for anime lovers." }
+    ];
+    for (const r of defaultRooms) {
+      const roomId = crypto.randomBytes(8).toString('hex');
+      await Room.create({
+        _id: roomId, name: r.name, desc: r.desc, type: 'Public',
+        players: [], queue: [], maxPlayers: 18, createdBy: 'system'
+      });
+    }
+    console.log('Default rooms created.');
+  }
+})();
 
 // ========== SOCKET.IO ==========
 io.on('connection', (socket) => {
@@ -488,16 +566,14 @@ io.on('connection', (socket) => {
 
   socket.on('authenticate', (token) => {
     if (!token) {
-      userId = 'guest_' + Math.random().toString(36).substr(2, 9);
+      userId = 'guest_' + Math.random().toString(36).substr(2,9);
       username = 'Guest#' + Math.floor(1000+Math.random()*9000);
     } else {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
         userId = decoded.id;
         username = decoded.displayName || decoded.username;
-      } catch (e) {
-        userId = 'invalid';
-      }
+      } catch (e) { userId = 'invalid'; }
     }
     socket.emit('authenticated', { userId, username });
   });
@@ -519,20 +595,12 @@ io.on('connection', (socket) => {
 
   socket.on('chat-message', (msg) => {
     if (!currentRoom) return;
-    io.to(currentRoom).emit('chat-message', {
-      userId,
-      username,
-      message: msg,
-      timestamp: Date.now()
-    });
+    io.to(currentRoom).emit('chat-message', { userId, username, message: msg, timestamp: Date.now() });
   });
 
   socket.on('voice-data', (audioChunk) => {
     if (!currentRoom) return;
-    socket.to(currentRoom).emit('voice-data', {
-      userId,
-      audio: audioChunk
-    });
+    socket.to(currentRoom).emit('voice-data', { userId, audio: audioChunk });
   });
 
   socket.on('voice-mute', (muted) => {
