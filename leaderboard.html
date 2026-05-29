@@ -4,19 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Passly - Donations Never Stop</title>
-  <!-- PWA support -->
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
-
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0a0a14;
-      color: white;
-      min-height: 100vh;
-    }
+    /* … same as before … */
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display:flex; gap:25px; }
@@ -27,13 +21,10 @@
     .user-name { font-weight:600; color:#c4b5fd; }
     .main-content { padding:30px; max-width:900px; margin:0 auto; }
     h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
-
-    /* Tabs */
     .tabs { display:flex; justify-content:center; gap:10px; margin-bottom:30px; }
     .tab-btn { padding:10px 24px; background:rgba(30,30,50,0.6); border:1px solid rgba(139,92,246,0.2); border-radius:12px; color:#a0a0b0; cursor:pointer; font-size:1rem; font-weight:600; transition:all 0.3s; }
     .tab-btn.active { background:#8b5cf6; color:white; border-color:#8b5cf6; }
     .tab-btn:hover:not(.active) { background:rgba(139,92,246,0.2); color:white; }
-
     .leaderboard-section { margin-bottom:40px; }
     .section-title { font-size:1.5rem; color:#a78bfa; margin-bottom:20px; display:flex; align-items:center; gap:10px; }
     .leaderboard-table { width:100%; border-collapse:collapse; background:rgba(20,20,40,0.6); border-radius:16px; overflow:hidden; border:1px solid rgba(139,92,246,0.2); }
@@ -41,16 +32,12 @@
     .leaderboard-table td { padding:16px; border-bottom:1px solid rgba(139,92,246,0.1); }
     .leaderboard-table tr:hover { background:rgba(139,92,246,0.05); }
     .rank { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; font-weight:bold; font-size:0.9rem; }
-    .rank-1 { background:#ffd700; color:#000; }
-    .rank-2 { background:#c0c0c0; color:#000; }
-    .rank-3 { background:#cd7f32; color:#fff; }
-    .rank-other { background:rgba(139,92,246,0.2); color:#a78bfa; }
+    .rank-1 { background:#ffd700; color:#000; } .rank-2 { background:#c0c0c0; color:#000; } .rank-3 { background:#cd7f32; color:#fff; } .rank-other { background:rgba(139,92,246,0.2); color:#a78bfa; }
     .player-cell { display:flex; align-items:center; gap:10px; }
     .player-avatar { width:30px; height:30px; border-radius:50%; background:#8b5cf6; }
     .amount { font-weight:bold; color:#c4b5fd; }
     .empty-state { text-align:center; padding:40px; color:#a0a0b0; }
     .loading { text-align:center; padding:30px; color:#a78bfa; }
-
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -67,6 +54,7 @@
       <a href="/rooms">🚪 Rooms</a>
       <a href="/leaderboard">🏆 Leaderboard</a>
       <a href="/profile">👤 Profile</a>
+      <a href="/advertisement">📢 Advertise</a>
     </div>
     <div class="user-box">
       <div class="user-avatar" id="userAvatar"></div>
@@ -76,49 +64,34 @@
 
   <div class="main-content">
     <h1>🏆 Leaderboard</h1>
-
-    <!-- Tabs -->
     <div class="tabs">
       <button class="tab-btn active" data-period="daily" onclick="switchTab('daily')">📅 Daily</button>
       <button class="tab-btn" data-period="weekly" onclick="switchTab('weekly')">📆 Weekly</button>
       <button class="tab-btn" data-period="total" onclick="switchTab('total')">🌐 Total</button>
     </div>
-
     <div class="leaderboard-section">
       <div class="section-title">💰 Top Receivers</div>
-      <table class="leaderboard-table">
-        <thead>
-          <tr><th>Rank</th><th>Player</th><th>Robux Received</th></tr>
-        </thead>
-        <tbody id="receiversTable"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
-      </table>
+      <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Received</th></tr></thead><tbody id="receiversTable"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody></table>
     </div>
-
     <div class="leaderboard-section">
       <div class="section-title">💸 Top Donors</div>
-      <table class="leaderboard-table">
-        <thead>
-          <tr><th>Rank</th><th>Player</th><th>Robux Donated</th></tr>
-        </thead>
-        <tbody id="donorsTable"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
-      </table>
+      <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Donated</th></tr></thead><tbody id="donorsTable"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody></table>
     </div>
   </div>
 
   <script>
     let currentPeriod = 'daily';
-
     (function initUser() {
       const token = localStorage.getItem('passly_token');
       const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
       document.getElementById('userName').textContent = guest?.username || 'Guest';
-      const avatarEl = document.getElementById('userAvatar');
       if (token) {
-        fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} })
           .then(r => r.json())
           .then(data => {
             document.getElementById('userName').textContent = data.displayName || data.username;
             if (data.avatarUrl) {
+              const avatarEl = document.getElementById('userAvatar');
               avatarEl.style.backgroundImage = `url(${data.avatarUrl})`;
               avatarEl.onerror = () => { avatarEl.style.backgroundImage = ''; };
             }
@@ -129,16 +102,13 @@
 
     function switchTab(period) {
       currentPeriod = period;
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.period === period);
-      });
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.period === period));
       loadLeaderboard();
     }
 
     async function loadLeaderboard() {
       document.getElementById('receiversTable').innerHTML = '<tr><td colspan="3" class="loading">Loading...</td></tr>';
       document.getElementById('donorsTable').innerHTML = '<tr><td colspan="3" class="loading">Loading...</td></tr>';
-
       try {
         const res = await fetch(`/api/leaderboard?period=${currentPeriod}`);
         const data = await res.json();
@@ -152,23 +122,13 @@
 
     function renderTable(tableId, players) {
       const table = document.getElementById(tableId);
-      if (!players || players.length === 0) {
-        table.innerHTML = '<tr><td colspan="3" class="empty-state">No donations yet</td></tr>';
-        return;
-      }
+      if (!players || players.length === 0) { table.innerHTML = '<tr><td colspan="3" class="empty-state">No donations yet</td></tr>'; return; }
       table.innerHTML = players.map((player, index) => {
-        let rankClass = 'rank-other';
-        let rankEmoji = '';
+        let rankClass = 'rank-other', rankEmoji = '';
         if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
         else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
         else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
-        return `
-          <tr>
-            <td><span class="rank ${rankClass}">${rankEmoji || index + 1}</span></td>
-            <td><div class="player-cell"><div class="player-avatar"></div>${player.username}</div></td>
-            <td class="amount">${player.amount.toLocaleString()} Robux</td>
-          </tr>
-        `;
+        return `<tr><td><span class="rank ${rankClass}">${rankEmoji || index + 1}</span></td><td><div class="player-cell"><div class="player-avatar"></div>${player.username}</div></td><td class="amount">${player.amount.toLocaleString()} Robux</td></tr>`;
       }).join('');
     }
 
