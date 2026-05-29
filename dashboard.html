@@ -16,7 +16,7 @@
       min-height:100vh;
       position: relative;
     }
-    /* Background image with low visibility */
+    /* Background image – direct link from your IBB upload */
     body::before {
       content: '';
       position: fixed;
@@ -24,7 +24,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background-image: url('https://i.ibb.co/C3D777dX');
+      background-image: url('https://i.ibb.co/5gw888Dz/file-0000000063c871fdaec0cb4123ec147a.png');
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -32,7 +32,6 @@
       z-index: -2;
       pointer-events: none;
     }
-    /* Subtle dark overlay for readability */
     body::after {
       content: '';
       position: fixed;
@@ -64,12 +63,55 @@
     .stat-label { color:#a0a0b0; margin-top:5px; font-size:0.9rem; }
     .current-room { background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; margin-bottom:30px; border:1px solid rgba(139,92,246,0.2); backdrop-filter: blur(2px); }
     .current-room h3 { color:#a78bfa; margin-bottom:8px; }
-    .quick-actions { display:flex; gap:15px; flex-wrap:wrap; }
+    .quick-actions { display:flex; gap:15px; flex-wrap:wrap; margin-bottom:40px; }
     .action-btn { padding:14px 28px; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); border-radius:12px; color:white; cursor:pointer; transition:all 0.3s; font-size:1rem; font-weight:500; text-decoration:none; display:inline-block; }
     .action-btn:hover { background:rgba(139,92,246,0.25); transform:translateY(-2px); box-shadow:0 8px 25px rgba(139,92,246,0.2); }
     .logout-btn { background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.3); color:#fca5a5; }
     .logout-btn:hover { background:rgba(239,68,68,0.25); }
     .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin-top:20px; text-align:center; display:none; }
+    .tos-box {
+      background: rgba(20, 20, 40, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 20px;
+      padding: 25px 30px;
+      margin-top: 30px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .tos-box h3 {
+      color: #a78bfa;
+      margin-bottom: 15px;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tos-box ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    .tos-box li {
+      margin-bottom: 12px;
+      color: #d0d0e0;
+      padding-left: 24px;
+      position: relative;
+    }
+    .tos-box li::before {
+      content: "•";
+      color: #8b5cf6;
+      font-size: 1.2rem;
+      position: absolute;
+      left: 6px;
+      top: -2px;
+    }
+    .tos-box a {
+      color: #a78bfa;
+      text-decoration: none;
+    }
+    .tos-box a:hover {
+      text-decoration: underline;
+    }
     .ad-cloud {
       position:fixed; top:-100px; left:10%; background:rgba(30,30,50,0.95); border:2px solid #8b5cf6; border-radius:20px; padding:20px 35px;
       z-index:300; box-shadow:0 10px 40px rgba(139,92,246,0.3); text-align:center; font-size:1.1rem; backdrop-filter:blur(10px);
@@ -84,6 +126,7 @@
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
       .welcome-section h1 { font-size:1.8rem; }
+      .tos-box { padding: 20px; }
     }
   </style>
 </head>
@@ -135,6 +178,21 @@
   <div id="loginPrompt" class="login-prompt">
     <p>🔐 <strong>Log in with Roblox</strong> to donate, advertise, and create rooms.</p>
     <button class="action-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
+  </div>
+
+  <!-- Terms of Service Box (fills the huge empty space) -->
+  <div class="tos-box">
+    <h3>📜 Terms of Service</h3>
+    <ul>
+      <li>You must follow all <a href="https://en.help.roblox.com/hc/en-us/articles/115004647846-Roblox-Terms-of-Use" target="_blank">Roblox Terms of Use</a> while using Passly.</li>
+      <li>Trying to find loopholes or exploit the donation system is strictly prohibited.</li>
+      <li>Passly is currently in <strong>beta</strong>. If you find any bugs, please report them via <strong>GitHub Issues</strong> or contact <strong>@passlyrblx</strong>.</li>
+      <li>We are not responsible for any loss of Robux due to incorrect gamepass purchases. Always verify the gamepass ID before donating.</li>
+      <li>Abusive behaviour, spamming, or harassment in rooms will result in a permanent ban.</li>
+      <li>We reserve the right to modify or discontinue the service at any time without notice.</li>
+      <li>By using Passly, you agree that your Roblox username and donation amounts may be displayed publicly on leaderboards.</li>
+    </ul>
+    <p style="margin-top: 15px; font-size: 0.85rem; color: #a78bfa;">Last updated: May 29, 2026</p>
   </div>
 </div>
   <script>
