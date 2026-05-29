@@ -25,6 +25,8 @@
     .btn-ban:hover { background:#dc2626; }
     .btn-admin { background:#10b981; }
     .btn-admin:hover { background:#059669; }
+    .btn-vip { background:#f59e0b; }
+    .btn-vip:hover { background:#d97706; }
     input, select { padding:10px; background:#1e1e2e; border:1px solid #8b5cf6; border-radius:8px; color:white; width:100%; margin-bottom:10px; }
     .chat-area { height:300px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:12px; padding:15px; margin-bottom:15px; font-size:0.9rem; }
     .chat-msg { margin-bottom:10px; padding-bottom:5px; border-bottom:1px solid rgba(139,92,246,0.1); }
@@ -52,12 +54,17 @@
       <h3>🚫 Banned Users</h3>
       <div id="bannedList">Loading...</div>
     </div>
+    <!-- Close Room by ID Card (NEW) -->
+    <div class="card">
+      <h3>🔒 Close Room by ID</h3>
+      <input type="text" id="closeRoomId" placeholder="Enter Room ID">
+      <button onclick="closeRoomById()" style="background:#ef4444;">Close Room</button>
+      <div id="closeRoomStatus" style="margin-top:10px;"></div>
+    </div>
     <!-- Global Broadcast Card -->
     <div class="card">
       <h3>💬 Admin Global Message</h3>
-      <div id="adminChat" class="chat-area">
-        <div class="chat-msg">System: Ready to broadcast.</div>
-      </div>
+      <div id="adminChat" class="chat-area"><div class="chat-msg">System: Ready to broadcast.</div></div>
       <input type="text" id="adminChatInput" placeholder="Type a message to broadcast to all rooms...">
       <button onclick="sendAdminBroadcast()" style="width:100%;">Send to All Rooms</button>
     </div>
@@ -67,14 +74,12 @@
   let token = localStorage.getItem('passly_token');
   let socket = null;
 
-  // Authenticated fetch helper
   async function authFetch(url, opts = {}) {
     const headers = { 'Authorization': `Bearer ${token}`, ...opts.headers };
     const res = await fetch(url, { ...opts, headers });
     return res.json();
   }
 
-  // Load all admin data
   async function loadAdminData() {
     const data = await authFetch('/api/admin/data');
     if (data.error) return console.error(data.error);
@@ -85,43 +90,17 @@
   function renderReports(reports) {
     const container = document.getElementById('reportsList');
     if (!reports.length) { container.innerHTML = '<p>✅ No pending reports.</p>'; return; }
-    container.innerHTML = `<tr><thead><tr><th>Reported</th><th>Reason</th><th>Reported By</th><th>Actions</th></tr></thead><tbody>
-      ${reports.map(r => `
-        <tr>
-          <td><strong>${escapeHtml(r.reportedUsername)}</strong></td>
-          <td>${escapeHtml(r.reason)}</td>
-          <td>${escapeHtml(r.reporterUsername)}</td>
-          <td>
-            <button class="btn-ban" onclick="banUser('${r.reportedId}')">Ban</button>
-            <button onclick="resolveReport('${r._id}')">Resolve</button>
-          </td>
-        </tr>
-      `).join('')}
-    </tbody></table>`;
+    container.innerHTML = `<table><thead><tr><th>Reported</th><th>Reason</th><th>Reported By</th><th>Actions</th></tr></thead><tbody>${reports.map(r => `<tr><td><strong>${escapeHtml(r.reportedUsername)}</strong></td><td>${escapeHtml(r.reason)}</td><td>${escapeHtml(r.reporterUsername)}</td><td><button class="btn-ban" onclick="banUser('${r.reportedId}')">Ban</button><button onclick="resolveReport('${r._id}')">Resolve</button></td></tr>`).join('')}</tbody></table>`;
   }
 
   function renderBanned(banned) {
     const container = document.getElementById('bannedList');
     if (!banned.length) { container.innerHTML = '<p>No banned users.</p>'; return; }
-    container.innerHTML = `<ul style="list-style:none; padding:0;">
-      ${banned.map(b => `<li style="padding:8px 0; border-bottom:1px solid rgba(139,92,246,0.2);">
-        🚫 ${escapeHtml(b.username)} <button class="btn-admin" onclick="unbanUser('${b.userId}')" style="float:right;">Unban</button>
-      </li>`).join('')}
-    </ul>`;
+    container.innerHTML = `<ul style="list-style:none; padding:0;">${banned.map(b => `<li style="padding:8px 0; border-bottom:1px solid rgba(139,92,246,0.2);">🚫 ${escapeHtml(b.username)} <button class="btn-admin" onclick="unbanUser('${b.userId}')" style="float:right;">Unban</button></li>`).join('')}</ul>`;
   }
 
-  // Simple escape to prevent XSS
-  function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-      if (m === '&') return '&amp;';
-      if (m === '<') return '&lt;';
-      if (m === '>') return '&gt;';
-      return m;
-    });
-  }
+  function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
 
-  // Search user
   window.searchUser = async function() {
     const username = document.getElementById('searchUser').value.trim();
     if (!username) return;
@@ -129,43 +108,60 @@
     if (data.error) return document.getElementById('userResult').innerHTML = `<p style="color:#f87171;">❌ ${escapeHtml(data.error)}</p>`;
     document.getElementById('userResult').innerHTML = `
       <div style="background:rgba(139,92,246,0.1); padding:15px; border-radius:12px;">
-        <p><strong>✅ ${escapeHtml(data.username)}</strong> (ID: ${data.id})</p>
+        <p><strong>✅ ${escapeHtml(data.username)}</strong> (ID: ${data.id}) <span style="background:#333; padding:2px 8px; border-radius:8px;">Role: ${data.role || 'user'}</span></p>
         <button class="btn-ban" onclick="banUser('${data.id}')">Ban User</button>
         <button class="btn-admin" onclick="grantAdmin('${data.id}')">Make Admin</button>
+        <button class="btn-vip" onclick="grantVip('${data.id}')">Grant VIP</button>
       </div>
     `;
-  };
-  // Ban user
+  }
+
   window.banUser = async function(userId) {
-    if (confirm('Ban this user? They will be disconnected immediately.')) {
+    if (confirm('Ban this user?')) {
       const res = await authFetch('/api/admin/ban', { method: 'POST', body: JSON.stringify({ userId }) });
       if (res.success) { alert('User banned'); loadAdminData(); document.getElementById('searchUser').value = ''; document.getElementById('userResult').innerHTML = ''; }
       else alert(res.error);
     }
   };
-
-  // Unban user
   window.unbanUser = async function(userId) {
     const res = await authFetch('/api/admin/unban', { method: 'POST', body: JSON.stringify({ userId }) });
     if (res.success) loadAdminData();
   };
-
-  // Grant admin (owner only)
   window.grantAdmin = async function(userId) {
     if (confirm('Grant admin privileges to this user?')) {
-      const res = await authFetch('/api/admin/grant', { method: 'POST', body: JSON.stringify({ userId }) });
+      const res = await authFetch('/api/admin/grant', { method: 'POST', body: JSON.stringify({ userId, role: 'admin' }) });
       if (res.success) alert('Admin privileges granted!');
       else alert(res.error);
     }
   };
+  // NEW: Grant VIP role
+  window.grantVip = async function(userId) {
+    if (confirm('Grant VIP role to this user?')) {
+      const res = await authFetch('/api/admin/grant', { method: 'POST', body: JSON.stringify({ userId, role: 'vip' }) });
+      if (res.success) alert('VIP role granted!');
+      else alert(res.error);
+    }
+  };
+  // NEW: Close room by ID
+  window.closeRoomById = async function() {
+    const roomId = document.getElementById('closeRoomId').value.trim();
+    if (!roomId) { alert('Enter a room ID'); return; }
+    if (!confirm(`Close room ${roomId}? This will delete it permanently.`)) return;
+    const res = await authFetch('/api/admin/close-room', { method: 'POST', body: JSON.stringify({ roomId }) });
+    const statusDiv = document.getElementById('closeRoomStatus');
+    if (res.success) {
+      statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Room closed successfully.</span>';
+      document.getElementById('closeRoomId').value = '';
+      setTimeout(() => statusDiv.innerHTML = '', 3000);
+    } else {
+      statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${res.error}</span>`;
+    }
+  };
 
-  // Resolve a report
   window.resolveReport = async function(reportId) {
     await authFetch('/api/admin/resolve-report', { method: 'POST', body: JSON.stringify({ reportId }) });
     loadAdminData();
   };
-
-  // Send global broadcast
   window.sendAdminBroadcast = async function() {
     const msg = document.getElementById('adminChatInput').value.trim();
     if (!msg) return;
@@ -173,23 +169,16 @@
     document.getElementById('adminChatInput').value = '';
     addAdminMessage('You', msg);
   };
-
   function addAdminMessage(sender, message) {
     const chatDiv = document.getElementById('adminChat');
     chatDiv.innerHTML += `<div class="chat-msg"><strong>📢 ${escapeHtml(sender)}:</strong> ${escapeHtml(message)}</div>`;
     chatDiv.scrollTop = chatDiv.scrollHeight;
   }
-
-  // Socket for receiving broadcasts
   if (token) {
     socket = io();
     socket.emit('authenticate', token);
-    socket.on('admin-message', (data) => {
-      addAdminMessage('System Broadcast', data.message);
-    });
+    socket.on('admin-message', (data) => { addAdminMessage('System Broadcast', data.message); });
   }
-
-  // Initial load
   loadAdminData();
 </script>
 </body>
