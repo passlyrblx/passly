@@ -9,7 +9,6 @@
   <meta name="theme-color" content="#8b5cf6">
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    /* … same as before, keep all your existing CSS … */
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Arial,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
@@ -122,25 +121,108 @@
   </style>
 </head>
 <body>
-  <!-- … navbar and main content (rooms list, room view) same as before … -->
-  <!-- Add the new Ad Verify Modal at the end, before the script -->
-  <!-- The existing modals (create, board, donate, etc.) are unchanged -->
+  <nav class="navbar">
+    <div class="nav-logo">Passly</div>
+    <div class="nav-links">
+      <a href="/dashboard">🏠 Home</a>
+      <a href="/rooms">🚪 Rooms</a>
+      <a href="/leaderboard">🏆 Leaderboard</a>
+      <a href="/profile">👤 Profile</a>
+    </div>
+    <div class="user-box">
+      <div class="user-avatar" id="userAvatar"></div>
+      <span class="user-name" id="userName">Loading...</span>
+    </div>
+  </nav>
 
-  <div class="modal-overlay" id="modalOverlay"></div>
-  <!-- (existing modals: createModal, boardModal, playerBoardModal) -->
+  <div class="main-content">
+    <div id="roomsListPage">
+      <div class="page-header">
+        <h1>🚪 Public Rooms</h1>
+        <div style="display:flex; gap:15px; align-items:center;">
+          <button class="create-btn" onclick="requireLoginThen(openCreateModal)">+ Create Room</button>
+          <div class="join-by-id">
+            <input type="text" id="joinRoomIdInput" placeholder="Room ID" maxlength="16">
+            <button onclick="joinRoomById()">Join</button>
+          </div>
+        </div>
+      </div>
+      <div class="rooms-grid" id="roomsGrid"></div>
+      <div id="loginPrompt" class="login-prompt" style="display:none;">
+        <p>🔐 <strong>Log in with Roblox</strong> to create rooms and donate.</p>
+        <button class="create-btn" onclick="window.location.href='/auth/roblox'">Login</button>
+      </div>
+    </div>
 
-  <!-- NEW: Ad Verify Modal -->
-  <div class="modal" id="adVerifyModal">
-    <h2>📢 Advertise Your Board</h2>
-    <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
-    <button class="gp-link-btn" id="adVerifyLinkBtn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
-    <p style="color:#a0a0b0; font-size:0.85rem; margin-top:5px;">After purchasing, come back and click below.</p>
-    <button class="modal-btn" id="adVerifyConfirmBtn" onclick="verifyAdPurchase()">✅ Verify Purchase</button>
-    <div id="adVerifyStatus" style="margin-top:10px; text-align:center;"></div>
-    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
+    <div class="room-view" id="roomView">
+      <button class="back-btn" onclick="leaveRoom()">⬅ Back to Rooms</button>
+      <h2 id="viewRoomName"></h2>
+      <p class="room-view-desc" id="viewRoomDesc"></p>
+      <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
+      <div class="player-list" id="playerList"></div>
+
+      <div class="voice-controls">
+        <button class="voice-btn speak" id="speakButton" onclick="toggleSpeak()">🎤 Speak</button>
+        <div style="position:relative;">
+          <button class="voice-btn mute" id="muteButton" onclick="toggleMutePopup()">🔇 Mute</button>
+          <div class="mute-popup" id="mutePopup"></div>
+        </div>
+      </div>
+
+      <button class="create-btn" style="margin-bottom:15px;" onclick="requireLoginThen(showBoard)">🎁 Show My Board</button>
+      <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="requireLoginThen(sendBoardToChat)">📤 Send Board to Chat</button>
+      <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="requireLoginThen(openAdModal)">📢 Advertise Board</button>
+
+      <div class="queue-box" id="queueBox">
+        ⏳ You are in queue position #<span id="queuePos">1</span>
+        <button onclick="leaveQueue()" style="margin-left:10px; background:#ef4444; border:none; color:white; padding:6px 14px; border-radius:8px; cursor:pointer;">Leave Queue</button>
+      </div>
+      <div class="chat-box" id="chatBox">
+        <div class="chat-msg">
+          <div class="chat-pfp"></div>
+          <div class="msg-content">
+            <div class="msg-username">System</div>
+            <div>Welcome to the room! 👋</div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
+        <button class="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Existing Ad Modal (keep for the message input and tier selection) -->
+  <!-- Create Room Modal -->
+  <div class="modal-overlay" id="modalOverlay"></div>
+  <div class="modal" id="createModal">
+    <h2>Create New Room</h2>
+    <input type="text" id="roomNameInput" placeholder="Room Name">
+    <textarea id="roomDescInput" placeholder="Room Description"></textarea>
+    <div class="type-btns">
+      <button class="type-btn active" onclick="setType('Public')">Public</button>
+      <button class="type-btn" onclick="setType('Private')">Private</button>
+    </div>
+    <button class="modal-btn" onclick="createRoom()">Create Room</button>
+    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
+  </div>
+
+  <!-- Board Modal -->
+  <div class="modal" id="boardModal">
+    <h2>🎁 My Board</h2>
+    <div class="add-board-section">
+      <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
+      <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
+      <button class="send-btn" onclick="addGamepassToBoard()">Add</button>
+    </div>
+    <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
+    <div class="board-gamepass-grid" id="boardGamepassGrid">
+      <p style="color:#a0a0b0;">No gamepasses added yet.</p>
+    </div>
+    <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closeBoardModal()">Close</button>
+  </div>
+
+  <!-- Advertise Tier Selection Modal -->
   <div class="modal" id="adModal">
     <h2>📢 Advertise Your Board</h2>
     <p style="color:#a0a0b0; margin-bottom:20px;">Choose a tier. You will be redirected to the Roblox gamepass page to purchase, then come back to verify.</p>
@@ -159,119 +241,23 @@
     <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
   </div>
 
-  <!-- Player Board Modal (donations) unchanged -->
-</body>
-</html>
-  <script>
-    const socket = io();
-    let token = localStorage.getItem('passly_token');
-    (function() {
-      if (!token && window.location.hash.includes('token=')) {
-        const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
-        localStorage.setItem('passly_token', tokenPart);
-        token = tokenPart;
-        history.replaceState(null, null, ' ');
-      }
-    })();
-    let userData = null;
-    let currentRoom = null;
-    let roomType = 'Public';
-    let selectedReceiverId = null;
-    let selectedReceiverName = '';
-    let lastAdCheck = Date.now();
-    let adPollInterval = null;
-    let localStream = null;
-    let isSpeaking = false;
-    let mutedUsers = new Set();
+  <!-- Ad Verification Modal -->
+  <div class="modal" id="adVerifyModal">
+    <h2>📢 Advertise Your Board</h2>
+    <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
+    <button class="gp-link-btn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
+    <p style="color:#a0a0b0; font-size:0.85rem; margin-top:5px;">After purchasing, come back and click below.</p>
+    <button class="modal-btn" onclick="verifyAdPurchase()">✅ Verify Purchase</button>
+    <div id="adVerifyStatus" style="margin-top:10px; text-align:center;"></div>
+    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
+  </div>
 
-    socket.emit('authenticate', token);
-    socket.on('authenticated', (data) => {});
-
-    function authHeaders() {
-      const h = { 'Content-Type': 'application/json' };
-      if (token) h['Authorization'] = `Bearer ${token}`;
-      return h;
-    }
-
-    function requireLoginThen(callback) {
-      if (!token) {
-        document.getElementById('loginPrompt').style.display = 'block';
-        if (confirm('You need to log in with Roblox to do this. Go to login?')) {
-          window.location.href = '/auth/roblox';
-        }
-        return;
-      }
-      callback();
-    }
-
-    // … (init, loadRooms, joinRoomById, createRoom, showRoomView, etc. – all unchanged) …
-
-    // ---------- ADVERTISEMENT FLOW (new) ----------
-    let selectedAdTier = null;
-    let selectedAdGamepassId = null;
-
-    function openAdVerification(tier) {
-      if (!token) { alert('Login required'); return; }
-      selectedAdTier = tier;
-      selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
-      document.getElementById('adVerifyTierText').textContent = `Tier: ${tier === '5k' ? '5,000' : '10,000'} Robux`;
-      document.getElementById('adVerifyLinkBtn').onclick = function() {
-        window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank');
-      };
-      document.getElementById('adVerifyStatus').textContent = '';
-      document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('adVerifyModal').style.display = 'block';
-      // Hide the tier selection modal if it's open
-      document.getElementById('adModal').style.display = 'none';
-    }
-
-    function closeAdVerifyModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('adVerifyModal').style.display = 'none';
-    }
-
-    async function verifyAdPurchase() {
-      if (!token) { alert('Login required'); return; }
-      const message = document.getElementById('adMessage').value.trim(); // from the adModal (still accessible)
-      const statusDiv = document.getElementById('adVerifyStatus');
-      statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
-      try {
-        const res = await fetch('/api/purchase-ad', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ tier: selectedAdTier, message })
-        });
-        const data = await res.json();
-        if (data.success) {
-          statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased successfully! Your board will appear soon.</span>';
-          userData.ad = data.ad;
-          // Optionally close after a delay
-          setTimeout(closeAdVerifyModal, 3000);
-        } else {
-          statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-        }
-      } catch (e) {
-        statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>';
-      }
-    }
-
-    // The old openAdModal now just shows the tier selection and message input
-    function openAdModal() {
-      document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('adModal').style.display = 'block';
-      document.getElementById('adPurchaseStatus').innerHTML = '';
-      document.getElementById('adMessage').value = '';
-    }
-
-    function closeAdModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('adModal').style.display = 'none';
-    }
-
-    // Keep all other functions (donate, board, chat, voice, leave room, etc.) exactly as before.
-    // Only the ad-related functions have changed.
-
-    // … (rest of the script unchanged) …
-  </script>
-</body>
-</html>
+  <!-- Player Board Modal (for donations) -->
+  <div class="modal" id="playerBoardModal">
+    <h2 id="playerBoardTitle">🎁 Player's Board</h2>
+    <div id="playerBoardAvatar" style="width:60px; height:60px; border-radius:50%; margin:0 auto 10px; background-size:cover;"></div>
+    <p id="playerBoardName" style="color:#a78bfa; text-align:center;"></p>
+    <div class="board-gamepass-grid" id="playerBoardGrid"></div>
+    <div id="playerBoardStatus" style="margin-top:10px; text-align:center; font-size:0.9rem;"></div>
+    <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
+  </div>
