@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -72,6 +71,7 @@
       <a href="/leaderboard">🏆 Leaderboard</a>
       <a href="/profile">👤 Profile</a>
       <a href="/advertisement">📢 Advertise</a>
+      <a href="/livedonations">💸 Live Donations</a>
     </div>
     <div class="user-box">
       <div class="user-avatar" id="userAvatar"></div>
@@ -83,7 +83,6 @@
     <div class="debug-status" id="debugStatus">🔄 Initialising…</div>
     <h1>👤 Profile Settings</h1>
 
-    <!-- SEARCH -->
     <div class="search-section">
       <h3 style="color:#a78bfa; margin-bottom:10px;">🔍 Find a Player</h3>
       <input type="text" id="searchUsername" class="search-input" placeholder="Enter Roblox username">
@@ -91,7 +90,6 @@
       <div id="searchResult" class="search-result"></div>
     </div>
 
-    <!-- PROFILE CARD -->
     <div class="section-card">
       <div class="profile-header">
         <div class="profile-avatar" id="profileAvatar"></div>
@@ -113,7 +111,6 @@
       <div id="passkeyStatus" class="save-message" style="color:#fbbf24;"></div>
     </div>
 
-    <!-- BOARD MANAGEMENT -->
     <div class="section-card">
       <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
       <div class="add-board-section"><input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;"><input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1"><button class="add-board-btn" onclick="requireLogin(() => addGamepassToBoard())">Add</button></div>
@@ -311,7 +308,6 @@
       status.innerHTML = 'Setting up passkey...';
       try {
         const optionsRes = await fetch('/api/passkey/register-options', { method:'POST', headers:authHeaders() });
-        // DEBUG: check if we got JSON
         const contentType = optionsRes.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
           const text = await optionsRes.text();
