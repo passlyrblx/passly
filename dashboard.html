@@ -18,7 +18,10 @@
     .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
     .nav-links a:hover { color:#a78bfa; }
     .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,0.1); padding:8px 16px; border-radius:12px; }
-    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; }
+    .user-avatar {
+      width:35px; height:35px; border-radius:50%; background:#8b5cf6;
+      background-size:cover; background-position:center;
+    }
     .user-name { font-weight:600; color:#c4b5fd; }
     .main-content { padding:30px; max-width:1200px; margin:0 auto; }
     .welcome-section { margin-bottom:40px; }
@@ -188,9 +191,13 @@
           document.getElementById('loginPrompt').style.display = 'none';
         }
 
+        // Avatar with fallback
+        const avatarEl = document.getElementById('userAvatar');
         if (userData.avatarUrl) {
-          document.getElementById('userAvatar').style.backgroundImage = `url(${userData.avatarUrl})`;
-          document.getElementById('userAvatar').style.backgroundSize = 'cover';
+          avatarEl.style.backgroundImage = `url(${userData.avatarUrl})`;
+          avatarEl.onerror = function() {   // if image fails, keep the purple background
+            avatarEl.style.backgroundImage = '';
+          };
         }
 
         document.getElementById('totalReceived').textContent = (userData.donations?.received || 0).toLocaleString();
