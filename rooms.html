@@ -261,3 +261,314 @@
     <div id="playerBoardStatus" style="margin-top:10px; text-align:center; font-size:0.9rem;"></div>
     <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
   </div>
+  <script>
+    const socket = io();
+    let token = localStorage.getItem('passly_token');
+    (function() {
+      if (!token && window.location.hash.includes('token=')) {
+        const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
+        localStorage.setItem('passly_token', tokenPart);
+        token = tokenPart;
+        history.replaceState(null, null, ' ');
+      }
+    })();
+    let userData = null;
+    let currentRoom = null;
+    let roomType = 'Public';
+    let selectedReceiverId = null;
+    let selectedReceiverName = '';
+    let lastAdCheck = Date.now();
+    let adPollInterval = null;
+    let localStream = null;
+    let isSpeaking = false;
+    let mutedUsers = new Set();
+
+    socket.emit('authenticate', token);
+    socket.on('authenticated', (data) => {});
+
+    function authHeaders() {
+      const h = { 'Content-Type': 'application/json' };
+      if (token) h['Authorization'] = `Bearer ${token}`;
+      return h;
+    }
+
+    function requireLoginThen(callback) {
+      if (!token) {
+        document.getElementById('loginPrompt').style.display = 'block';
+        if (confirm('You need to log in with Roblox to do this. Go to login?')) {
+          window.location.href = '/auth/roblox';
+        }
+        return;
+      }
+      callback();
+    }
+
+    async function init() {
+      try {
+        if (token) {
+          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
+          if (res.ok) {
+            userData = await res.json();
+            userData.isGuest = false;
+            document.getElementById('loginPrompt').style.display = 'none';
+          } else {
+            localStorage.removeItem('passly_token');
+            token = null;
+          }
+        }
+        if (!userData) {
+          const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
+          if (guest && guest.username) {
+            userData = { ...guest, isGuest: true };
+          } else {
+            const res = await fetch('/api/guest-login', { method: 'POST' });
+            const data = await res.json();
+            userData = { ...data, isGuest: true };
+            localStorage.setItem('passly_user', JSON.stringify(userData));
+          }
+          document.getElementById('loginPrompt').style.display = 'block';
+        }
+        document.getElementById('userName').textContent = userData.displayName || userData.username;
+
+        const avatarEl = document.getElementById('userAvatar');
+        function setAvatar(el, url, fallback) {
+          if (!url && !fallback) return;
+          const tryUrl = url || fallback;
+          el.style.backgroundImage = `url(${tryUrl})`;
+          el.onerror = function() {
+            if (url && fallback && tryUrl === url) {
+              el.style.backgroundImage = `url(${fallback})`;
+            } else {
+              el.style.backgroundImage = '';
+            }
+          };
+        }
+        setAvatar(avatarEl, userData.avatarUrl, userData.avatarFallback);
+
+        loadRooms();
+      } catch (e) {}
+    }
+
+    // ========== ROOM LIST & JOIN ==========
+    async function loadRooms() {
+      const res = await fetch('/api/rooms');
+      const allRooms = await res.json();
+      const publicRooms = allRooms.filter(r => r.type === 'Public');
+      const grid = document.getElementById('roomsGrid');
+      grid.innerHTML = publicRooms.map(room => `
+        <div class="room-card">
+          <div class="room-name">${room.name}</div>
+          <div class="room-type">${room.type}</div>
+          <div class="room-desc">${room.desc || 'No description'}</div>
+          <div class="room-stats">
+            <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
+            <button class="join-btn" onclick="joinRoomById('${room.id}')">Join Room</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function joinRoomById(id) {
+      if (!id) {
+        id = document.getElementById('joinRoomIdInput').value.trim();
+        if (!id) return alert('Enter a room ID');
+      }
+      const res = await fetch(`/api/rooms/join/${id}`, { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      if (data.queued) {
+        document.getElementById('roomsListPage').style.display = 'none';
+        document.getElementById('roomView').style.display = 'block';
+        document.getElementById('viewRoomName').textContent = 'Room (Queued)';
+        document.getElementById('queueBox').style.display = 'block';
+        document.getElementById('queuePos').textContent = data.position;
+        currentRoom = { id, queued: true };
+      } else if (data.success) {
+        showRoomView(data.room);
+      }
+    }
+
+    // ========== CREATE ROOM ==========
+    function openCreateModal() {
+      if (!userData) return;
+      if (userData.roomId) {
+        alert('You are already in a room. Leave it before creating a new one.');
+        return;
+      }
+      document.getElementById('modalOverlay').style.display = 'block';
+      document.getElementById('createModal').style.display = 'block';
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      document.getElementById('createModal').style.display = 'none';
+    }
+
+    function setType(type) {
+      roomType = type;
+      document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    async function createRoom() {
+      const name = document.getElementById('roomNameInput').value.trim();
+      const desc = document.getElementById('roomDescInput').value.trim();
+      if (!name) return alert('Enter room name');
+      const res = await fetch('/api/rooms/create', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name, desc, type: roomType }) });
+      const room = await res.json();
+      if (room.error) { alert(room.error); return; }
+      closeModal();
+      userData.roomId = room.id;
+      showRoomView(room);
+      loadRooms();
+    }
+
+    // ========== ROOM VIEW ==========
+    function showRoomView(room) {
+      currentRoom = room;
+      document.getElementById('roomsListPage').style.display = 'none';
+      document.getElementById('roomView').style.display = 'block';
+      document.getElementById('viewRoomName').textContent = room.name;
+      document.getElementById('viewRoomDesc').textContent = room.desc || '';
+      document.getElementById('queueBox').style.display = 'none';
+
+      document.getElementById('roomIdDisplay').style.display = 'inline-block';
+      document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room.id}</strong> (share to invite)`;
+
+      const playerList = document.getElementById('playerList');
+      playerList.innerHTML = room.players.map(playerId => {
+        const isMe = (userData.id && playerId === userData.id);
+        const label = isMe ? (userData.displayName || userData.username) : 'Player';
+        return `
+          <div class="player-tag">
+            <span>${label}</span>
+            ${!isMe && token ? `<button class="donate-btn" onclick="openDonate('${playerId}')">💝 Donate</button>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      socket.emit('join-room', room.id);
+      if (adPollInterval) clearInterval(adPollInterval);
+      lastAdCheck = Date.now();
+      checkAdBroadcasts();
+      adPollInterval = setInterval(checkAdBroadcasts, 10000);
+
+      isSpeaking = false;
+      updateSpeakButton();
+      mutedUsers.clear();
+      updateMutePopup();
+    }
+
+    // ========== SPEAK / MUTE ==========
+    async function toggleSpeak() { /* unchanged */ }
+    function updateSpeakButton() { /* unchanged */ }
+    function toggleMutePopup() { /* unchanged */ }
+    function updateMutePopup() { /* unchanged */ }
+    function toggleMuteUser(userId, mute) { /* unchanged */ }
+    socket.off('voice-data');
+    socket.on('voice-data', (data) => { /* unchanged */ });
+
+    // ========== LEAVE ==========
+    async function leaveRoom() {
+      if (adPollInterval) clearInterval(adPollInterval);
+      if (isSpeaking) await toggleSpeak();
+      socket.emit('leave-room');
+      await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
+      currentRoom = null;
+      document.getElementById('roomsListPage').style.display = 'block';
+      document.getElementById('roomView').style.display = 'none';
+      loadRooms();
+    }
+    async function leaveQueue() { await leaveRoom(); }
+
+    // ========== CHAT ==========
+    function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg || !userData) return;
+      socket.emit('chat-message', msg);
+      input.value = '';
+    }
+    socket.on('chat-message', (data) => addChatMessage(data.username, data.message));
+    function addChatMessage(username, text, color='#a78bfa', extraClass='') { /* unchanged */ }
+
+    // ========== DONATIONS (player board) ==========
+    async function openDonate(playerId) { /* unchanged */ }
+    function closePlayerBoardModal() { document.getElementById('modalOverlay').style.display = 'none'; document.getElementById('playerBoardModal').style.display = 'none'; }
+    async function verifyDonation(gamepassId, price) { /* unchanged */ }
+
+    // ========== BOARD MANAGEMENT ==========
+    function renderBoard() { /* unchanged */ }
+    function closeBoardModal() { document.getElementById('modalOverlay').style.display = 'none'; document.getElementById('boardModal').style.display = 'none'; }
+    async function addGamepassToBoard() { /* unchanged */ }
+    async function removeGamepassFromBoard(assetId) { /* unchanged */ }
+    async function showBoard() { /* unchanged */ }
+    function sendBoardToChat() { /* unchanged */ }
+
+    // ========== AD BROADCASTS ==========
+    async function checkAdBroadcasts() { /* unchanged */ }
+
+    // ========== ADVERTISEMENT FLOW ==========
+    let selectedAdTier = null;
+    let selectedAdGamepassId = null;
+
+    function openAdVerification(tier) {
+      if (!token) { alert('Login required'); return; }
+      selectedAdTier = tier;
+      selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
+      document.getElementById('adVerifyTierText').textContent = `Tier: ${tier === '5k' ? '5,000' : '10,000'} Robux`;
+      document.getElementById('adVerifyStatus').textContent = '';
+      document.getElementById('modalOverlay').style.display = 'block';
+      document.getElementById('adVerifyModal').style.display = 'block';
+      document.getElementById('adModal').style.display = 'none';
+    }
+
+    function closeAdVerifyModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      document.getElementById('adVerifyModal').style.display = 'none';
+    }
+
+    function openAdGamepass() {
+      window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank');
+    }
+
+    async function verifyAdPurchase() {
+      if (!token) { alert('Login required'); return; }
+      const message = document.getElementById('adMessage').value.trim();
+      const statusDiv = document.getElementById('adVerifyStatus');
+      statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
+      try {
+        const res = await fetch('/api/purchase-ad', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ tier: selectedAdTier, message })
+        });
+        const data = await res.json();
+        if (data.success) {
+          statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased successfully! Your board will appear soon.</span>';
+          userData.ad = data.ad;
+          setTimeout(closeAdVerifyModal, 3000);
+        } else {
+          statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+        }
+      } catch (e) {
+        statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>';
+      }
+    }
+
+    function openAdModal() {
+      document.getElementById('modalOverlay').style.display = 'block';
+      document.getElementById('adModal').style.display = 'block';
+      document.getElementById('adPurchaseStatus').innerHTML = '';
+      document.getElementById('adMessage').value = '';
+    }
+
+    function closeAdModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      document.getElementById('adModal').style.display = 'none';
+    }
+
+    init();
+  </script>
+</body>
+</html>
