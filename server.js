@@ -42,6 +42,7 @@ mongoose.connect(MONGO_URI).then(async () => {
     board: [{ id: String, name: String, price: Number }],
     acceptedTos: { type: Boolean, default: false },
     acceptedTosAt: Date,
+    lastSeen: { type: Date, default: Date.now },
     roomCreationCounts: {
       public: { count: Number, date: String },
       private: { count: Number, date: String }
@@ -125,6 +126,14 @@ function authenticateToken(req, res, next) {
   });
 }
 
+// Update lastSeen on every authenticated request
+app.use('/api', authenticateToken, async (req, res, next) => {
+  if (req.user && req.user.id) {
+    await mongoose.model('User').findByIdAndUpdate(req.user.id, { lastSeen: new Date() }).catch(() => {});
+  }
+  next();
+});
+
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
@@ -190,7 +199,7 @@ app.get('/api/user', authenticateToken, async (req, res) => {
   });
 });
 
-// NEW: Get user stats for member profile (received/given, display name, avatar)
+// Get user stats for member profile
 app.get('/api/user/:userId/stats', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const user = await User.findById(req.params.userId);
@@ -410,15 +419,38 @@ function filterMessageServer(text) {
 }
 
 const guestChatCooldown = new Map();
+const onlineUsers = new Set(); // stores userId or guestId
 
 io.on('connection', (socket) => {
   let currentRoomId = null, userId = null, guestId = null, isGuest = false;
   socket.on('authenticate', (token) => {
     if (!token) return;
-    try { const decoded = jwt.verify(token, JWT_SECRET); userId = decoded.id; socket.userId = userId; isGuest = false; } catch (e) {}
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.id;
+      socket.userId = userId;
+      isGuest = false;
+      onlineUsers.add(userId);
+      mongoose.model('User').findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(()=>{});
+    } catch (e) {}
   });
-  socket.on('guest-auth', (id) => { if (id) { guestId = id; socket.guestId = id; isGuest = true; } });
-  socket.on('join-room', (roomId) => { if (currentRoomId) socket.leave(currentRoomId); currentRoomId = roomId; socket.join(roomId); });
+  socket.on('guest-auth', (id) => {
+    if (id) {
+      guestId = id;
+      socket.guestId = id;
+      isGuest = true;
+      onlineUsers.add(guestId);
+    }
+  });
+  socket.on('join-room', (roomId) => {
+    if (currentRoomId) socket.leave(currentRoomId);
+    currentRoomId = roomId;
+    socket.join(roomId);
+  });
+  socket.on('disconnect', () => {
+    if (userId) onlineUsers.delete(userId);
+    if (guestId) onlineUsers.delete(guestId);
+  });
   socket.on('chat-message', async (msg) => {
     if (!currentRoomId) return;
     if (isGuest && guestId) {
@@ -663,6 +695,26 @@ app.post('/api/admin/close-room', authenticateToken, async (req, res) => {
   await Room.deleteOne({ _id: roomId });
   await mongoose.model('User').updateMany({ roomId: roomId }, { $unset: { roomId: "", inQueue: "" } });
   res.json({ success: true, message: `Room ${roomId} closed.` });
+});
+// Website status endpoint
+app.get('/api/admin/stats', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const User = mongoose.model('User');
+  const Donation = mongoose.model('Donation');
+  const totalUsers = await User.countDocuments({ role: { $ne: 'guest' } }); // guests are also role 'user', so better: exclude _id starting with Guest_
+  const totalGuests = await User.countDocuments({ robloxUsername: /^Guest_/ });
+  const totalDonations = await Donation.countDocuments();
+  const totalRobuxDonated = await Donation.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]).then(r => r[0]?.total || 0);
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const activeToday = await User.countDocuments({ lastSeen: { $gte: oneDayAgo } });
+  res.json({
+    totalUsers,
+    totalGuests,
+    totalDonations,
+    totalRobuxDonated,
+    onlineNow: onlineUsers.size,
+    activeToday
+  });
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 
