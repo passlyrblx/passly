@@ -8,214 +8,66 @@
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: url('https://i.ibb.co/YBcj32bx') no-repeat center center fixed;
-      background-size: cover;
-      color: white;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-    }
-
-    /* Dark overlay for readability */
-    body::before {
-      content: '';
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(10, 10, 20, 0.7);
-      z-index: -1;
-    }
-
-    .container {
-      max-width: 500px;
-      width: 90%;
-      padding: 40px;
-      text-align: center;
-    }
-
-    .logo {
-      font-size: 4rem;
-      font-weight: bold;
-      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 20px;
-    }
-
-    .tagline {
-      color: #d0d0e0;
-      margin-bottom: 40px;
-      font-size: 1.1rem;
-    }
-
-    .login-card {
-      background: rgba(20, 20, 40, 0.8);
-      border-radius: 24px;
-      padding: 40px;
-      border: 1px solid rgba(139, 92, 246, 0.3);
-      backdrop-filter: blur(10px);
-    }
-
-    .roblox-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      background: #1b2b3f;
-      border: none;
-      padding: 16px 32px;
-      border-radius: 12px;
-      color: white;
-      font-size: 1.2rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s;
-      margin-top: 20px;
-      text-decoration: none;
-    }
-
-    .roblox-btn:hover {
-      background: #2c4b6e;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(27, 43, 63, 0.4);
-    }
-
-    .features {
-      display: flex;
-      justify-content: center;
-      gap: 30px;
-      margin-top: 40px;
-      flex-wrap: wrap;
-    }
-
-    .feature {
-      text-align: center;
-      flex: 1;
-      min-width: 100px;
-    }
-
-    .feature-icon {
-      font-size: 2rem;
-      margin-bottom: 8px;
-    }
-
-    .feature-text {
-      color: #c4b5fd;
-      font-size: 0.85rem;
-    }
-
-    .guest-btn {
-      background: transparent;
-      border: 1px solid rgba(139, 92, 246, 0.4);
-      margin-top: 20px;
-      padding: 12px 24px;
-      border-radius: 10px;
-      color: #c4b5fd;
-      cursor: pointer;
-      transition: all 0.3s;
-      display: inline-block;
-      text-decoration: none;
-      font-weight: 500;
-    }
-
-    .guest-btn:hover {
-      background: rgba(139, 92, 246, 0.2);
-      border-color: #8b5cf6;
-    }
-
-    @media (max-width: 768px) {
-      .container { padding: 20px; }
-      .login-card { padding: 30px; }
-      .logo { font-size: 3rem; }
-    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; display:flex; justify-content:center; align-items:center; }
+    .container { max-width:500px; width:90%; padding:40px; text-align:center; }
+    .logo { font-size:4rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:20px; }
+    .tagline { color:#a0a0b0; margin-bottom:40px; font-size:1.1rem; }
+    .login-card { background:rgba(20,20,40,0.6); border-radius:24px; padding:40px; border:1px solid rgba(139,92,246,0.2); backdrop-filter:blur(10px); }
+    .roblox-btn { display:inline-flex; align-items:center; gap:12px; background:#1b2b3f; border:none; padding:16px 32px; border-radius:12px; color:white; font-size:1.2rem; font-weight:600; cursor:pointer; transition:all 0.3s; margin-top:20px; text-decoration:none; }
+    .roblox-btn:hover { background:#2c4b6e; transform:translateY(-2px); }
+    .guest-btn { background:transparent; border:1px solid rgba(139,92,246,0.3); margin-top:20px; padding:12px 24px; border-radius:10px; color:#a78bfa; cursor:pointer; display:inline-block; text-decoration:none; transition:all 0.3s; }
+    .guest-btn:hover { background:rgba(139,92,246,0.1); }
+    .features { display:flex; justify-content:center; gap:30px; margin-top:40px; flex-wrap:wrap; }
+    .feature { text-align:center; flex:1; min-width:100px; }
+    .feature-icon { font-size:2rem; margin-bottom:8px; }
+    .feature-text { color:#c4b5fd; font-size:0.85rem; }
+    @media (max-width:768px) { .container { padding:20px; } .login-card { padding:30px; } .logo { font-size:3rem; } }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="logo">Passly</div>
     <div class="tagline">Your donation hub – keep the support flowing</div>
-
     <div class="login-card">
-      <h2 style="margin-bottom: 20px;">Welcome 👋</h2>
-      <p style="color: #c0c0d0; margin-bottom: 30px;">
-        Log in with Roblox to create rooms, donate, and advertise.
-      </p>
-
-      <a href="/auth/roblox" class="roblox-btn">
-        <span>🔑</span> Continue with Roblox
-      </a>
-
-      <div style="margin: 20px 0; color: #a0a0b0; font-size: 0.9rem;">or</div>
-
-      <a href="#" id="guestLoginBtn" class="guest-btn">
-        🚪 Continue as Guest
-      </a>
+      <h2 style="margin-bottom:20px;">Welcome 👋</h2>
+      <p style="color:#a0a0b0; margin-bottom:30px;">Log in with Roblox to create rooms, donate, and advertise.</p>
+      <a href="/auth/roblox" class="roblox-btn">🔑 Continue with Roblox</a>
+      <div style="margin:20px 0; color:#a0a0b0; font-size:0.9rem;">or</div>
+      <a href="#" id="guestLoginBtn" class="guest-btn">🚪 Continue as Guest</a>
     </div>
-
     <div class="features">
-      <div class="feature">
-        <div class="feature-icon">💰</div>
-        <div class="feature-text">Receive donations via gamepasses</div>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">🎮</div>
-        <div class="feature-text">Join live rooms with chat & voice</div>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">📢</div>
-        <div class="feature-text">Advertise your board in rooms</div>
-      </div>
+      <div class="feature"><div class="feature-icon">💰</div><div class="feature-text">Receive donations via gamepasses</div></div>
+      <div class="feature"><div class="feature-icon">🎮</div><div class="feature-text">Join live rooms with chat & voice</div></div>
+      <div class="feature"><div class="feature-icon">📢</div><div class="feature-text">Advertise your board in rooms</div></div>
     </div>
   </div>
-
   <script>
-    // Immediately check for token in URL hash (from OAuth callback)
-    (function handleToken() {
+    // Handle token from URL hash (after Roblox OAuth)
+    (function() {
       const hash = window.location.hash;
       if (hash && hash.includes('token=')) {
-        const tokenPart = hash.split('token=')[1].split('&')[0];
-        if (tokenPart) {
-          localStorage.setItem('passly_token', tokenPart);
-          // Clean the hash without reloading
-          history.replaceState(null, null, window.location.pathname);
-          // Redirect to dashboard
-          window.location.href = '/dashboard';
-          return;
-        }
+        const token = hash.split('token=')[1].split('&')[0];
+        localStorage.setItem('passly_token', token);
+        history.replaceState(null, null, window.location.pathname);
+        window.location.href = '/dashboard';
+        return;
       }
     })();
 
-    // If already logged in, go to dashboard
-    const existingToken = localStorage.getItem('passly_token');
-    if (existingToken) {
-      // Verify token validity by calling /api/user
-      fetch('/api/user', {
-        headers: { 'Authorization': `Bearer ${existingToken}` }
-      }).then(res => {
-        if (res.ok) {
-          window.location.href = '/dashboard';
-        } else {
-          // Token invalid, clear it
-          localStorage.removeItem('passly_token');
-        }
-      }).catch(() => {
-        // Network error, stay on page
-      });
+    // If already logged in, redirect to dashboard
+    const token = localStorage.getItem('passly_token');
+    if (token) {
+      fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => {
+          if (res.ok) window.location.href = '/dashboard';
+          else localStorage.removeItem('passly_token');
+        })
+        .catch(() => {});
     }
 
-    // Guest login handler
-    document.getElementById('guestLoginBtn')?.addEventListener('click', async (e) => {
+    // Guest login
+    document.getElementById('guestLoginBtn').addEventListener('click', async (e) => {
       e.preventDefault();
       try {
         const res = await fetch('/api/guest-login', { method: 'POST' });
@@ -223,12 +75,8 @@
         if (data.id) {
           localStorage.setItem('passly_user', JSON.stringify(data));
           window.location.href = '/dashboard';
-        } else {
-          alert('Guest login failed, try again.');
-        }
-      } catch (err) {
-        alert('Error logging in as guest');
-      }
+        } else alert('Guest login failed');
+      } catch (err) { alert('Error logging in as guest'); }
     });
   </script>
 </body>
