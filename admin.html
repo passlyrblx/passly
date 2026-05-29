@@ -30,6 +30,9 @@
     input, select { padding:10px; background:#1e1e2e; border:1px solid #8b5cf6; border-radius:8px; color:white; width:100%; margin-bottom:10px; }
     .chat-area { height:300px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:12px; padding:15px; margin-bottom:15px; font-size:0.9rem; }
     .chat-msg { margin-bottom:10px; padding-bottom:5px; border-bottom:1px solid rgba(139,92,246,0.1); }
+    .stats-grid { display:flex; flex-wrap:wrap; gap:15px; justify-content:space-between; }
+    .stat-item { flex:1; min-width:120px; background:rgba(139,92,246,0.1); padding:10px; border-radius:12px; text-align:center; }
+    .stat-number { font-size:1.5rem; font-weight:bold; color:#c4b5fd; }
     @media (max-width:768px) { .admin-grid { grid-template-columns:1fr; } }
   </style>
 </head>
@@ -37,6 +40,11 @@
 <div class="container">
   <h1>🔧 Admin Dashboard</h1>
   <div class="admin-grid">
+    <!-- Website Status Card -->
+    <div class="card">
+      <h3>📊 Website Status</h3>
+      <div id="statsContainer" class="stats-grid">Loading...</div>
+    </div>
     <!-- Reports Card -->
     <div class="card">
       <h3>📢 User Reports</h3>
@@ -54,7 +62,7 @@
       <h3>🚫 Banned Users</h3>
       <div id="bannedList">Loading...</div>
     </div>
-    <!-- Close Room by ID Card (NEW) -->
+    <!-- Close Room by ID Card -->
     <div class="card">
       <h3>🔒 Close Room by ID</h3>
       <input type="text" id="closeRoomId" placeholder="Enter Room ID">
@@ -80,6 +88,25 @@
     return res.json();
   }
 
+  // Load website stats
+  async function loadStats() {
+    const data = await authFetch('/api/admin/stats');
+    if (data.error) {
+      document.getElementById('statsContainer').innerHTML = `<p>Error loading stats.</p>`;
+      return;
+    }
+    const container = document.getElementById('statsContainer');
+    container.innerHTML = `
+      <div class="stat-item"><div class="stat-number">${data.totalUsers}</div><div>Total Users</div></div>
+      <div class="stat-item"><div class="stat-number">${data.totalGuests}</div><div>Guests</div></div>
+      <div class="stat-item"><div class="stat-number">${data.totalDonations}</div><div>Donations</div></div>
+      <div class="stat-item"><div class="stat-number">${data.totalRobuxDonated.toLocaleString()}</div><div>Robux Donated</div></div>
+      <div class="stat-item"><div class="stat-number">${data.onlineNow}</div><div>Online Now</div></div>
+      <div class="stat-item"><div class="stat-number">${data.activeToday}</div><div>Active Today</div></div>
+    `;
+  }
+
+  // Load reports and banned users
   async function loadAdminData() {
     const data = await authFetch('/api/admin/data');
     if (data.error) return console.error(data.error);
@@ -100,85 +127,84 @@
   }
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
+window.searchUser = async function() {
+  const username = document.getElementById('searchUser').value.trim();
+  if (!username) return;
+  const data = await authFetch(`/api/admin/search-user?username=${encodeURIComponent(username)}`);
+  if (data.error) return document.getElementById('userResult').innerHTML = `<p style="color:#f87171;">❌ ${escapeHtml(data.error)}</p>`;
+  document.getElementById('userResult').innerHTML = `
+    <div style="background:rgba(139,92,246,0.1); padding:15px; border-radius:12px;">
+      <p><strong>✅ ${escapeHtml(data.username)}</strong> (ID: ${data.id}) <span style="background:#333; padding:2px 8px; border-radius:8px;">Role: ${data.role || 'user'}</span></p>
+      <button class="btn-ban" onclick="banUser('${data.id}')">Ban User</button>
+      <button class="btn-admin" onclick="grantAdmin('${data.id}')">Make Admin</button>
+      <button class="btn-vip" onclick="grantVip('${data.id}')">Grant VIP</button>
+    </div>
+  `;
+}
 
-  window.searchUser = async function() {
-    const username = document.getElementById('searchUser').value.trim();
-    if (!username) return;
-    const data = await authFetch(`/api/admin/search-user?username=${encodeURIComponent(username)}`);
-    if (data.error) return document.getElementById('userResult').innerHTML = `<p style="color:#f87171;">❌ ${escapeHtml(data.error)}</p>`;
-    document.getElementById('userResult').innerHTML = `
-      <div style="background:rgba(139,92,246,0.1); padding:15px; border-radius:12px;">
-        <p><strong>✅ ${escapeHtml(data.username)}</strong> (ID: ${data.id}) <span style="background:#333; padding:2px 8px; border-radius:8px;">Role: ${data.role || 'user'}</span></p>
-        <button class="btn-ban" onclick="banUser('${data.id}')">Ban User</button>
-        <button class="btn-admin" onclick="grantAdmin('${data.id}')">Make Admin</button>
-        <button class="btn-vip" onclick="grantVip('${data.id}')">Grant VIP</button>
-      </div>
-    `;
+window.banUser = async function(userId) {
+  if (confirm('Ban this user?')) {
+    const res = await authFetch('/api/admin/ban', { method: 'POST', body: JSON.stringify({ userId }) });
+    if (res.success) { alert('User banned'); loadAdminData(); document.getElementById('searchUser').value = ''; document.getElementById('userResult').innerHTML = ''; }
+    else alert(res.error);
   }
-
-  window.banUser = async function(userId) {
-    if (confirm('Ban this user?')) {
-      const res = await authFetch('/api/admin/ban', { method: 'POST', body: JSON.stringify({ userId }) });
-      if (res.success) { alert('User banned'); loadAdminData(); document.getElementById('searchUser').value = ''; document.getElementById('userResult').innerHTML = ''; }
-      else alert(res.error);
-    }
-  };
-  window.unbanUser = async function(userId) {
-    const res = await authFetch('/api/admin/unban', { method: 'POST', body: JSON.stringify({ userId }) });
-    if (res.success) loadAdminData();
-  };
-  window.grantAdmin = async function(userId) {
-    if (confirm('Grant admin privileges to this user?')) {
-      const res = await authFetch('/api/admin/grant', { method: 'POST', body: JSON.stringify({ userId, role: 'admin' }) });
-      if (res.success) alert('Admin privileges granted!');
-      else alert(res.error);
-    }
-  };
-  // NEW: Grant VIP role
-  window.grantVip = async function(userId) {
-    if (confirm('Grant VIP role to this user?')) {
-      const res = await authFetch('/api/admin/grant', { method: 'POST', body: JSON.stringify({ userId, role: 'vip' }) });
-      if (res.success) alert('VIP role granted!');
-      else alert(res.error);
-    }
-  };
-  // NEW: Close room by ID
-  window.closeRoomById = async function() {
-    const roomId = document.getElementById('closeRoomId').value.trim();
-    if (!roomId) { alert('Enter a room ID'); return; }
-    if (!confirm(`Close room ${roomId}? This will delete it permanently.`)) return;
-    const res = await authFetch('/api/admin/close-room', { method: 'POST', body: JSON.stringify({ roomId }) });
-    const statusDiv = document.getElementById('closeRoomStatus');
-    if (res.success) {
-      statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Room closed successfully.</span>';
-      document.getElementById('closeRoomId').value = '';
-      setTimeout(() => statusDiv.innerHTML = '', 3000);
-    } else {
-      statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${res.error}</span>`;
-    }
-  };
-
-  window.resolveReport = async function(reportId) {
-    await authFetch('/api/admin/resolve-report', { method: 'POST', body: JSON.stringify({ reportId }) });
-    loadAdminData();
-  };
-  window.sendAdminBroadcast = async function() {
-    const msg = document.getElementById('adminChatInput').value.trim();
-    if (!msg) return;
-    await authFetch('/api/admin/broadcast', { method: 'POST', body: JSON.stringify({ message: msg }) });
-    document.getElementById('adminChatInput').value = '';
-    addAdminMessage('You', msg);
-  };
-  function addAdminMessage(sender, message) {
-    const chatDiv = document.getElementById('adminChat');
-    chatDiv.innerHTML += `<div class="chat-msg"><strong>📢 ${escapeHtml(sender)}:</strong> ${escapeHtml(message)}</div>`;
-    chatDiv.scrollTop = chatDiv.scrollHeight;
+};
+window.unbanUser = async function(userId) {
+  const res = await authFetch('/api/admin/unban', { method: 'POST', body: JSON.stringify({ userId }) });
+  if (res.success) loadAdminData();
+};
+window.grantAdmin = async function(userId) {
+  if (confirm('Grant admin privileges to this user?')) {
+    const res = await authFetch('/api/admin/grant', { method: 'POST', body: JSON.stringify({ userId, role: 'admin' }) });
+    if (res.success) alert('Admin privileges granted!');
+    else alert(res.error);
   }
+};
+window.grantVip = async function(userId) {
+  if (confirm('Grant VIP role to this user?')) {
+    const res = await authFetch('/api/admin/grant', { method: 'POST', body: JSON.stringify({ userId, role: 'vip' }) });
+    if (res.success) alert('VIP role granted!');
+    else alert(res.error);
+  }
+};
+window.closeRoomById = async function() {
+  const roomId = document.getElementById('closeRoomId').value.trim();
+  if (!roomId) { alert('Enter a room ID'); return; }
+  if (!confirm(`Close room ${roomId}? This will delete it permanently.`)) return;
+  const res = await authFetch('/api/admin/close-room', { method: 'POST', body: JSON.stringify({ roomId }) });
+  const statusDiv = document.getElementById('closeRoomStatus');
+  if (res.success) {
+    statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Room closed successfully.</span>';
+    document.getElementById('closeRoomId').value = '';
+    setTimeout(() => statusDiv.innerHTML = '', 3000);
+  } else {
+    statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${res.error}</span>`;
+  }
+};
+window.resolveReport = async function(reportId) {
+  await authFetch('/api/admin/resolve-report', { method: 'POST', body: JSON.stringify({ reportId }) });
+  loadAdminData();
+};
+window.sendAdminBroadcast = async function() {
+  const msg = document.getElementById('adminChatInput').value.trim();
+  if (!msg) return;
+  await authFetch('/api/admin/broadcast', { method: 'POST', body: JSON.stringify({ message: msg }) });
+  document.getElementById('adminChatInput').value = '';
+  addAdminMessage('You', msg);
+};
+function addAdminMessage(sender, message) {
+  const chatDiv = document.getElementById('adminChat');
+  chatDiv.innerHTML += `<div class="chat-msg"><strong>📢 ${escapeHtml(sender)}:</strong> ${escapeHtml(message)}</div>`;
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
   if (token) {
     socket = io();
     socket.emit('authenticate', token);
     socket.on('admin-message', (data) => { addAdminMessage('System Broadcast', data.message); });
   }
+
+  // Initial load
+  loadStats();
   loadAdminData();
 </script>
 </body>
