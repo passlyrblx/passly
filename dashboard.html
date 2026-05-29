@@ -9,7 +9,41 @@
   <meta name="theme-color" content="#8b5cf6">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
+    body {
+      font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+      background:#0a0a14;
+      color:white;
+      min-height:100vh;
+      position: relative;
+    }
+    /* Background image with low visibility */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url('https://i.ibb.co/C3D777dX');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      opacity: 0.15;
+      z-index: -2;
+      pointer-events: none;
+    }
+    /* Subtle dark overlay for readability */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at center, rgba(139, 92, 246, 0.08), transparent 70%);
+      z-index: -1;
+      pointer-events: none;
+    }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display:flex; gap:25px; }
@@ -24,11 +58,11 @@
     .username-highlight { background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .guest-badge { background:rgba(139,92,246,0.2); padding:4px 12px; border-radius:8px; font-size:0.8rem; color:#a78bfa; margin-left:10px; display:none; }
     .stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:20px; margin-bottom:30px; }
-    .stat-card { background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); transition:transform 0.3s; }
+    .stat-card { background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); transition:transform 0.3s; backdrop-filter: blur(2px); }
     .stat-card:hover { transform:translateY(-5px); }
     .stat-value { font-size:2rem; font-weight:bold; color:#c4b5fd; }
     .stat-label { color:#a0a0b0; margin-top:5px; font-size:0.9rem; }
-    .current-room { background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; margin-bottom:30px; border:1px solid rgba(139,92,246,0.2); }
+    .current-room { background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; margin-bottom:30px; border:1px solid rgba(139,92,246,0.2); backdrop-filter: blur(2px); }
     .current-room h3 { color:#a78bfa; margin-bottom:8px; }
     .quick-actions { display:flex; gap:15px; flex-wrap:wrap; }
     .action-btn { padding:14px 28px; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); border-radius:12px; color:white; cursor:pointer; transition:all 0.3s; font-size:1rem; font-weight:500; text-decoration:none; display:inline-block; }
@@ -36,7 +70,6 @@
     .logout-btn { background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.3); color:#fca5a5; }
     .logout-btn:hover { background:rgba(239,68,68,0.25); }
     .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin-top:20px; text-align:center; display:none; }
-
     .ad-cloud {
       position:fixed; top:-100px; left:10%; background:rgba(30,30,50,0.95); border:2px solid #8b5cf6; border-radius:20px; padding:20px 35px;
       z-index:300; box-shadow:0 10px 40px rgba(139,92,246,0.3); text-align:center; font-size:1.1rem; backdrop-filter:blur(10px);
@@ -47,7 +80,6 @@
       50% { top:50%; left:20%; } 75% { top:70%; left:70%; } 90% { top:85%; left:30%; opacity:1; } 100% { top:100vh; left:50%; opacity:0; }
     }
     .ad-cloud:hover { border-color:#a78bfa; box-shadow:0 10px 40px rgba(139,92,246,0.5); }
-
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -56,56 +88,55 @@
   </style>
 </head>
 <body>
-  <nav class="navbar">
-    <div class="nav-logo">Passly</div>
-    <div class="nav-links">
-      <a href="/dashboard">🏠 Home</a>
-      <a href="/rooms">🚪 Rooms</a>
-      <a href="/leaderboard">🏆 Leaderboard</a>
-      <a href="/profile">👤 Profile</a>
-      <a href="/advertisement">📢 Advertise</a>
-      <a href="/livedonations">💸 Live Donations</a>
-    </div>
-    <div class="user-box">
-      <div class="user-avatar" id="userAvatar"></div>
-      <span class="user-name" id="userName">Loading...</span>
-    </div>
-  </nav>
+<nav class="navbar">
+  <div class="nav-logo">Passly</div>
+  <div class="nav-links">
+    <a href="/dashboard">🏠 Home</a>
+    <a href="/rooms">🚪 Rooms</a>
+    <a href="/leaderboard">🏆 Leaderboard</a>
+    <a href="/profile">👤 Profile</a>
+    <a href="/advertisement">📢 Advertise</a>
+    <a href="/livedonations">💸 Live Donations</a>
+  </div>
+  <div class="user-box">
+    <div class="user-avatar" id="userAvatar"></div>
+    <span class="user-name" id="userName">Loading...</span>
+  </div>
+</nav>
 
-  <div id="adContainer"></div>
+<div id="adContainer"></div>
 
-  <div class="main-content">
-    <div class="welcome-section">
-      <h1>Welcome, <span class="username-highlight" id="dashUsername">Player</span>! 👋</h1>
-      <span id="guestBadge" class="guest-badge">Guest</span>
-      <p style="color:#a0a0b0; margin-top:5px;">Your donation hub is ready</p>
-    </div>
-
-    <div class="current-room">
-      <h3>📍 Current Room</h3>
-      <p id="currentRoomDisplay" style="color:#b0b0c0;">Not in any room</p>
-      <p id="queueStatus" style="color:#fbbf24; margin-top:5px; display:none;"></p>
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-value" id="totalReceived">0</div><div class="stat-label">💰 Total Robux Received</div></div>
-      <div class="stat-card"><div class="stat-value" id="totalGiven">0</div><div class="stat-label">💸 Total Robux Given</div></div>
-      <div class="stat-card"><div class="stat-value" id="adStatusText">No Ad</div><div class="stat-label">📢 Advertisement Status</div></div>
-    </div>
-
-    <div class="quick-actions">
-      <a href="/rooms" class="action-btn">🚪 Browse Rooms</a>
-      <a href="/leaderboard" class="action-btn">🏆 View Leaderboard</a>
-      <a href="/profile" class="action-btn">👤 Edit Profile</a>
-      <button class="action-btn logout-btn" onclick="logout()">🚪 Logout</button>
-    </div>
-
-    <div id="loginPrompt" class="login-prompt">
-      <p>🔐 <strong>Log in with Roblox</strong> to donate, advertise, and create rooms.</p>
-      <button class="action-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
-    </div>
+<div class="main-content">
+  <div class="welcome-section">
+    <h1>Welcome, <span class="username-highlight" id="dashUsername">Player</span>! 👋</h1>
+    <span id="guestBadge" class="guest-badge">Guest</span>
+    <p style="color:#a0a0b0; margin-top:5px;">Your donation hub is ready</p>
   </div>
 
+  <div class="current-room">
+    <h3>📍 Current Room</h3>
+    <p id="currentRoomDisplay" style="color:#b0b0c0;">Not in any room</p>
+    <p id="queueStatus" style="color:#fbbf24; margin-top:5px; display:none;"></p>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-value" id="totalReceived">0</div><div class="stat-label">💰 Total Robux Received</div></div>
+    <div class="stat-card"><div class="stat-value" id="totalGiven">0</div><div class="stat-label">💸 Total Robux Given</div></div>
+    <div class="stat-card"><div class="stat-value" id="adStatusText">No Ad</div><div class="stat-label">📢 Advertisement Status</div></div>
+  </div>
+
+  <div class="quick-actions">
+    <a href="/rooms" class="action-btn">🚪 Browse Rooms</a>
+    <a href="/leaderboard" class="action-btn">🏆 View Leaderboard</a>
+    <a href="/profile" class="action-btn">👤 Edit Profile</a>
+    <button class="action-btn logout-btn" onclick="logout()">🚪 Logout</button>
+  </div>
+
+  <div id="loginPrompt" class="login-prompt">
+    <p>🔐 <strong>Log in with Roblox</strong> to donate, advertise, and create rooms.</p>
+    <button class="action-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
+  </div>
+</div>
   <script>
     let token = localStorage.getItem('passly_token');
     let userData = null;
