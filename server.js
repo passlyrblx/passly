@@ -1,868 +1,543 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Passly - Donations Never Stop</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
-  <meta name="theme-color" content="#8b5cf6">
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Segoe UI',Arial,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
-    .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
-    .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-    .nav-links { display:flex; gap:25px; }
-    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
-    .nav-links a:hover { color:#a78bfa; }
-    .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,0.1); padding:8px 16px; border-radius:12px; }
-    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; background-position:center; }
-    .user-name { font-weight:600; color:#c4b5fd; }
-    .main-content { padding:30px; max-width:1200px; margin:0 auto; }
-    .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; flex-wrap:wrap; gap:15px; }
-    .page-header h1 { font-size:2.5rem; }
-    .create-btn, .refresh-btn { padding:14px 28px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:12px; color:white; font-size:1rem; font-weight:600; cursor:pointer; transition:all 0.3s; }
-    .refresh-btn { background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.3); margin-left:10px; }
-    .create-btn:hover, .refresh-btn:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(139,92,246,0.3); }
-    .join-by-id { display:flex; gap:10px; align-items:center; }
-    .join-by-id input { padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; outline:none; width:200px; }
-    .join-by-id button { padding:12px 20px; background:#8b5cf6; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600; }
-    .rooms-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:20px; }
-    .room-card { background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); transition:transform 0.3s; }
-    .room-card:hover { transform:translateY(-5px); }
-    .room-name { font-size:1.5rem; font-weight:bold; margin-bottom:8px; }
-    .room-type { display:inline-block; background:rgba(139,92,246,0.2); padding:4px 12px; border-radius:8px; font-size:0.85rem; color:#a78bfa; margin-bottom:12px; }
-    .room-desc { color:#a0a0b0; margin-bottom:15px; line-height:1.5; }
-    .room-stats { display:flex; justify-content:space-between; align-items:center; }
-    .room-players { color:#b0b0c0; font-size:0.9rem; }
-    .join-btn { padding:10px 24px; background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.3); border-radius:10px; color:white; cursor:pointer; transition:all 0.3s; font-weight:500; }
-    .join-btn:hover { background:rgba(139,92,246,0.3); }
-    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:500; display:none; }
-    .modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.98); border-radius:20px; padding:30px; z-index:600; width:90%; max-width:600px; border:1px solid rgba(139,92,246,0.3); display:none; }
-    .modal h2 { margin-bottom:20px; color:#a78bfa; }
-    .modal input, .modal textarea, .modal select { width:100%; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; margin-bottom:15px; font-size:1rem; outline:none; }
-    .modal textarea { height:80px; resize:none; }
-    .modal input:focus, .modal textarea:focus, .modal select:focus { border-color:#8b5cf6; }
-    .type-btns { display:flex; gap:10px; margin-bottom:15px; }
-    .type-btn { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; cursor:pointer; transition:all 0.3s; }
-    .type-btn.active { background:rgba(139,92,246,0.3); border-color:#8b5cf6; }
-    .modal-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:10px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
-    .room-view { display:none; background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); }
-    .room-view h2 { font-size:2rem; margin-bottom:10px; }
-    .room-view-desc { color:#a0a0b0; margin-bottom:20px; }
-    .player-list { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
-    .player-tag { background:rgba(139,92,246,0.15); padding:8px 16px; border-radius:20px; font-size:0.9rem; display:flex; align-items:center; gap:8px; }
-    .donate-btn { padding:4px 10px; background:#f59e0b; border:none; border-radius:6px; color:white; cursor:pointer; font-size:0.8rem; font-weight:600; }
-    .chat-box { background:rgba(15,15,30,0.6); border-radius:12px; padding:20px; height:400px; overflow-y:auto; margin-bottom:15px; }
-    .chat-msg { display:flex; gap:10px; margin-bottom:15px; }
-    .chat-pfp { width:35px; height:35px; border-radius:50%; background:#8b5cf6; flex-shrink:0; background-size:cover; background-position:center; }
-    .msg-content { background:rgba(30,30,50,0.6); padding:10px 14px; border-radius:12px; }
-    .msg-username { font-weight:bold; color:#a78bfa; margin-bottom:4px; }
-    .chat-input-area { display:flex; gap:10px; }
-    .chat-input { flex:1; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; outline:none; }
-    .send-btn { padding:12px 24px; background:#8b5cf6; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600; }
-    .queue-box { background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); border-radius:12px; padding:15px; margin:15px 0; display:none; color:#fbbf24; }
-    .back-btn { padding:10px 20px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; cursor:pointer; margin-bottom:20px; }
-    .room-id-display { background:rgba(139,92,246,0.1); padding:8px 15px; border-radius:8px; font-family:monospace; margin:10px 0; display:inline-block; }
-    .error-msg { background:rgba(255,0,0,0.15); border:1px solid #ff4444; border-radius:12px; padding:15px; margin:15px 0; color:#ff4444; display:none; }
-    .board-gamepass-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:15px; margin-top:15px; max-height:400px; overflow-y:auto; }
-    .board-gamepass-btn { background:#22c55e; color:white; border:none; border-radius:14px; padding:18px 10px; font-weight:bold; font-size:1rem; cursor:pointer; transition:all 0.2s; display:flex; flex-direction:column; align-items:center; gap:6px; position:relative; }
-    .board-gamepass-btn:hover { background:#16a34a; transform:scale(1.03); }
-    .board-gamepass-amount { font-size:1.5rem; }
-    .board-gamepass-name { font-size:0.8rem; opacity:0.9; }
-    .remove-gp-btn { position:absolute; top:5px; right:5px; background:rgba(239,68,68,0.8); border:none; color:white; border-radius:50%; width:24px; height:24px; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-    .add-board-section { display:flex; gap:10px; margin-top:15px; align-items:center; flex-wrap:wrap; }
-    .add-board-section input { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; min-width:120px; }
-    .ad-buttons { display:flex; gap:15px; margin-top:15px; }
-    .ad-btn { flex:1; padding:16px; background:rgba(139,92,246,0.2); border:2px solid rgba(139,92,246,0.3); border-radius:14px; color:white; cursor:pointer; transition:all 0.3s; text-align:center; }
-    .ad-btn:hover { background:rgba(139,92,246,0.3); border-color:#8b5cf6; transform:translateY(-2px); }
-    .ad-btn .tier { font-size:1.4rem; font-weight:bold; color:#c4b5fd; display:block; }
-    .ad-btn .shows { font-size:0.85rem; color:#a78bfa; display:block; margin-top:5px; }
-    .voice-controls { display:flex; gap:10px; align-items:center; margin-bottom:15px; flex-wrap:wrap; }
-    .voice-btn { padding:10px 20px; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:bold; display:flex; align-items:center; gap:8px; }
-    .voice-btn.speak { background:#22c55e; }
-    .voice-btn.speak.active { background:#16a34a; }
-    .voice-btn.mute { background:#f59e0b; }
-    .mute-popup { position:absolute; background:rgba(20,20,40,0.98); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; z-index:50; min-width:200px; display:none; }
-    .mute-popup .player-mute-row { display:flex; align-items:center; gap:10px; padding:5px 0; }
-    .mute-popup label { cursor:pointer; }
-    .ad-msg .msg-content { background: linear-gradient(135deg, #3b2f1e, #5a4a2c) !important; border: 2px solid #ffd700 !important; box-shadow: 0 0 12px rgba(255,215,0,0.3); }
-    .ad-msg .msg-username { color: #ffd700 !important; }
-    .ad-mini-board { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .ad-mini-board-item { background: #22c55e; color: white; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-    .ad-mini-board-item:hover { background: #16a34a; }
-    .ad-message-text { font-style: italic; color: #ffd700; margin-top: 4px; }
-    .verify-donate-btn { background: #f59e0b; color: white; border: none; border-radius: 8px; padding: 4px 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer; margin-left: 5px; }
-    .verify-donate-btn:hover { background: #d97706; }
-    .gp-link-btn { background: transparent; border: 1px solid #ffd700; color: #ffd700; padding: 12px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 15px; width: 100%; }
-    .gp-link-btn:hover { background: rgba(255,215,0,0.1); }
-    .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin:20px 0; text-align:center; }
-    @media (max-width:768px) {
-      .navbar { flex-direction:column; gap:15px; padding:15px; }
-      .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
-      .page-header h1 { font-size:1.8rem; }
-      .rooms-grid { grid-template-columns:1fr; }
-    }
-  </style>
-</head>
-<body>
-<nav class="navbar">
-  <div class="nav-logo">Passly</div>
-  <div class="nav-links">
-    <a href="/dashboard">🏠 Home</a>
-    <a href="/rooms">🚪 Rooms</a>
-    <a href="/leaderboard">🏆 Leaderboard</a>
-    <a href="/profile">👤 Profile</a>
-    <a href="/advertisement">📢 Advertise</a>
-    <a href="/livedonations">💸 Live Donations</a>
-  </div>
-  <div class="user-box">
-    <div class="user-avatar" id="userAvatar"></div>
-    <span class="user-name" id="userName">Loading...</span>
-  </div>
-</nav>
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const jwt = require('jsonwebtoken');
+const axios = require('axios');
+const crypto = require('crypto');
+const path = require('path');
+const mongoose = require('mongoose');
+const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require('@simplewebauthn/server');
 
-<div class="main-content">
-  <div id="roomsListPage">
-    <div class="page-header">
-      <h1>🚪 Public Rooms</h1>
-      <div style="display:flex; gap:15px; align-items:center;">
-        <button class="create-btn" onclick="requireLoginThen(openCreateModal)">+ Create Room</button>
-        <button class="refresh-btn" onclick="loadRooms()">🔄 Refresh</button>
-        <div class="join-by-id">
-          <input type="text" id="joinRoomIdInput" placeholder="Room ID" maxlength="16">
-          <button onclick="joinRoomById()">Join</button>
-        </div>
-      </div>
-    </div>
-    <div class="error-msg" id="errorBox"></div>
-    <div class="rooms-grid" id="roomsGrid"></div>
-    <div id="loginPrompt" class="login-prompt" style="display:none;">
-      <p>🔐 <strong>Log in with Roblox</strong> to create rooms and donate.</p>
-      <button class="create-btn" onclick="window.location.href='/auth/roblox'">Login</button>
-    </div>
-  </div>
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 
-  <div class="room-view" id="roomView">
-    <button class="back-btn" onclick="leaveRoom()">⬅ Back to Rooms</button>
-    <h2 id="viewRoomName"></h2>
-    <p class="room-view-desc" id="viewRoomDesc"></p>
-    <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
-    <div class="player-list" id="playerList"></div>
-    <div class="voice-controls">
-      <button class="voice-btn speak" id="speakButton" onclick="toggleSpeak()">🎤 Speak</button>
-      <div style="position:relative;">
-        <button class="voice-btn mute" id="muteButton" onclick="toggleMutePopup()">🔇 Mute</button>
-        <div class="mute-popup" id="mutePopup"></div>
-      </div>
-    </div>
-    <button class="create-btn" style="margin-bottom:15px;" onclick="requireLoginThen(showBoard)">🎁 Show My Board</button>
-    <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="requireLoginThen(sendBoardToChat)">📤 Send Board to Chat</button>
-    <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="requireLoginThen(openAdModal)">📢 Advertise Board</button>
-    <div class="queue-box" id="queueBox">
-      ⏳ You are in queue position #<span id="queuePos">1</span>
-      <button onclick="leaveQueue()" style="margin-left:10px; background:#ef4444; border:none; color:white; padding:6px 14px; border-radius:8px; cursor:pointer;">Leave Queue</button>
-    </div>
-    <div class="chat-box" id="chatBox">
-      <div class="chat-msg">
-        <div class="chat-pfp"></div>
-        <div class="msg-content">
-          <div class="msg-username">System</div>
-          <div>Welcome to the room! 👋</div>
-        </div>
-      </div>
-    </div>
-    <div class="chat-input-area">
-      <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
-      <button class="send-btn" onclick="sendMessage()">Send</button>
-    </div>
-  </div>
-</div>
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
+const RP_ID = process.env.RP_ID || 'localhost';
+const RP_NAME = 'Passly';
+const ORIGIN = process.env.ORIGIN || 'http://localhost:3000';
 
-<!-- Modals -->
-<div class="modal-overlay" id="modalOverlay"></div>
+// ----- MongoDB Connection & Schemas -----
+mongoose.connect(MONGO_URI).then(async () => {
+  console.log('MongoDB connected');
 
-<!-- Create Room Modal -->
-<div class="modal" id="createModal">
-  <h2>Create New Room</h2>
-  <input type="text" id="roomNameInput" placeholder="Room Name">
-  <textarea id="roomDescInput" placeholder="Room Description"></textarea>
-  <div class="type-btns">
-    <button class="type-btn active" onclick="setType('Public')">Public</button>
-    <button class="type-btn" onclick="setType('Private')">Private</button>
-  </div>
-  <button class="modal-btn" onclick="createRoom()">Create Room</button>
-  <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
-</div>
-
-<!-- Board Modal -->
-<div class="modal" id="boardModal">
-  <h2>🎁 My Board</h2>
-  <div class="add-board-section">
-    <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
-    <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
-    <button class="send-btn" onclick="addGamepassToBoard()">Add</button>
-  </div>
-  <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
-  <div class="board-gamepass-grid" id="boardGamepassGrid">
-    <p style="color:#a0a0b0;">No gamepasses added yet.</p>
-  </div>
-  <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closeBoardModal()">Close</button>
-</div>
-
-<!-- Advertise Tier Selection Modal -->
-<div class="modal" id="adModal">
-  <h2>📢 Advertise Your Board</h2>
-  <p style="color:#a0a0b0; margin-bottom:20px;">Choose a tier. You will be redirected to the Roblox gamepass page to purchase, then come back to verify.</p>
-  <textarea id="adMessage" placeholder="Your message (optional)" style="width:100%; height:60px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; padding:10px; margin-bottom:15px;"></textarea>
-  <div class="ad-buttons">
-    <button class="ad-btn" onclick="openAdVerification('5k')">
-      <span class="tier">5,000 Robux</span>
-      <span class="shows">1 Broadcast + 1 Cloud</span>
-    </button>
-    <button class="ad-btn" onclick="openAdVerification('10k')">
-      <span class="tier">10,000 Robux</span>
-      <span class="shows">1 Broadcast + 3 Clouds</span>
-    </button>
-  </div>
-  <div id="adPurchaseStatus" style="margin-top:15px;"></div>
-  <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
-</div>
-
-<!-- Ad Verification Modal -->
-<div class="modal" id="adVerifyModal">
-  <h2>📢 Advertise Your Board</h2>
-  <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
-  <button class="gp-link-btn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
-  <p style="color:#a0a0b0; font-size:0.85rem; margin-top:5px;">After purchasing, come back and click below.</p>
-  <button class="modal-btn" onclick="verifyAdPurchase()">✅ Verify Purchase</button>
-  <div id="adVerifyStatus" style="margin-top:10px; text-align:center;"></div>
-  <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
-</div>
-
-<!-- Player Board Modal (for donations) -->
-<div class="modal" id="playerBoardModal">
-  <h2 id="playerBoardTitle">🎁 Player's Board</h2>
-  <div id="playerBoardAvatar" style="width:60px; height:60px; border-radius:50%; margin:0 auto 10px; background-size:cover;"></div>
-  <p id="playerBoardName" style="color:#a78bfa; text-align:center;"></p>
-  <div class="board-gamepass-grid" id="playerBoardGrid"></div>
-  <div id="playerBoardStatus" style="margin-top:10px; text-align:center; font-size:0.9rem;"></div>
-  <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
-</div>
-<script>
-  const socket = io();
-  let token = localStorage.getItem('passly_token');
-  (function() {
-    if (!token && window.location.hash.includes('token=')) {
-      const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
-      localStorage.setItem('passly_token', tokenPart);
-      token = tokenPart;
-      history.replaceState(null, null, ' ');
-    }
-  })();
-  let userData = null;
-  let currentRoom = null;
-  let roomType = 'Public';
-  let selectedReceiverId = null;
-  let selectedReceiverName = '';
-  let lastAdCheck = Date.now();
-  let adPollInterval = null;
-  let localStream = null;
-  let isSpeaking = false;
-  let mutedUsers = new Set();
-
-  socket.emit('authenticate', token);
-  socket.on('authenticated', (data) => {});
-
-  function showError(msg) {
-    const box = document.getElementById('errorBox');
-    box.textContent = msg;
-    box.style.display = 'block';
-    setTimeout(() => { box.style.display = 'none'; }, 5000);
-  }
-
-  function authHeaders() {
-    const h = { 'Content-Type': 'application/json' };
-    if (token) h['Authorization'] = `Bearer ${token}`;
-    return h;
-  }
-
-  function requireLoginThen(callback) {
-    if (!token) {
-      document.getElementById('loginPrompt').style.display = 'block';
-      if (confirm('You need to log in with Roblox to do this. Go to login?')) {
-        window.location.href = '/auth/roblox';
-      }
-      return;
-    }
-    callback();
-  }
-
-  async function init() {
-    if (token) {
-      try {
-        const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
-        if (res.ok) {
-          userData = await res.json();
-          userData.isGuest = false;
-          document.getElementById('loginPrompt').style.display = 'none';
-        } else {
-          localStorage.removeItem('passly_token');
-          token = null;
-        }
-      } catch (e) {}
-    }
-
-    if (!userData) {
-      const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
-      if (guest && guest.username) {
-        userData = { ...guest, isGuest: true };
-      } else {
-        const res = await fetch('/api/guest-login', { method: 'POST' });
-        const data = await res.json();
-        userData = { ...data, isGuest: true };
-        localStorage.setItem('passly_user', JSON.stringify(userData));
-      }
-      document.getElementById('loginPrompt').style.display = 'block';
-    }
-
-    document.getElementById('userName').textContent = userData.displayName || userData.username;
-    const avatarEl = document.getElementById('userAvatar');
-    function setAvatar(el, url, fallback) {
-      if (!url && !fallback) return;
-      const tryUrl = url || fallback;
-      el.style.backgroundImage = `url(${tryUrl})`;
-      el.onerror = function() {
-        if (url && fallback && tryUrl === url) {
-          el.style.backgroundImage = `url(${fallback})`;
-        } else {
-          el.style.backgroundImage = '';
-        }
-      };
-    }
-    setAvatar(avatarEl, userData.avatarUrl, userData.avatarFallback);
-
-    loadRooms();
-  }
-
-  async function loadRooms() {
-    const grid = document.getElementById('roomsGrid');
-    grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
-
-    try {
-      const res = await fetch('/api/rooms');
-      if (!res.ok) throw new Error('Server error');
-      const allRooms = await res.json();
-      const publicRooms = allRooms.filter(r => r.type === 'Public');
-
-      if (publicRooms.length === 0) {
-        grid.innerHTML = '<p style="color:#a0a0b0;">No public rooms yet. Create one!</p>';
-        return;
-      }
-
-      const seen = new Set();
-      const uniqueRooms = publicRooms.filter(room => {
-        if (seen.has(room._id)) return false;
-        seen.add(room._id);
-        return true;
-      });
-
-      grid.innerHTML = uniqueRooms.map(room => `
-        <div class="room-card">
-          <div class="room-name">${room.name}</div>
-          <div class="room-type">${room.type}</div>
-          <div class="room-desc">${room.desc || 'No description'}</div>
-          <div class="room-stats">
-            <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
-            <button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button>
-          </div>
-        </div>
-      `).join('');
-    } catch (e) {
-      grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms. Try refreshing.</p>';
-    }
-  }
-
-  async function joinRoomById(id) {
-    if (!id) {
-      id = document.getElementById('joinRoomIdInput').value.trim();
-      if (!id) {
-        showError('Enter a room ID.');
-        return;
-      }
-    }
-
-    showError('Joining room ' + id + '…');
-
-    try {
-      const res = await fetch(`/api/rooms/join/${id}`, { method: 'POST', headers: authHeaders() });
-      const data = await res.json();
-
-      if (!res.ok || data.error) {
-        showError(data.error || 'Join failed');
-        return;
-      }
-
-      if (data.queued) {
-        document.getElementById('roomsListPage').style.display = 'none';
-        document.getElementById('roomView').style.display = 'block';
-        document.getElementById('viewRoomName').textContent = 'Room (Queued)';
-        document.getElementById('viewRoomDesc').textContent = '';
-        document.getElementById('queueBox').style.display = 'block';
-        document.getElementById('queuePos').textContent = data.position;
-        currentRoom = { id, queued: true };
-        return;
-      }
-
-      if (data.success && data.room) {
-        document.getElementById('errorBox').style.display = 'none';
-        showRoomView(data.room);
-      }
-    } catch (e) {
-      showError('Network error: ' + e.message);
-    }
-  }
-
-  function openCreateModal() {
-    if (!token) { showError('Login required'); return; }
-    document.getElementById('modalOverlay').style.display = 'block';
-    document.getElementById('createModal').style.display = 'block';
-  }
-
-  function closeModal() {
-    document.getElementById('modalOverlay').style.display = 'none';
-    document.getElementById('createModal').style.display = 'none';
-  }
-
-  function setType(type) {
-    roomType = type;
-    document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-  }
-
-  async function createRoom() {
-    const name = document.getElementById('roomNameInput').value.trim();
-    const desc = document.getElementById('roomDescInput').value.trim();
-    if (!name) { showError('Enter a room name'); return; }
-
-    try {
-      const res = await fetch('/api/rooms/create', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ name, desc, type: roomType })
-      });
-      const room = await res.json();
-      if (room.error) { showError(room.error); return; }
-
-      closeModal();
-      await joinRoomById(room._id);
-      loadRooms();
-    } catch (e) { showError('Error creating room'); }
-  }
-
-  function showRoomView(room) {
-    currentRoom = room;
-    document.getElementById('roomsListPage').style.display = 'none';
-    document.getElementById('roomView').style.display = 'block';
-    document.getElementById('viewRoomName').textContent = room.name;
-    document.getElementById('viewRoomDesc').textContent = room.desc || '';
-    document.getElementById('queueBox').style.display = 'none';
-
-    document.getElementById('roomIdDisplay').style.display = 'inline-block';
-    document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong> (share to invite)`;
-
-    const playerList = document.getElementById('playerList');
-    playerList.innerHTML = room.players.map(playerId => {
-      const isMe = (userData.id && playerId === userData.id);
-      const label = isMe ? (userData.displayName || userData.username) : 'Player';
-      return `
-        <div class="player-tag">
-          <span>${label}</span>
-          ${!isMe && token ? `<button class="donate-btn" onclick="openDonate('${playerId}')">💝 Donate</button>` : ''}
-        </div>
-      `;
-    }).join('');
-
-    socket.emit('join-room', room._id);
-    if (adPollInterval) clearInterval(adPollInterval);
-    lastAdCheck = Date.now();
-    checkAdBroadcasts();
-    adPollInterval = setInterval(checkAdBroadcasts, 10000);
-
-    isSpeaking = false;
-    updateSpeakButton();
-    mutedUsers.clear();
-    updateMutePopup();
-  }
-
-  // ========== VOICE (Speak & Mute) ==========
-  async function toggleSpeak() {
-    if (!currentRoom) return;
-    if (!isSpeaking) {
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const audioContext = new AudioContext();
-        const source = audioContext.createMediaStreamSource(localStream);
-        const processor = audioContext.createScriptProcessor(4096, 1, 1);
-        source.connect(processor);
-        processor.connect(audioContext.destination);
-        processor.onaudioprocess = (e) => {
-          if (!isSpeaking || !currentRoom) return;
-          const inputData = e.inputBuffer.getChannelData(0);
-          const buffer = new Int16Array(inputData.length);
-          for (let i = 0; i < inputData.length; i++) {
-            buffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-          }
-          socket.emit('voice-data', buffer.buffer);
-        };
-        window.currentAudioProcessor = processor;
-        isSpeaking = true;
-      } catch (err) {
-        alert('Could not access microphone.');
-        return;
-      }
-    } else {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-      }
-      if (window.currentAudioProcessor) {
-        window.currentAudioProcessor.disconnect();
-        window.currentAudioProcessor = null;
-      }
-      isSpeaking = false;
-    }
-    updateSpeakButton();
-  }
-
-  function updateSpeakButton() {
-    const btn = document.getElementById('speakButton');
-    btn.textContent = isSpeaking ? '🔇 Stop Speaking' : '🎤 Speak';
-    if (isSpeaking) btn.classList.add('active');
-    else btn.classList.remove('active');
-  }
-
-  function toggleMutePopup() {
-    const popup = document.getElementById('mutePopup');
-    popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
-    if (popup.style.display === 'block') updateMutePopup();
-  }
-
-  function updateMutePopup() {
-    const popup = document.getElementById('mutePopup');
-    if (!currentRoom) return;
-    const players = currentRoom.players || [];
-    popup.innerHTML = players.map(playerId => {
-      const isMe = (userData.id && playerId === userData.id);
-      const label = isMe ? 'You' : 'Player';
-      const checked = mutedUsers.has(playerId) ? 'checked' : '';
-      return `
-        <div class="player-mute-row">
-          <input type="checkbox" id="mute-${playerId}" ${checked} onchange="toggleMuteUser('${playerId}', this.checked)" ${isMe ? 'disabled' : ''}>
-          <label for="mute-${playerId}">${label}</label>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function toggleMuteUser(userId, mute) {
-    if (mute) mutedUsers.add(userId);
-    else mutedUsers.delete(userId);
-  }
-
-  socket.off('voice-data');
-  socket.on('voice-data', (data) => {
-    if (mutedUsers.has(data.userId)) return;
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
-    const channel = buffer.getChannelData(0);
-    const int16Array = new Int16Array(data.audio);
-    for (let i = 0; i < int16Array.length; i++) {
-      channel[i] = int16Array[i] / 0x7FFF;
-    }
-    const source = audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audioCtx.destination);
-    source.start();
+  const userSchema = new mongoose.Schema({
+    _id: String, robloxUsername: String, robloxDisplayName: String,
+    customDisplayName: String, avatarUrl: String,
+    profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true } },
+    roomId: String, inQueue: Boolean,
+    donations: { received: Number, given: Number },
+    board: [{ id: String, name: String, price: Number }],
+    credentials: [{ id: String, publicKey: Buffer, counter: Number, transports: [String] }],
+    createdAt: { type: Date, default: Date.now }
+  });
+  const roomSchema = new mongoose.Schema({
+    _id: String, name: String, desc: String, type: String,
+    players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
+    createdBy: String, createdAt: { type: Date, default: Date.now }
+  });
+  const donationSchema = new mongoose.Schema({
+    _id: String, donorId: String, donorName: String, receiverId: String,
+    receiverName: String, gamepassId: String, amount: Number,
+    roomId: String,
+    timestamp: { type: Date, default: Date.now }
+  });
+  const adSchema = new mongoose.Schema({
+    _id: String, userId: String, username: String, tier: Number,
+    gamepassId: String, broadcastsLeft: Number, showsLeft: Number,
+    active: Boolean, message: String, purchasedAt: { type: Date, default: Date.now }
+  });
+  const adBroadcastSchema = new mongoose.Schema({
+    roomId: String, board: [mongoose.Schema.Types.Mixed],
+    advertiserName: String, advertiserId: String, message: String,
+    timestamp: { type: Date, default: Date.now }
   });
 
-  // ========== LEAVE ==========
-  async function leaveRoom() {
-    if (adPollInterval) clearInterval(adPollInterval);
-    if (isSpeaking) await toggleSpeak();
-    socket.emit('leave-room');
-    await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
-    currentRoom = null;
-    document.getElementById('roomsListPage').style.display = 'block';
-    document.getElementById('roomView').style.display = 'none';
-    loadRooms();
-  }
-  async function leaveQueue() { await leaveRoom(); }
+  mongoose.model('User', userSchema);
+  mongoose.model('Room', roomSchema);
+  mongoose.model('Donation', donationSchema);
+  mongoose.model('Ad', adSchema);
+  mongoose.model('AdBroadcast', adBroadcastSchema);
 
-  // ========== CHAT ==========
-  function sendMessage() {
-    const input = document.getElementById('chatInput');
-    const msg = input.value.trim();
-    if (!msg || !userData) return;
-    socket.emit('chat-message', msg);
-    input.value = '';
-  }
+  const Room = mongoose.model('Room');
 
-  socket.on('chat-message', (data) => {
-    addChatMessage(data.username, data.message, data.userId, data.avatarUrl);
+  // Remove old duplicate default rooms
+  await Room.deleteMany({
+    name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] },
+    _id: { $nin: ["room1", "room2", "room3"] }
   });
 
-  function addChatMessage(username, message, userId, avatarUrl) {
-    const chatBox = document.getElementById('chatBox');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = 'chat-msg';
-    if (userId === 'system') msgDiv.classList.add('ad-msg');
-
-    const avatarDiv = document.createElement('div');
-    avatarDiv.className = 'chat-pfp';
-    if (avatarUrl) {
-      avatarDiv.style.backgroundImage = `url(${avatarUrl})`;
-      avatarDiv.style.backgroundSize = 'cover';
-      avatarDiv.style.backgroundPosition = 'center';
-    }
-
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'msg-content';
-    const usernameDiv = document.createElement('div');
-    usernameDiv.className = 'msg-username';
-    usernameDiv.textContent = username;
-    const messageDiv = document.createElement('div');
-    messageDiv.textContent = message;
-    contentDiv.appendChild(usernameDiv);
-    contentDiv.appendChild(messageDiv);
-
-    msgDiv.appendChild(avatarDiv);
-    msgDiv.appendChild(contentDiv);
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
+  const defaultRooms = [
+    { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators." },
+    { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players." },
+    { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers." }
+  ];
+  for (const r of defaultRooms) {
+    await Room.findOneAndUpdate(
+      { _id: r._id },
+      { $setOnInsert: { ...r, type: 'Public', players: [], queue: [], maxPlayers: 18, createdBy: 'system' } },
+      { upsert: true, new: true }
+    );
   }
-  // ========== BOARD ==========
-  async function showBoard() {
-    if (!userData) return;
-    const modal = document.getElementById('boardModal');
-    const grid = document.getElementById('boardGamepassGrid');
-    const board = userData.board || [];
+  console.log('Default rooms cleaned and ensured.');
 
-    if (board.length === 0) {
-      grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
-    } else {
-      grid.innerHTML = board.map(gp => `
-        <div class="board-gamepass-btn">
-          <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
-          <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
-          <span class="board-gamepass-name">🆔 ${gp.id}</span>
-        </div>
-      `).join('');
-    }
-    modal.style.display = 'block';
-    document.getElementById('modalOverlay').style.display = 'block';
-  }
+  server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
+}).catch(err => { console.error('MongoDB error:', err); process.exit(1); });
 
-  function closeBoardModal() {
-    document.getElementById('boardModal').style.display = 'none';
-    document.getElementById('modalOverlay').style.display = 'none';
-  }
+// ----- Middleware -----
+app.set('trust proxy', 1);
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname)));
 
-  async function addGamepassToBoard() {
-    const assetId = document.getElementById('newGamepassId').value.trim();
-    const price = parseInt(document.getElementById('newGamepassPrice').value);
-    if (!assetId || !price) {
-      document.getElementById('boardAddStatus').textContent = 'Asset ID and Robux amount required';
-      return;
-    }
+const ROBLOX_CONFIG = {
+  clientId: process.env.ROBLOX_CLIENT_ID, clientSecret: process.env.ROBLOX_CLIENT_SECRET,
+  redirectUri: process.env.ROBLOX_REDIRECT_URI || 'http://localhost:3000/auth/roblox/callback',
+  authUrl: 'https://apis.roblox.com/oauth/v1/authorize', tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
+  userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo', usersApi: 'https://users.roblox.com/v1/users'
+};
+const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K };
+
+// OAuth state (MongoDB)
+const oauthStateSchema = new mongoose.Schema({ state: { type: String, required: true, unique: true }, createdAt: { type: Date, default: Date.now, expires: 600 } });
+const OAuthState = mongoose.model('OAuthState', oauthStateSchema);
+
+function authenticateToken(req, res, next) {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'No token' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    req.user = user; next();
+  });
+}
+
+// ----- PAGES -----
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
+app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
+app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
+app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
+app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
+app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
+
+// ========== OAUTH ==========
+app.get('/auth/roblox', async (req, res) => {
+  const state = crypto.randomBytes(16).toString('hex');
+  await OAuthState.create({ state });
+  res.redirect(`${ROBLOX_CONFIG.authUrl}?${new URLSearchParams({ client_id: ROBLOX_CONFIG.clientId, redirect_uri: ROBLOX_CONFIG.redirectUri, response_type:'code', scope:'openid', state })}`);
+});
+
+app.get('/auth/roblox/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error === 'access_denied') return res.send('<h1>Authorization Denied</h1><a href="/">Try again</a>');
+  const doc = await OAuthState.findOneAndDelete({ state });
+  if (!doc) return res.status(403).send('<h1>Invalid State</h1><a href="/">Go back</a>');
+  if (!code) return res.redirect('/');
+  try {
+    const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl, new URLSearchParams({ client_id: ROBLOX_CONFIG.clientId, client_secret: ROBLOX_CONFIG.clientSecret, grant_type: 'authorization_code', code }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+    const ui = await axios.get(ROBLOX_CONFIG.userInfoUrl, { headers: { Authorization: `Bearer ${tokenRes.data.access_token}` } });
+    const userId = ui.data.sub;
+    const profile = (await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`)).data;
+    const robloxUsername = profile.name || 'Player';
+    const robloxDisplayName = profile.displayName || robloxUsername;
+    let avatarUrl = '';
     try {
-      const res = await fetch('/api/board/add', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ assetId, price })
-      });
-      const data = await res.json();
-      if (data.error) {
-        document.getElementById('boardAddStatus').textContent = data.error;
-      } else {
-        document.getElementById('boardAddStatus').textContent = '✅ Added to board!';
-        userData.board = data.board;
-        showBoard();
-      }
-    } catch (e) {
-      document.getElementById('boardAddStatus').textContent = 'Error adding gamepass';
-    }
-  }
-
-  async function removeGamepass(assetId) {
-    if (!confirm('Remove this gamepass from your board?')) return;
-    try {
-      const res = await fetch('/api/board/remove', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ assetId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        userData.board = data.board;
-        showBoard();
-      }
+      const thumb = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`);
+      if (thumb.data?.data?.length) avatarUrl = thumb.data.data[0].imageUrl;
     } catch (e) {}
+    if (!avatarUrl) avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
+
+    await mongoose.model('User').findOneAndUpdate({ _id: userId }, { $set: { robloxUsername, robloxDisplayName, avatarUrl } }, { upsert: true, setDefaultsOnInsert: true });
+    const user = await mongoose.model('User').findById(userId);
+    const displayName = user.customDisplayName || robloxDisplayName;
+    const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl }, JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('passly_token', jwtToken, { maxAge: 7*24*60*60*1000, httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
+    res.redirect(`/dashboard#token=${jwtToken}`);
+  } catch (e) { console.error(e); res.send('<h1>Login Failed</h1><a href="/">Go back</a>'); }
+});
+
+// ========== USER API ==========
+app.get('/api/user', authenticateToken, async (req, res) => {
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const avatarUrl = user.avatarUrl || '';
+  const avatarFallback = avatarUrl ? '' : `https://www.roblox.com/bust-thumbnail/image?userId=${user._id}&width=150&height=150&format=png`;
+  const activeAd = await mongoose.model('Ad').findOne({ userId: user._id, active: true });
+  res.json({
+    id: user._id, robloxUsername: user.robloxUsername || '', robloxDisplayName: user.robloxDisplayName || '',
+    displayName: user.customDisplayName || user.robloxDisplayName || '',
+    avatarUrl, avatarFallback, profile: user.profile, roomId: user.roomId, inQueue: user.inQueue,
+    donations: user.donations, ad: activeAd || null, customDisplayName: user.customDisplayName || null,
+    board: user.board || []
+  });
+});
+
+app.post('/api/profile/update', authenticateToken, async (req, res) => {
+  const { showBooth, statusDot, showRoomId, customDisplayName } = req.body;
+  const update = {};
+  if (showBooth !== undefined) update['profile.showBooth'] = showBooth;
+  if (statusDot) update['profile.statusDot'] = statusDot;
+  if (showRoomId !== undefined) update['profile.showRoomId'] = showRoomId;
+  if (customDisplayName !== undefined) update.customDisplayName = customDisplayName.trim().substring(0,20) || null;
+  await mongoose.model('User').findByIdAndUpdate(req.user.id, { $set: update });
+  res.json({ success: true });
+});
+
+// ========== SEARCH ==========
+app.get('/api/search', async (req, res) => {
+  const q = (req.query.username || '').toLowerCase().trim();
+  if (!q) return res.status(400).json({ error: 'Username required' });
+  const found = await mongoose.model('User').findOne({ robloxUsername: new RegExp(`^${q}$`, 'i') });
+  if (!found) return res.json({ error: 'User not found' });
+  res.json({
+    id: found._id, robloxUsername: found.robloxUsername,
+    displayName: found.customDisplayName || found.robloxDisplayName,
+    avatarUrl: found.avatarUrl, board: found.profile?.showBooth !== false ? (found.board || []) : []
+  });
+});
+
+// ========== PUBLIC BOARD ==========
+app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
+  const user = await mongoose.model('User').findById(req.params.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({
+    id: user._id, displayName: user.customDisplayName || user.robloxDisplayName,
+    avatarUrl: user.avatarUrl, board: user.profile?.showBooth !== false ? (user.board || []) : []
+  });
+});
+
+// ========== BOARD (add/remove) ==========
+app.post('/api/board/add', authenticateToken, async (req, res) => {
+  const { assetId, price } = req.body;
+  if (!assetId || !price) return res.status(400).json({ error: 'Asset ID and Robux amount required' });
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.board.some(g => g.id === assetId)) return res.status(400).json({ error: 'Already on board' });
+  try {
+    const check = await axios.get(`https://inventory.roblox.com/v1/users/${user._id}/items/GamePass/${assetId}`, { timeout: 5000 });
+    if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
+  } catch (e) { return res.status(400).json({ error: 'Ownership verification failed' }); }
+  user.board.push({ id: assetId, name: 'Gamepass', price: parseInt(price) });
+  await user.save();
+  res.json({ success: true, board: user.board });
+});
+
+app.post('/api/board/remove', authenticateToken, async (req, res) => {
+  await mongoose.model('User').findByIdAndUpdate(req.user.id, { $pull: { board: { id: req.body.assetId } } });
+  const user = await mongoose.model('User').findById(req.user.id);
+  res.json({ success: true, board: user.board });
+});
+// ========== ROOMS API ==========
+app.get('/api/rooms', async (req, res) => {
+  const rooms = await mongoose.model('Room').find();
+  res.json(rooms);
+});
+
+app.post('/api/rooms/create', authenticateToken, async (req, res) => {
+  const { name, desc, type } = req.body;
+  if (!name) return res.status(400).json({ error: 'Room name required' });
+  const Room = mongoose.model('Room');
+  const roomId = crypto.randomBytes(8).toString('hex');
+  const room = new Room({
+    _id: roomId, name, desc: desc || '', type: type || 'Public',
+    players: [req.user.id], queue: [], createdBy: req.user.id
+  });
+  await room.save();
+  await mongoose.model('User').findByIdAndUpdate(req.user.id, { roomId: room._id, inQueue: false });
+  res.json(room);
+});
+
+app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
+  const roomId = req.params.id;
+  const Room = mongoose.model('Room');
+  const User = mongoose.model('User');
+  const room = await Room.findById(roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+
+  // If already in room
+  if (room.players.includes(req.user.id)) {
+    return res.json({ success: true, room, alreadyIn: true });
   }
 
-  async function sendBoardToChat() {
-    if (!currentRoom || !userData.board || userData.board.length === 0) {
-      alert('No gamepasses on your board.');
-      return;
+  // If room is full, add to queue
+  if (room.players.length >= room.maxPlayers) {
+    if (!room.queue.includes(req.user.id)) {
+      room.queue.push(req.user.id);
+      await room.save();
     }
-    const boardData = userData.board.map(gp => ({
-      id: gp.id,
-      price: gp.price
-    }));
-    socket.emit('chat-board', boardData);
+    const position = room.queue.indexOf(req.user.id) + 1;
+    return res.json({ queued: true, position });
   }
 
-  // ========== DONATIONS ==========
-  async function openDonate(receiverId) {
-    if (!token) {
-      alert('Login to donate');
-      window.location.href = '/auth/roblox';
-      return;
+  // Join room
+  room.players.push(req.user.id);
+  await room.save();
+  await User.findByIdAndUpdate(req.user.id, { roomId: room._id, inQueue: false });
+
+  // Notify others in room via socket
+  io.to(roomId).emit('player-joined', { userId: req.user.id, username: req.user.displayName });
+  res.json({ success: true, room });
+});
+
+app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (!user || !user.roomId) return res.json({ success: true });
+  const Room = mongoose.model('Room');
+  const room = await Room.findById(user.roomId);
+  if (room) {
+    room.players = room.players.filter(id => id !== req.user.id);
+    // Move first queued player in
+    if (room.queue.length > 0 && room.players.length < room.maxPlayers) {
+      const nextId = room.queue.shift();
+      room.players.push(nextId);
+      await User.findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false });
+      io.to(room._id).emit('player-joined', { userId: nextId });
+      io.to(room._id).emit('queue-updated', { queue: room.queue });
     }
-    selectedReceiverId = receiverId;
+    await room.save();
+    io.to(room._id).emit('player-left', { userId: req.user.id });
+  }
+  await User.findByIdAndUpdate(req.user.id, { roomId: null, inQueue: false });
+  res.json({ success: true });
+});
+
+// ----- Socket.io -----
+io.on('connection', (socket) => {
+  let currentRoomId = null;
+  let userId = null;
+
+  socket.on('authenticate', (token) => {
+    if (!token) return;
     try {
-      const res = await fetch(`/api/user/${receiverId}/board`, { headers: authHeaders() });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      document.getElementById('playerBoardTitle').textContent = `🎁 ${data.displayName}'s Board`;
-      document.getElementById('playerBoardName').textContent = data.displayName;
-      if (data.avatarUrl) {
-        document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
-        document.getElementById('playerBoardAvatar').style.backgroundSize = 'cover';
-      }
-      const grid = document.getElementById('playerBoardGrid');
-      if (!data.board || data.board.length === 0) {
-        grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses on this player\'s board.</p>';
-      } else {
-        grid.innerHTML = data.board.map(gp => `
-          <div class="board-gamepass-btn" onclick="confirmDonate('${receiverId}', '${gp.id}', ${gp.price})">
-            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
-            <span class="board-gamepass-name">🆔 ${gp.id}</span>
-          </div>
-        `).join('');
-      }
-      document.getElementById('playerBoardModal').style.display = 'block';
-      document.getElementById('modalOverlay').style.display = 'block';
-    } catch (e) {
-      alert('Could not load player\'s board: ' + e.message);
-    }
-  }
-
-  function closePlayerBoardModal() {
-    document.getElementById('playerBoardModal').style.display = 'none';
-    document.getElementById('modalOverlay').style.display = 'none';
-  }
-
-  async function confirmDonate(receiverId, gamepassId, amount) {
-    if (!confirm(`Donate ${amount} Robux to this player? You will be redirected to Roblox to complete the purchase.`)) return;
-    try {
-      const res = await fetch('/api/donate/initiate', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ receiverId, gamepassId, amount })
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.open(data.url, '_blank');
-        closePlayerBoardModal();
-      } else {
-        alert(data.error || 'Failed to initiate donation');
-      }
-    } catch (e) {
-      alert('Error starting donation');
-    }
-  }
-
-  // ========== ADVERTISEMENT ==========
-  function openAdModal() {
-    if (!token) {
-      alert('Login to advertise');
-      window.location.href = '/auth/roblox';
-      return;
-    }
-    document.getElementById('adModal').style.display = 'block';
-    document.getElementById('modalOverlay').style.display = 'block';
-  }
-
-  function closeAdModal() {
-    document.getElementById('adModal').style.display = 'none';
-    document.getElementById('modalOverlay').style.display = 'none';
-  }
-
-  let selectedAdTier = null;
-  let selectedAdGamepassId = null;
-
-  function openAdVerification(tier) {
-    selectedAdTier = tier;
-    selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
-    document.getElementById('adVerifyTierText').textContent = `Tier: ${tier === '5k' ? '5,000' : '10,000'} Robux`;
-    closeAdModal();
-    document.getElementById('adVerifyModal').style.display = 'block';
-    document.getElementById('modalOverlay').style.display = 'block';
-  }
-
-  function closeAdVerifyModal() {
-    document.getElementById('adVerifyModal').style.display = 'none';
-    document.getElementById('modalOverlay').style.display = 'none';
-  }
-
-  function openAdGamepass() {
-    window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank');
-  }
-
-  async function verifyAdPurchase() {
-    const message = document.getElementById('adMessage').value.trim();
-    const statusDiv = document.getElementById('adVerifyStatus');
-    statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
-    try {
-      const res = await fetch('/api/purchase-ad', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ tier: selectedAdTier, message })
-      });
-      const data = await res.json();
-      if (data.success) {
-        statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased successfully!</span>';
-        setTimeout(() => {
-          closeAdVerifyModal();
-          if (userData) userData.ad = data.ad;
-        }, 3000);
-      } else {
-        statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-      }
-    } catch (e) {
-      statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>';
-    }
-  }
-
-  async function checkAdBroadcasts() {
-    if (!currentRoom || !currentRoom.id) return;
-    try {
-      const res = await fetch(`/api/ads/broadcast?roomId=${currentRoom.id}&since=${lastAdCheck}`);
-      const ads = await res.json();
-      ads.forEach(ad => {
-        let boardHtml = '';
-        if (ad.board && ad.board.length) {
-          boardHtml = `<div class="ad-mini-board">${ad.board.map(gp => `<div class="ad-mini-board-item" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">💰 ${gp.price} R$</div>`).join('')}</div>`;
-        }
-        addChatMessage(`📢 AD: ${ad.advertiserName}`, `${ad.message || 'Check out my board!'}${boardHtml}`, 'system');
-      });
-      lastAdCheck = Date.now();
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.id;
+      socket.userId = userId;
     } catch (e) {}
-  }
+  });
 
-  init();
-</script>
-</body>
-</html>
+  socket.on('join-room', async (roomId) => {
+    if (currentRoomId) socket.leave(currentRoomId);
+    currentRoomId = roomId;
+    socket.join(roomId);
+  });
+
+  socket.on('chat-message', async (msg) => {
+    if (!userId || !currentRoomId) return;
+    const User = mongoose.model('User');
+    const user = await User.findById(userId);
+    if (!user) return;
+    const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
+    const avatarUrl = user.avatarUrl || '';
+    io.to(currentRoomId).emit('chat-message', {
+      userId, username, message: msg, avatarUrl,
+      timestamp: Date.now()
+    });
+  });
+
+  socket.on('chat-board', async (boardData) => {
+    if (!userId || !currentRoomId) return;
+    const User = mongoose.model('User');
+    const user = await User.findById(userId);
+    if (!user) return;
+    const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
+    // Broadcast board as a special message
+    io.to(currentRoomId).emit('chat-board', {
+      userId, username, board: boardData, avatarUrl: user.avatarUrl
+    });
+  });
+
+  socket.on('voice-data', (audioBuffer) => {
+    if (!userId || !currentRoomId) return;
+    socket.to(currentRoomId).emit('voice-data', { userId, audio: audioBuffer });
+  });
+
+  socket.on('leave-room', () => {
+    if (currentRoomId) socket.leave(currentRoomId);
+    currentRoomId = null;
+  });
+});
+
+// ========== LEADERBOARD ==========
+app.get('/api/leaderboard', async (req, res) => {
+  const period = req.query.period || 'daily';
+  let startDate = new Date();
+  if (period === 'daily') startDate.setHours(0,0,0,0);
+  else if (period === 'weekly') startDate.setDate(startDate.getDate() - 7);
+  else if (period === 'total') startDate = new Date(0);
+
+  const Donation = mongoose.model('Donation');
+  const match = period === 'total' ? {} : { timestamp: { $gte: startDate } };
+
+  const receivers = await Donation.aggregate([
+    { $match: match },
+    { $group: { _id: '$receiverId', total: { $sum: '$amount' } } },
+    { $sort: { total: -1 } },
+    { $limit: 10 }
+  ]);
+
+  const donors = await Donation.aggregate([
+    { $match: match },
+    { $group: { _id: '$donorId', total: { $sum: '$amount' } } },
+    { $sort: { total: -1 } },
+    { $limit: 10 }
+  ]);
+
+  const User = mongoose.model('User');
+  const enrich = async (arr, type) => {
+    const result = [];
+    for (const item of arr) {
+      const user = await User.findById(item._id);
+      if (user) {
+        result.push({
+          username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
+          amount: item.total
+        });
+      } else {
+        result.push({ username: 'Unknown', amount: item.total });
+      }
+    }
+    return result;
+  };
+
+  res.json({
+    receivers: await enrich(receivers, 'receiver'),
+    donors: await enrich(donors, 'donor')
+  });
+});
+
+// ========== ADS ==========
+app.get('/api/ads', async (req, res) => {
+  const ads = await mongoose.model('Ad').find({ active: true, showsLeft: { $gt: 0 } }).limit(5);
+  res.json(ads.map(ad => ({
+    userId: ad.userId, username: ad.username, tier: ad.tier,
+    message: ad.message, showsLeft: ad.showsLeft
+  })));
+});
+
+app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
+  const { tier, message } = req.body;
+  if (!tier || (tier !== '5k' && tier !== '10k')) return res.status(400).json({ error: 'Invalid tier' });
+  const gamepassId = GAMEPASSES[tier];
+  if (!gamepassId) return res.status(400).json({ error: 'Gamepass not configured' });
+
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  // Check if user already has an active ad
+  const existing = await mongoose.model('Ad').findOne({ userId: req.user.id, active: true });
+  if (existing) return res.status(400).json({ error: 'You already have an active ad. Delete it first.' });
+
+  // For demo, we simulate purchase verification. In production, call Roblox API to verify ownership.
+  // Here we assume success.
+  const tierNum = tier === '5k' ? 5000 : 10000;
+  const shows = tier === '5k' ? 1 : 3;
+  const ad = new (mongoose.model('Ad'))({
+    _id: crypto.randomBytes(8).toString('hex'),
+    userId: req.user.id,
+    username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
+    tier: tierNum,
+    gamepassId,
+    broadcastsLeft: 1,
+    showsLeft: shows,
+    active: true,
+    message: message || null
+  });
+  await ad.save();
+  res.json({ success: true, ad });
+});
+
+app.post('/api/delete-ad', authenticateToken, async (req, res) => {
+  await mongoose.model('Ad').findOneAndDelete({ userId: req.user.id, active: true });
+  res.json({ success: true });
+});
+
+app.get('/api/ads/broadcast', async (req, res) => {
+  const { roomId, since } = req.query;
+  const sinceDate = since ? new Date(parseInt(since)) : new Date(Date.now() - 60000);
+  const broadcasts = await mongoose.model('AdBroadcast').find({
+    roomId, timestamp: { $gt: sinceDate }
+  }).sort({ timestamp: -1 }).limit(10);
+  res.json(broadcasts);
+});
+// ========== GUEST LOGIN ==========
+app.post('/api/guest-login', async (req, res) => {
+  const guestId = crypto.randomBytes(8).toString('hex');
+  const username = `Guest_${guestId.slice(0,6)}`;
+  const User = mongoose.model('User');
+  const user = new User({
+    _id: guestId,
+    robloxUsername: username,
+    robloxDisplayName: username,
+    customDisplayName: username,
+    avatarUrl: '',
+    donations: { received: 0, given: 0 },
+    board: []
+  });
+  await user.save();
+  res.json({ id: guestId, username, displayName: username, isGuest: true });
+});
+
+// ========== DONATION INITIATE ==========
+app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
+  const { receiverId, gamepassId, amount } = req.body;
+  if (!receiverId || !gamepassId || !amount) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+  // In production, create a Roblox purchase link (unresolved marketplace API).
+  // For demo, just return a dummy URL.
+  const url = `https://www.roblox.com/game-pass/${gamepassId}`;
+  // Record pending donation? You'd need a webhook to confirm.
+  res.json({ url });
+});
+
+// ========== PASKEY (WebAuthn) ==========
+app.post('/api/webauthn/register/begin', authenticateToken, async (req, res) => {
+  const user = await mongoose.model('User').findById(req.user.id);
+  const options = await generateRegistrationOptions({
+    rpName: RP_NAME,
+    rpID: RP_ID,
+    userID: new Uint8Array(Buffer.from(user._id)),
+    userName: user.robloxUsername,
+    attestationType: 'none',
+    authenticatorSelection: { userVerification: 'preferred' }
+  });
+  user.currentRegistration = options;
+  await user.save();
+  res.json(options);
+});
+
+app.post('/api/webauthn/register/complete', authenticateToken, async (req, res) => {
+  const user = await mongoose.model('User').findById(req.user.id);
+  const verification = await verifyRegistrationResponse({
+    response: req.body,
+    expectedChallenge: user.currentRegistration.challenge,
+    expectedOrigin: ORIGIN,
+    expectedRPID: RP_ID
+  });
+  if (verification.verified && verification.registrationInfo) {
+    user.credentials.push({
+      id: verification.registrationInfo.credentialID,
+      publicKey: Buffer.from(verification.registrationInfo.credentialPublicKey),
+      counter: verification.registrationInfo.counter,
+      transports: req.body.transports
+    });
+    user.currentRegistration = undefined;
+    await user.save();
+    res.json({ verified: true });
+  } else {
+    res.status(400).json({ error: 'Verification failed' });
+  }
+});
+
+// ========== FALLBACK ==========
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Start server is already inside mongoose.connect callback
