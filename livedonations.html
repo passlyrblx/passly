@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passly - Live Donations</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
+  <meta name="theme-color" content="#8b5cf6">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
+    .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
+    .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .nav-links { display:flex; gap:25px; }
+    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
+    .nav-links a:hover { color:#a78bfa; }
+    .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,0.1); padding:8px 16px; border-radius:12px; }
+    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; background-position:center; }
+    .user-name { font-weight:600; color:#c4b5fd; }
+    .main-content { padding:30px; max-width:900px; margin:0 auto; }
+    h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
+    .donation-card {
+      background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; margin-bottom:15px;
+      border:1px solid rgba(139,92,246,0.2); display:flex; align-items:center; gap:15px;
+    }
+    .amount-badge {
+      background:#ffd700; color:#000; font-weight:bold; padding:8px 16px; border-radius:12px;
+      font-size:1.2rem; white-space:nowrap;
+    }
+    .donation-info { flex:1; }
+    .donation-info strong { color:#c4b5fd; }
+    .time-left { font-size:0.85rem; color:#a0a0b0; }
+    .empty-state { text-align:center; padding:40px; color:#a0a0b0; }
+    @media (max-width:768px) {
+      .navbar { flex-direction:column; gap:15px; padding:15px; }
+      .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
+      h1 { font-size:1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-logo">Passly</div>
+    <div class="nav-links">
+      <a href="/dashboard">🏠 Home</a>
+      <a href="/rooms">🚪 Rooms</a>
+      <a href="/leaderboard">🏆 Leaderboard</a>
+      <a href="/profile">👤 Profile</a>
+      <a href="/advertisement">📢 Advertise</a>
+      <a href="/livedonations">💸 Live Donations</a>
+    </div>
+    <div class="user-box">
+      <div class="user-avatar" id="userAvatar"></div>
+      <span class="user-name" id="userName">Loading...</span>
+    </div>
+  </nav>
+
+  <div class="main-content">
+    <h1>💸 Live Donations</h1>
+    <div id="donationsContainer">
+      <p class="empty-state">Loading...</p>
+    </div>
+  </div>
+
+  <script>
+    let token = localStorage.getItem('passly_token');
+
+    // Basic user display
+    (function() {
+      const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
+      if (guest && guest.username) document.getElementById('userName').textContent = guest.username;
+      if (token) {
+        fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} })
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById('userName').textContent = data.displayName || data.username;
+            if (data.avatarUrl) {
+              document.getElementById('userAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
+            }
+          })
+          .catch(() => {});
+      }
+    })();
+
+    function timeLeft(timestamp) {
+      const seconds = Math.floor((Date.now() - timestamp) / 1000);
+      if (seconds < 60) return `${seconds}s ago`;
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      return `${hours}h ago`;
+    }
+
+    async function loadLiveDonations() {
+      try {
+        const res = await fetch('/api/live-donations');
+        const donations = await res.json();
+        const container = document.getElementById('donationsContainer');
+
+        if (!donations.length) {
+          container.innerHTML = '<p class="empty-state">No live donations right now.</p>';
+          return;
+        }
+
+        container.innerHTML = donations.map(d => {
+          const displayTime = d.amount >= 100000 ? '30 min' : d.amount >= 10000 ? '5 min' : '1 min';
+          return `
+            <div class="donation-card">
+              <div class="amount-badge">R$ ${d.amount.toLocaleString()}</div>
+              <div class="donation-info">
+                <strong>${d.donorName}</strong> donated to <strong>${d.receiverName}</strong>
+                ${d.roomId ? `<br><span style="color:#a0a0b0;">Room: ${d.roomId}</span>` : ''}
+              </div>
+              <div class="time-left">${timeLeft(d.timestamp)} · ${displayTime}</div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    loadLiveDonations();
+    setInterval(loadLiveDonations, 10000);  // refresh every 10 seconds
+  </script>
+</body>
+</html>
