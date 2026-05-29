@@ -9,8 +9,8 @@
   <meta name="theme-color" content="#8b5cf6">
   <script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@8.0.0/dist/bundle/index.umd.min.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0a14; color: white; min-height: 100vh; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display:flex; gap:25px; }
@@ -21,8 +21,8 @@
     .user-name { font-weight:600; color:#c4b5fd; }
     .main-content { padding:30px; max-width:600px; margin:0 auto; }
     h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
-    .debug-status { background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; text-align: center; margin-bottom: 15px; font-size: 0.9rem; color: #ffd700; }
-    .section-card { background: rgba(20,20,40,0.6); border-radius: 20px; padding: 25px; border: 1px solid rgba(139,92,246,0.2); margin-bottom: 20px; }
+    .debug-status { background:rgba(255,255,255,0.1); padding:8px 12px; border-radius:8px; text-align:center; margin-bottom:15px; font-size:0.9rem; color:#ffd700; }
+    .section-card { background:rgba(20,20,40,0.6); border-radius:20px; padding:25px; border:1px solid rgba(139,92,246,0.2); margin-bottom:20px; }
     .profile-header { display:flex; align-items:center; gap:20px; margin-bottom:20px; }
     .profile-avatar { width:80px; height:80px; border-radius:50%; background:#8b5cf6; background-size:cover; background-position:center; border:3px solid rgba(139,92,246,0.5); }
     .profile-info h2 { font-size:1.5rem; margin-bottom:5px; }
@@ -66,19 +66,11 @@
     .add-board-section { display:flex; gap:10px; margin-top:10px; align-items:center; flex-wrap:wrap; }
     .add-board-section input { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; min-width:120px; }
     .add-board-btn { padding:12px 20px; background:#8b5cf6; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600; }
-    /* Ad verification modal styles */
-    .gp-link-btn {
-      background: transparent;
-      border: 1px solid #ffd700;
-      color: #ffd700;
-      padding: 12px 20px;
-      border-radius: 10px;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 15px;
-      width: 100%;
-    }
-    .gp-link-btn:hover { background: rgba(255,215,0,0.1); }
+    .gp-link-btn { background:transparent; border:1px solid #ffd700; color:#ffd700; padding:12px 20px; border-radius:10px; font-weight:bold; cursor:pointer; margin-top:15px; width:100%; }
+    .gp-link-btn:hover { background:rgba(255,215,0,0.1); }
+    .modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.98); border-radius:20px; padding:30px; z-index:600; width:90%; max-width:600px; border:1px solid rgba(139,92,246,0.3); display:none; }
+    .modal h2 { margin-bottom:20px; color:#a78bfa; }
+    .modal-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:10px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -95,6 +87,7 @@
       <a href="/rooms">🚪 Rooms</a>
       <a href="/leaderboard">🏆 Leaderboard</a>
       <a href="/profile">👤 Profile</a>
+      <a href="/advertisement">📢 Advertise</a>
     </div>
     <div class="user-box">
       <div class="user-avatar" id="userAvatar"></div>
@@ -106,7 +99,6 @@
     <div class="debug-status" id="debugStatus">🔄 Initialising…</div>
     <h1>👤 Profile Settings</h1>
 
-    <!-- SEARCH OTHER PLAYERS -->
     <div class="search-section">
       <h3 style="color:#a78bfa; margin-bottom:10px;">🔍 Find a Player</h3>
       <input type="text" id="searchUsername" class="search-input" placeholder="Enter Roblox username">
@@ -114,7 +106,6 @@
       <div id="searchResult" class="search-result"></div>
     </div>
 
-    <!-- PROFILE CARD -->
     <div class="section-card">
       <div class="profile-header">
         <div class="profile-avatar" id="profileAvatar"></div>
@@ -122,80 +113,34 @@
           <h2 id="profileName">Loading...</h2>
           <p id="robloxUsernameDisplay">Roblox: @username</p>
           <div id="guestBadge" class="guest-badge" style="display:none;">Guest</div>
-          <p id="profileStatus">
-            <span class="status-dot dot-online" id="statusDot"></span>
-            <span id="statusText">Online</span>
-          </p>
+          <p id="profileStatus"><span class="status-dot dot-online" id="statusDot"></span><span id="statusText">Online</span></p>
         </div>
       </div>
-
-      <div id="loginPrompt" class="login-prompt" style="display:none;">
-        <p>🔐 <strong>Log in with Roblox</strong> to edit your profile, board, and purchase ads.</p>
-        <button class="save-btn" onclick="window.location.href='/auth/roblox'" style="margin-top:10px;">Login with Roblox</button>
-      </div>
-
-      <div class="settings-group">
-        <label class="settings-label">Custom Display Name</label>
-        <input type="text" class="custom-name-input" id="customDisplayName" placeholder="Leave blank to use Roblox name" maxlength="20">
-      </div>
-      <div class="settings-group">
-        <label class="settings-label">Show Booth (Gamepass Board)</label>
-        <select class="settings-select" id="showBooth">
-          <option value="true">✅ Yes - Show my board to others</option>
-          <option value="false">❌ No - Hide my board</option>
-        </select>
-      </div>
-      <div class="settings-group">
-        <label class="settings-label">Online Status Display</label>
-        <select class="settings-select" id="statusDotSelect" onchange="updateStatusPreview()">
-          <option value="online">🟢 Green Dot - Show when online</option>
-          <option value="offline">⚫ Black Dot - Show when offline</option>
-          <option value="always-black">⚫ Always Black - Never show online status</option>
-        </select>
-      </div>
-      <div class="settings-group">
-        <label class="settings-label">Show Room ID on Profile</label>
-        <select class="settings-select" id="showRoomId">
-          <option value="true">✅ Yes - Others can see my room</option>
-          <option value="false">❌ No - Hide my current room</option>
-        </select>
-      </div>
+      <div id="loginPrompt" class="login-prompt" style="display:none;"><p>🔐 <strong>Log in with Roblox</strong> to edit your profile, board, and purchase ads.</p><button class="save-btn" onclick="window.location.href='/auth/roblox'" style="margin-top:10px;">Login with Roblox</button></div>
+      <div class="settings-group"><label class="settings-label">Custom Display Name</label><input type="text" class="custom-name-input" id="customDisplayName" placeholder="Leave blank to use Roblox name" maxlength="20"></div>
+      <div class="settings-group"><label class="settings-label">Show Booth (Gamepass Board)</label><select class="settings-select" id="showBooth"><option value="true">✅ Yes - Show my board to others</option><option value="false">❌ No - Hide my board</option></select></div>
+      <div class="settings-group"><label class="settings-label">Online Status Display</label><select class="settings-select" id="statusDotSelect" onchange="updateStatusPreview()"><option value="online">🟢 Green Dot - Show when online</option><option value="offline">⚫ Black Dot - Show when offline</option><option value="always-black">⚫ Always Black - Never show online status</option></select></div>
+      <div class="settings-group"><label class="settings-label">Show Room ID on Profile</label><select class="settings-select" id="showRoomId"><option value="true">✅ Yes - Others can see my room</option><option value="false">❌ No - Hide my current room</option></select></div>
       <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
       <div class="save-message" id="saveMessage">✅ Profile saved successfully!</div>
-
-      <!-- Passkey Setup Button -->
       <button class="save-btn" style="background: #4ade80;" onclick="requireLogin(() => setupPasskey())" id="passkeySetupBtn">🔑 Set Up Passkey</button>
       <div id="passkeyStatus" class="save-message" style="color:#fbbf24;"></div>
     </div>
 
-    <!-- BOARD MANAGEMENT -->
     <div class="section-card">
       <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
-      <div class="add-board-section">
-        <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
-        <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
-        <button class="add-board-btn" onclick="requireLogin(() => addGamepassToBoard())">Add</button>
-      </div>
+      <div class="add-board-section"><input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;"><input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1"><button class="add-board-btn" onclick="requireLogin(() => addGamepassToBoard())">Add</button></div>
       <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
-      <div class="board-gamepass-grid" id="boardGamepassGrid">
-        <p style="color:#a0a0b0;">No gamepasses added yet.</p>
-      </div>
+      <div class="board-gamepass-grid" id="boardGamepassGrid"><p style="color:#a0a0b0;">No gamepasses added yet.</p></div>
     </div>
 
-    <!-- AD SECTION -->
     <div class="section-card">
       <h3 style="color:#a78bfa; margin-bottom:15px;">📢 Advertise Your Board</h3>
       <p style="color:#a0a0b0; margin-bottom:20px;">Purchase an advertisement to show your donation board to all Passly users. Choose a tier, go to the Roblox page to buy the gamepass, then come back and verify.</p>
       <textarea id="adMessage" placeholder="Your message (optional)" style="width:100%; height:60px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; padding:10px; margin-bottom:15px;"></textarea>
       <div class="ad-buttons">
-        <button class="ad-btn" onclick="requireLogin(() => openAdVerification('5k'))">
-          <span class="tier">5,000 Robux</span>
-          <span class="shows">1 Broadcast + 1 Cloud</span>
-        </button>
-        <button class="ad-btn" onclick="requireLogin(() => openAdVerification('10k'))">
-          <span class="tier">10,000 Robux</span>
-          <span class="shows">1 Broadcast + 3 Clouds</span>
-        </button>
+        <button class="ad-btn" onclick="requireLogin(() => openAdVerification('5k'))"><span class="tier">5,000 Robux</span><span class="shows">1 Broadcast + 1 Cloud</span></button>
+        <button class="ad-btn" onclick="requireLogin(() => openAdVerification('10k'))"><span class="tier">10,000 Robux</span><span class="shows">1 Broadcast + 3 Clouds</span></button>
       </div>
       <div class="ad-status" id="adStatusBox"></div>
       <button class="delete-ad-btn" id="deleteAdBtn" onclick="requireLogin(() => deleteAd())">🗑️ Delete Current Ad</button>
@@ -203,7 +148,7 @@
   </div>
 
   <!-- Ad Verification Modal -->
-  <div class="modal" id="adVerifyModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.98); border-radius:20px; padding:30px; z-index:600; width:90%; max-width:600px; border:1px solid rgba(139,92,246,0.3);">
+  <div class="modal" id="adVerifyModal">
     <h2>📢 Advertise Your Board</h2>
     <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
     <button class="gp-link-btn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
@@ -240,9 +185,7 @@
       if (!token) {
         document.getElementById('loginPrompt').style.display = 'block';
         debugMsg('⚠️ Not logged in – cannot perform this action');
-        if (confirm('You need to log in with Roblox to do this. Go to login?')) {
-          window.location.href = '/auth/roblox';
-        }
+        if (confirm('You need to log in with Roblox to do this. Go to login?')) window.location.href = '/auth/roblox';
         return;
       }
       callback();
@@ -257,17 +200,13 @@
             userData = await res.json();
             userData.isGuest = false;
             document.getElementById('loginPrompt').style.display = 'none';
-          } else {
-            localStorage.removeItem('passly_token');
-            token = null;
-          }
+          } else { localStorage.removeItem('passly_token'); token = null; }
         } catch (e) {}
       }
       if (!userData) {
         const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
-        if (guest && guest.username) {
-          userData = { ...guest, isGuest: true };
-        } else {
+        if (guest && guest.username) userData = { ...guest, isGuest: true };
+        else {
           const res = await fetch('/api/guest-login', { method: 'POST' });
           const data = await res.json();
           userData = { ...data, isGuest: true };
@@ -288,11 +227,8 @@
         const tryUrl = url || fallback;
         el.style.backgroundImage = `url(${tryUrl})`;
         el.onerror = function() {
-          if (url && fallback && tryUrl === url) {
-            el.style.backgroundImage = `url(${fallback})`;
-          } else {
-            el.style.backgroundImage = '';
-          }
+          if (url && fallback && tryUrl === url) el.style.backgroundImage = `url(${fallback})`;
+          else el.style.backgroundImage = '';
         };
       }
       setAvatar(navAvatar, userData.avatarUrl, userData.avatarFallback);
@@ -331,11 +267,7 @@
       const statusDot = document.getElementById('statusDotSelect').value;
       const showRoomId = document.getElementById('showRoomId').value === 'true';
       const customDisplayName = document.getElementById('customDisplayName').value.trim();
-      await fetch('/api/profile/update', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName })
-      });
+      await fetch('/api/profile/update', { method:'POST', headers:authHeaders(), body:JSON.stringify({showBooth,statusDot,showRoomId,customDisplayName}) });
       userData.profile = { showBooth, statusDot, showRoomId };
       userData.customDisplayName = customDisplayName;
       userData.displayName = customDisplayName || userData.robloxDisplayName;
@@ -348,7 +280,7 @@
 
     async function deleteAd() {
       if (!confirm('Delete your current ad?')) return;
-      await fetch('/api/delete-ad', { method: 'POST', headers: authHeaders() });
+      await fetch('/api/delete-ad', { method:'POST', headers:authHeaders() });
       userData.ad = null;
       updateAdUI();
     }
@@ -360,10 +292,7 @@
         statusBox.style.display = 'block';
         statusBox.innerHTML = `<strong>📢 Active Ad</strong><br>Tier: ${userData.ad.tier.toLocaleString()} Robux<br>Clouds Left: ${userData.ad.showsLeft}<br>${userData.ad.message ? `Message: "${userData.ad.message}"` : ''}`;
         deleteBtn.style.display = 'block';
-      } else {
-        statusBox.style.display = 'none';
-        deleteBtn.style.display = 'none';
-      }
+      } else { statusBox.style.display = 'none'; deleteBtn.style.display = 'none'; }
     }
 
     async function searchPlayer() {
@@ -377,7 +306,7 @@
         if (data.error) { resultDiv.innerHTML = `<p style="color:#f87171;">${data.error}</p>`; return; }
         const boardHtml = data.board.length === 0
           ? '<p style="color:#a0a0b0;">Board hidden or empty.</p>'
-          : data.board.map(gp => `<button class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span class="board-gamepass-amount">R$ ${gp.price}</span><span class="board-gamepass-name">${gp.name}</span></button>`).join('');
+          : data.board.map(gp => `<button class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}','_blank')"><span class="board-gamepass-amount">R$ ${gp.price}</span><span class="board-gamepass-name">${gp.name}</span></button>`).join('');
         resultDiv.innerHTML = `
           <div style="display:flex; align-items:center; gap:15px; margin-bottom:10px;">
             <div style="width:50px; height:50px; border-radius:50%; background:url(${data.avatarUrl}) center/cover;"></div>
@@ -394,8 +323,8 @@
       grid.innerHTML = board.map(gp => `
         <div class="board-gamepass-btn" style="position:relative;">
           <button class="remove-gp-btn" onclick="removeGamepassFromBoard('${gp.id}')">✕</button>
-          <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price}</span>
-          <span class="board-gamepass-name" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">${gp.name || 'Gamepass'}</span>
+          <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}','_blank')">R$ ${gp.price}</span>
+          <span class="board-gamepass-name" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}','_blank')">${gp.name || 'Gamepass'}</span>
         </div>`).join('');
     }
 
@@ -410,7 +339,7 @@
       const status = document.getElementById('boardAddStatus');
       status.innerHTML = '<span style="color:#fbbf24;">Adding...</span>';
       try {
-        const res = await fetch('/api/board/add', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId, price }) });
+        const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) });
         const data = await res.json();
         if (data.success) {
           userData.board = data.board;
@@ -418,14 +347,14 @@
           document.getElementById('newGamepassId').value = '';
           document.getElementById('newGamepassPrice').value = '';
           status.innerHTML = '<span style="color:#4ade80;">✅ Added!</span>';
-        } else { status.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`; }
+        } else status.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
       } catch (e) { status.innerHTML = '<span style="color:#f87171;">❌ Error adding gamepass.</span>'; }
     }
 
     async function removeGamepassFromBoard(assetId) {
       if (!token) return;
       if (!confirm('Remove this gamepass from your board?')) return;
-      const res = await fetch('/api/board/remove', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId }) });
+      const res = await fetch('/api/board/remove', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId }) });
       const data = await res.json();
       if (data.success) { userData.board = data.board; renderBoard(); }
     }
@@ -433,39 +362,21 @@
     // ========== PASSKEY SETUP ==========
     async function setupPasskey() {
       debugMsg('🔑 Button clicked – starting passkey setup…');
-      if (!window.PublicKeyCredential) {
-        document.getElementById('passkeyStatus').innerHTML = 'Passkeys not supported on this device.';
-        debugMsg('❌ Passkeys not supported');
-        return;
-      }
+      if (!window.PublicKeyCredential) { document.getElementById('passkeyStatus').innerHTML = 'Passkeys not supported on this device.'; debugMsg('❌ Passkeys not supported'); return; }
       const status = document.getElementById('passkeyStatus');
       status.innerHTML = 'Setting up passkey...';
       try {
-        const optionsRes = await fetch('/api/passkey/register-options', { method: 'POST', headers: authHeaders() });
+        const optionsRes = await fetch('/api/passkey/register-options', { method:'POST', headers:authHeaders() });
         const options = await optionsRes.json();
         if (options.error) { status.innerHTML = options.error; debugMsg('❌ Server error: ' + options.error); return; }
-
         debugMsg('📲 Waiting for fingerprint…');
         const regResponse = await SimpleWebAuthnBrowser.startRegistration(options);
         debugMsg('📤 Sending to server for verification…');
-        const verifyRes = await fetch('/api/passkey/register-verify', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify(regResponse)
-        });
+        const verifyRes = await fetch('/api/passkey/register-verify', { method:'POST', headers:authHeaders(), body:JSON.stringify(regResponse) });
         const result = await verifyRes.json();
-        if (result.success) {
-          status.innerHTML = '✅ Passkey set up successfully!';
-          debugMsg('✅ Passkey registered – you can now log in with it');
-        } else {
-          status.innerHTML = result.error || 'Registration failed.';
-          debugMsg('❌ ' + (result.error || 'Verification failed'));
-        }
-      } catch (err) {
-        status.innerHTML = 'Error during passkey setup.';
-        debugMsg('❌ Error: ' + err.message);
-        console.error(err);
-      }
+        if (result.success) { status.innerHTML = '✅ Passkey set up successfully!'; debugMsg('✅ Passkey registered – you can now log in with it'); }
+        else { status.innerHTML = result.error || 'Registration failed.'; debugMsg('❌ ' + (result.error || 'Verification failed')); }
+      } catch (err) { status.innerHTML = 'Error during passkey setup.'; debugMsg('❌ Error: ' + err.message); console.error(err); }
     }
 
     // ========== ADVERTISEMENT FLOW ==========
@@ -473,18 +384,14 @@
       if (!token) { alert('Login required'); return; }
       selectedAdTier = tier;
       selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
-      document.getElementById('adVerifyTierText').textContent = `Tier: ${tier === '5k' ? '5,000' : '10,000'} Robux`;
+      document.getElementById('adVerifyTierText').textContent = `Tier: ${tier==='5k'?'5,000':'10,000'} Robux`;
       document.getElementById('adVerifyStatus').textContent = '';
       document.getElementById('adVerifyModal').style.display = 'block';
     }
 
-    function closeAdVerifyModal() {
-      document.getElementById('adVerifyModal').style.display = 'none';
-    }
+    function closeAdVerifyModal() { document.getElementById('adVerifyModal').style.display = 'none'; }
 
-    function openAdGamepass() {
-      window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank');
-    }
+    function openAdGamepass() { window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank'); }
 
     async function verifyAdPurchase() {
       if (!token) { alert('Login required'); return; }
@@ -492,23 +399,15 @@
       const statusDiv = document.getElementById('adVerifyStatus');
       statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
       try {
-        const res = await fetch('/api/purchase-ad', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ tier: selectedAdTier, message })
-        });
+        const res = await fetch('/api/purchase-ad', { method:'POST', headers:authHeaders(), body:JSON.stringify({ tier:selectedAdTier, message }) });
         const data = await res.json();
         if (data.success) {
           statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased successfully! Your board will appear soon.</span>';
           userData.ad = data.ad;
           updateAdUI();
           setTimeout(closeAdVerifyModal, 3000);
-        } else {
-          statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-        }
-      } catch (e) {
-        statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>';
-      }
+        } else statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+      } catch (e) { statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>'; }
     }
 
     init();
