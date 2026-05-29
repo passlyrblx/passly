@@ -397,7 +397,7 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 
-// ----- Socket.io -----
+// ----- Socket.io with bad word filtering -----
 io.on('connection', (socket) => {
   let currentRoomId = null;
   let userId = null;
@@ -417,21 +417,25 @@ io.on('connection', (socket) => {
     socket.join(roomId);
   });
 
-  // Chat message with admin/owner badge detection
+  // Chat message with server-side bad word filtering
   socket.on('chat-message', async (msg) => {
     if (!userId || !currentRoomId) return;
+    
+    // Bad words regex (short forms included)
+    const badWordsPattern = /\b(fuck|shit|ass|bitch|cunt|dick|pussy|twat|whore|slut|bastard|damn|hell|piss|cock|faggot|nigga|nigger|retard|fck|fcuk|phuk|fuk|sh1t|sh\*t|sht|b1tch|b\*tch|btch|c0ck|d1ck|dck|p\*ssy|puss|c\*nt|cnt|n1gga|n1gger|ngga|f4ggot|fag|f4g|ret4rd|rtrd|b8stard|bstrd|wh0re|whre|slut|sl\*t|b!tch|b!\+ch|c0k|dik|dikhed|clit|cl1t|tw4t|wanker|w4nker|bollocks|b0ll0cks|arse|arsehole|5hit|5h1t|phoque|kunt|kuk|kak)\b/gi;
+    const filteredMsg = msg.replace(badWordsPattern, '#####');
+    
     const User = mongoose.model('User');
     const user = await User.findById(userId);
     if (!user) return;
     const username = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
     const avatarUrl = user.avatarUrl || '';
-    // Determine if user is admin or owner
     const isOwner = (userId === OWNER_ROBLOX_ID);
     const isAdmin = ADMINS.has(userId) || isOwner;
     io.to(currentRoomId).emit('chat-message', {
       userId,
       username,
-      message: msg,
+      message: filteredMsg,
       avatarUrl,
       timestamp: Date.now(),
       isAdmin,
@@ -439,7 +443,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Board send with cooldown (handled client-side, but can add server check)
   socket.on('chat-board', async (boardData) => {
     if (!userId || !currentRoomId) return;
     const User = mongoose.model('User');
@@ -598,7 +601,7 @@ app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   res.json({ url });
 });
 // ========== ADMIN & MODERATION ==========
-const OWNER_ROBLOX_ID = '3115362000'; // Replace with your actual Roblox ID
+const OWNER_ROBLOX_ID = '3115362000'; // Your Roblox ID
 const ADMINS = new Set(); // store user IDs
 const BANNED = new Set(); // store user IDs
 let REPORTS = [];
