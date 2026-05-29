@@ -11,7 +11,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0a0a14;
+      background: transparent;  /* This is the key change – was #0a0a14 */
       color: white;
       display: flex;
       align-items: center;
@@ -47,7 +47,6 @@
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
       text-align: center;
     }
-    /* Your logo */
     .logo-img {
       width: 80px;
       height: 80px;
@@ -138,7 +137,6 @@
   <div class="bg-overlay"></div>
 
   <div class="container">
-    <!-- Your logo from ImgBB -->
     <img src="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png" alt="Passly" class="logo-img">
     <div class="tagline">Donations Never Stop</div>
 
@@ -171,7 +169,6 @@
   <script>
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
-      // Store for later if needed, but Chrome's own menu works best
     });
 
     async function continueAsGuest() {
