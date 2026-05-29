@@ -8,6 +8,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const morgan = require('morgan');
 const winston = require('winston');
+const rateLimit = require('express-rate-limit');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -26,6 +27,7 @@ const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } })
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
+const VIP_GAMEPASS_ID = '1859054633'; // For purchasing VIP role
 
 mongoose.connect(MONGO_URI).then(async () => {
   console.log('MongoDB connected');
@@ -33,21 +35,29 @@ mongoose.connect(MONGO_URI).then(async () => {
   const userSchema = new mongoose.Schema({
     _id: String, robloxUsername: String, robloxDisplayName: String,
     customDisplayName: String, avatarUrl: String,
+    role: { type: String, default: 'user', enum: ['user', 'vip', 'admin', 'owner'] },
     profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true } },
     roomId: String, inQueue: Boolean,
     donations: { received: Number, given: Number },
     board: [{ id: String, name: String, price: Number }],
+    acceptedTos: { type: Boolean, default: false },
+    acceptedTosAt: Date,
+    roomCreationCounts: {
+      public: { count: Number, date: String },
+      private: { count: Number, date: String }
+    },
     createdAt: { type: Date, default: Date.now }
   });
   const roomSchema = new mongoose.Schema({
-    _id: String, name: String, desc: String, type: String,
+    _id: String, name: String, desc: String, type: { type: String, enum: ['Public', 'Private', 'VIP'] }, // VIP room type
     players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
     createdBy: String, createdAt: { type: Date, default: Date.now }
   });
   const donationSchema = new mongoose.Schema({
     _id: String, donorId: String, donorName: String, receiverId: String,
     receiverName: String, gamepassId: String, amount: Number,
-    roomId: String, timestamp: { type: Date, default: Date.now }
+    roomId: String, verified: { type: Boolean, default: true }, // all recorded donations are verified
+    timestamp: { type: Date, default: Date.now }
   });
   const adSchema = new mongoose.Schema({
     _id: String, userId: String, username: String, tier: Number,
@@ -67,17 +77,17 @@ mongoose.connect(MONGO_URI).then(async () => {
   mongoose.model('AdBroadcast', adBroadcastSchema);
 
   const Room = mongoose.model('Room');
-  // Ensure default 3 rooms
+  // Ensure default 3 rooms (Public only)
   await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
   const defaultRooms = [
-    { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators." },
-    { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players." },
-    { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers." }
+    { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public" },
+    { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public" },
+    { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public" }
   ];
   for (const r of defaultRooms) {
     await Room.findOneAndUpdate(
       { _id: r._id },
-      { $setOnInsert: { ...r, type: 'Public', players: [], queue: [], maxPlayers: 18, createdBy: 'system' } },
+      { $setOnInsert: { ...r, players: [], queue: [], maxPlayers: 18, createdBy: 'system' } },
       { upsert: true, new: true }
     );
   }
@@ -85,12 +95,23 @@ mongoose.connect(MONGO_URI).then(async () => {
 
   server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
 }).catch(err => { console.error('MongoDB error:', err); process.exit(1); });
-
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname)));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
+
+// Rate limiting (general API)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/api/', apiLimiter);
+
+// Stricter limit for chat & room creation
+const chatLimiter = rateLimit({ windowMs: 10 * 1000, max: 5, message: { error: 'Slow down your messages.' } });
+const roomCreateLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'Too many room creations, wait a minute.' } });
 
 const ROBLOX_CONFIG = {
   clientId: process.env.ROBLOX_CLIENT_ID, clientSecret: process.env.ROBLOX_CLIENT_SECRET,
@@ -98,7 +119,7 @@ const ROBLOX_CONFIG = {
   authUrl: 'https://apis.roblox.com/oauth/v1/authorize', tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
   userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo', usersApi: 'https://users.roblox.com/v1/users'
 };
-const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K };
+const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K, 'vip': VIP_GAMEPASS_ID };
 
 const oauthStateSchema = new mongoose.Schema({ state: { type: String, required: true, unique: true }, createdAt: { type: Date, default: Date.now, expires: 600 } });
 const OAuthState = mongoose.model('OAuthState', oauthStateSchema);
@@ -120,7 +141,8 @@ app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderb
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
-// OAUTH
+
+// ========== OAUTH ==========
 app.get('/auth/roblox', async (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   await OAuthState.create({ state });
@@ -155,13 +177,12 @@ app.get('/auth/roblox/callback', async (req, res) => {
     await mongoose.model('User').findOneAndUpdate({ _id: userId }, { $set: { robloxUsername, robloxDisplayName, avatarUrl } }, { upsert: true, setDefaultsOnInsert: true });
     const user = await mongoose.model('User').findById(userId);
     const displayName = user.customDisplayName || robloxDisplayName;
-    const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl }, JWT_SECRET, { expiresIn: '7d' });
+    const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('passly_token', jwtToken, { maxAge: 7*24*60*60*1000, httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
     res.redirect(`/dashboard#token=${jwtToken}`);
   } catch (e) { console.error(e); res.send('<h1>Login Failed</h1><a href="/">Go back</a>'); }
 });
-
-// USER API
+// ========== USER API ==========
 app.get('/api/user', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
@@ -173,9 +194,23 @@ app.get('/api/user', authenticateToken, async (req, res) => {
     id: user._id, robloxUsername: user.robloxUsername || '', robloxDisplayName: user.robloxDisplayName || '',
     displayName: user.customDisplayName || user.robloxDisplayName || '', avatarUrl, avatarFallback, profile: user.profile,
     roomId: user.roomId, inQueue: user.inQueue, donations: user.donations, ad: activeAd || null,
-    customDisplayName: user.customDisplayName || null, board: user.board || []
+    customDisplayName: user.customDisplayName || null, board: user.board || [],
+    role: user.role, acceptedTos: user.acceptedTos
   });
 });
+
+// Terms of Service acceptance endpoint
+app.post('/api/accept-tos', authenticateToken, async (req, res) => {
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.acceptedTos) return res.json({ success: true, alreadyAccepted: true });
+  user.acceptedTos = true;
+  user.acceptedTosAt = new Date();
+  await user.save();
+  res.json({ success: true });
+});
+
 app.post('/api/profile/update', authenticateToken, async (req, res) => {
   const { showBooth, statusDot, showRoomId, customDisplayName } = req.body;
   const update = {};
@@ -187,7 +222,7 @@ app.post('/api/profile/update', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 
-// SEARCH
+// ========== SEARCH ==========
 app.get('/api/search', async (req, res) => {
   const q = (req.query.username || '').toLowerCase().trim();
   if (!q) return res.status(400).json({ error: 'Username required' });
@@ -196,14 +231,14 @@ app.get('/api/search', async (req, res) => {
   res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, board: found.profile?.showBooth !== false ? (found.board || []) : [] });
 });
 
-// PUBLIC BOARD
+// ========== PUBLIC BOARD ==========
 app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
   const user = await mongoose.model('User').findById(req.params.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ id: user._id, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl, board: user.profile?.showBooth !== false ? (user.board || []) : [] });
 });
 
-// BOARD ADD/REMOVE
+// ========== BOARD ADD/REMOVE ==========
 app.post('/api/board/add', authenticateToken, async (req, res) => {
   const { assetId, price } = req.body;
   if (!assetId || !price) return res.status(400).json({ error: 'Asset ID and Robux amount required' });
@@ -224,21 +259,66 @@ app.post('/api/board/remove', authenticateToken, async (req, res) => {
   const user = await mongoose.model('User').findById(req.user.id);
   res.json({ success: true, board: user.board });
 });
-// ROOMS API (including guest join)
+// Helper to sanitize room name and description (remove HTML tags)
+function sanitizeInput(str) {
+  if (!str) return '';
+  return str.replace(/<[^>]*>/g, '').trim().substring(0, 100);
+}
+
+// Check user's daily room creation limit
+async function canCreateRoom(userId, roomType) {
+  const User = mongoose.model('User');
+  const user = await User.findById(userId);
+  if (!user) return { allowed: false, error: 'User not found' };
+  const today = new Date().toISOString().slice(0,10);
+  const counts = user.roomCreationCounts || { public: { count: 0, date: '' }, private: { count: 0, date: '' } };
+  const typeKey = roomType === 'VIP' ? 'public' : roomType.toLowerCase(); // VIP counts as public for limit
+  const key = typeKey === 'public' ? 'public' : 'private';
+  if (counts[key]?.date !== today) {
+    counts[key] = { count: 0, date: today };
+  }
+  const limit = (key === 'public') ? 2 : 2;
+  if (counts[key].count >= limit) {
+    return { allowed: false, error: `You have reached the daily limit of ${limit} ${key} rooms.` };
+  }
+  return { allowed: true, counts, key };
+}
+
+// ROOMS API
 app.get('/api/rooms', async (req, res) => {
   const rooms = await mongoose.model('Room').find();
   res.json(rooms);
 });
-app.post('/api/rooms/create', authenticateToken, async (req, res) => {
-  const { name, desc, type } = req.body;
+
+app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, res) => {
+  let { name, desc, type } = req.body;
+  // Sanitize
+  name = sanitizeInput(name);
+  desc = sanitizeInput(desc);
   if (!name) return res.status(400).json({ error: 'Room name required' });
+  // Validate type
+  if (!['Public', 'Private', 'VIP'].includes(type)) type = 'Public';
+  // Check VIP requirement
+  const User = mongoose.model('User');
+  const user = await User.findById(req.user.id);
+  if (type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
+    return res.status(403).json({ error: 'VIP role required to create VIP rooms.' });
+  }
+  // Daily limit check
+  const limitCheck = await canCreateRoom(req.user.id, type);
+  if (!limitCheck.allowed) return res.status(429).json({ error: limitCheck.error });
   const Room = mongoose.model('Room');
   const roomId = crypto.randomBytes(8).toString('hex');
-  const room = new Room({ _id: roomId, name, desc: desc || '', type: type || 'Public', players: [req.user.id], queue: [], createdBy: req.user.id });
+  const room = new Room({ _id: roomId, name, desc: desc || '', type, players: [req.user.id], queue: [], createdBy: req.user.id });
   await room.save();
-  await mongoose.model('User').findByIdAndUpdate(req.user.id, { roomId: room._id, inQueue: false });
+  // Update creation count
+  limitCheck.counts[limitCheck.key].count += 1;
+  user.roomCreationCounts = limitCheck.counts;
+  await user.save();
+  await User.findByIdAndUpdate(req.user.id, { roomId: room._id, inQueue: false });
   res.json(room);
 });
+
 // Regular join (authenticated)
 app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
   const roomId = req.params.id;
@@ -246,6 +326,11 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
+  const user = await User.findById(req.user.id);
+  // VIP room check
+  if (room.type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
+    return res.status(403).json({ error: 'This is a VIP room. You need the VIP role to join.' });
+  }
   if (room.players.includes(req.user.id)) return res.json({ success: true, room, alreadyIn: true });
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(req.user.id)) { room.queue.push(req.user.id); await room.save(); }
@@ -258,6 +343,7 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
   io.to(roomId).emit('player-joined', { userId: req.user.id, username: req.user.displayName });
   res.json({ success: true, room });
 });
+
 // Guest join
 app.post('/api/rooms/guest/join/:id', async (req, res) => {
   const roomId = req.params.id;
@@ -266,6 +352,8 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
   const Room = mongoose.model('Room');
   const room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
+  // Guests cannot join VIP rooms
+  if (room.type === 'VIP') return res.status(403).json({ error: 'VIP rooms are not available for guests.' });
   if (room.players.includes(guestId)) return res.json({ success: true, room, alreadyIn: true });
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(guestId)) { room.queue.push(guestId); await room.save(); }
@@ -277,6 +365,7 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
   io.to(roomId).emit('player-joined', { userId: guestId, username: guestName || 'Guest' });
   res.json({ success: true, room });
 });
+
 app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
@@ -299,6 +388,7 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   await User.findByIdAndUpdate(req.user.id, { roomId: null, inQueue: false });
   res.json({ success: true });
 });
+
 app.post('/api/rooms/guest/leave', async (req, res) => {
   const { guestId } = req.body;
   if (!guestId) return res.status(400).json({ error: 'Guest ID required' });
@@ -319,7 +409,6 @@ app.post('/api/rooms/guest/leave', async (req, res) => {
   }
   res.json({ success: true });
 });
-
 // ========== SERVER-SIDE BAD WORD FILTER ==========
 const BAD_WORDS_LIST_SERVER = [
   'fuck', 'shit', 'ass', 'bitch', 'cunt', 'dick', 'pussy', 'twat', 'whore', 'slut', 'bastard', 'damn', 'hell', 'piss', 'cock',
@@ -350,7 +439,7 @@ function filterMessageServer(text) {
 // Guest chat cooldown map (25 seconds)
 const guestChatCooldown = new Map();
 
-// SOCKET.IO with admin command 'r.close' to delete room
+// SOCKET.IO with admin command 'r.close' (unchanged)
 io.on('connection', (socket) => {
   let currentRoomId = null;
   let userId = null;
@@ -417,7 +506,7 @@ io.on('connection', (socket) => {
       }
     }
 
-    // === ADMIN COMMAND: r.close ===
+    // Admin command: r.close
     if (!isGuest && (isAdmin || isOwner) && messageText.trim().toLowerCase() === 'r.close') {
       const Room = mongoose.model('Room');
       const room = await Room.findById(currentRoomId);
@@ -473,8 +562,7 @@ io.on('connection', (socket) => {
     currentRoomId = null;
   });
 });
-
-// LEADERBOARD
+// ========== LEADERBOARD ==========
 app.get('/api/leaderboard', async (req, res) => {
   const period = req.query.period || 'daily';
   let startDate = new Date();
@@ -490,19 +578,25 @@ app.get('/api/leaderboard', async (req, res) => {
   res.json({ receivers: await enrich(receivers), donors: await enrich(donors) });
 });
 
-// ADS
+// ========== ADS ==========
 app.get('/api/ads', async (req, res) => {
   const ads = await mongoose.model('Ad').find({ active: true, showsLeft: { $gt: 0 } }).limit(5);
   res.json(ads.map(ad => ({ userId: ad.userId, username: ad.username, tier: ad.tier, message: ad.message, showsLeft: ad.showsLeft })));
 });
+
 app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   const { tier, message } = req.body;
-  if (!tier || (tier !== '5k' && tier !== '10k')) return res.status(400).json({ error: 'Invalid tier' });
+  if (!tier || (tier !== '5k' && tier !== '10k' && tier !== 'vip')) return res.status(400).json({ error: 'Invalid tier' });
   const gamepassId = GAMEPASSES[tier];
   if (!gamepassId) return res.status(400).json({ error: 'Gamepass not configured' });
   const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
+  // For VIP tier, we handle differently: upgrade role
+  if (tier === 'vip') {
+    // Store pending VIP upgrade in session or directly verify? We'll use a separate endpoint.
+    return res.json({ url: `https://www.roblox.com/game-pass/${gamepassId}`, pendingType: 'vip' });
+  }
   const existing = await mongoose.model('Ad').findOne({ userId: req.user.id, active: true });
   if (existing) return res.status(400).json({ error: 'You already have an active ad. Delete it first.' });
   const tierNum = tier === '5k' ? 5000 : 10000;
@@ -511,10 +605,42 @@ app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
   await ad.save();
   res.json({ success: true, ad });
 });
+
+// Verify ad purchase (existing) and also verify VIP upgrade
+app.post('/api/verify-ad', authenticateToken, async (req, res) => {
+  const { tier } = req.body;
+  if (!tier) return res.status(400).json({ error: 'Missing tier' });
+  const gamepassId = GAMEPASSES[tier];
+  if (!gamepassId) return res.status(400).json({ error: 'Invalid tier' });
+  try {
+    const inventoryRes = await axios.get(`https://inventory.roblox.com/v1/users/${req.user.id}/items/GamePass/${gamepassId}`, { timeout: 5000 });
+    const owns = inventoryRes.data?.data?.length > 0;
+    if (!owns) return res.status(400).json({ error: 'You do not own this gamepass.' });
+    if (tier === 'vip') {
+      const User = mongoose.model('User');
+      await User.findByIdAndUpdate(req.user.id, { role: 'vip' });
+      return res.json({ success: true, message: 'VIP role granted!' });
+    }
+    // For regular ads, we need to create ad record (already done in purchase-ad? Actually purchase-ad already creates it, so we just verify ownership)
+    // But to avoid double creation, we can just confirm.
+    const existingAd = await mongoose.model('Ad').findOne({ userId: req.user.id, active: true });
+    if (!existingAd) {
+      // create ad if not exists
+      const user = await User.findById(req.user.id);
+      const tierNum = tier === '5k' ? 5000 : 10000;
+      const shows = tier === '5k' ? 1 : 3;
+      const ad = new (mongoose.model('Ad'))({ _id: crypto.randomBytes(8).toString('hex'), userId: req.user.id, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, tier: tierNum, gamepassId, broadcastsLeft: 1, showsLeft: shows, active: true, message: null });
+      await ad.save();
+    }
+    res.json({ success: true, message: 'Ad activated!' });
+  } catch (err) { res.status(500).json({ error: 'Verification failed' }); }
+});
+
 app.post('/api/delete-ad', authenticateToken, async (req, res) => {
   await mongoose.model('Ad').findOneAndDelete({ userId: req.user.id, active: true });
   res.json({ success: true });
 });
+
 app.get('/api/ads/broadcast', async (req, res) => {
   const { roomId, since } = req.query;
   const sinceDate = since ? new Date(parseInt(since)) : new Date(Date.now() - 60000);
@@ -522,23 +648,77 @@ app.get('/api/ads/broadcast', async (req, res) => {
   res.json(broadcasts);
 });
 
-// GUEST LOGIN
+// ========== GUEST LOGIN ==========
 app.post('/api/guest-login', async (req, res) => {
   const guestId = crypto.randomBytes(8).toString('hex');
   const username = `Guest_${guestId.slice(0,6)}`;
   const User = mongoose.model('User');
-  const user = new User({ _id: guestId, robloxUsername: username, robloxDisplayName: username, customDisplayName: username, avatarUrl: '', donations: { received: 0, given: 0 }, board: [] });
+  const user = new User({ _id: guestId, robloxUsername: username, robloxDisplayName: username, customDisplayName: username, avatarUrl: '', donations: { received: 0, given: 0 }, board: [], role: 'user', acceptedTos: false });
   await user.save();
   res.json({ id: guestId, username, displayName: username, isGuest: true });
 });
 
-// DONATION INITIATE (opens Roblox page, stores pending donation in session)
+// ========== DONATION INITIATE & VERIFY (improved) ==========
+// Store pending donation in memory with expiry (1 hour)
+const pendingDonations = new Map(); // key: donorId, value: { receiverId, gamepassId, amount, timestamp }
+
 app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   const { receiverId, gamepassId, amount } = req.body;
   if (!receiverId || !gamepassId || !amount) return res.status(400).json({ error: 'Missing fields' });
+  const donorId = req.user.id;
+  // Check if already has pending donation (prevent multiple pending)
+  if (pendingDonations.has(donorId)) {
+    const pending = pendingDonations.get(donorId);
+    if (Date.now() - pending.timestamp < 3600000) {
+      return res.status(400).json({ error: 'You already have a pending donation. Verify or wait for it to expire.' });
+    } else {
+      pendingDonations.delete(donorId);
+    }
+  }
+  pendingDonations.set(donorId, { receiverId, gamepassId, amount, timestamp: Date.now() });
+  // Automatically remove after 1 hour
+  setTimeout(() => { if (pendingDonations.get(donorId)?.timestamp === timestamp) pendingDonations.delete(donorId); }, 3600000);
   res.json({ url: `https://www.roblox.com/game-pass/${gamepassId}` });
 });
-// ADMIN & MODERATION
+
+app.post('/api/donate/verify', authenticateToken, async (req, res) => {
+  const donorId = req.user.id;
+  const pending = pendingDonations.get(donorId);
+  if (!pending) return res.status(400).json({ error: 'No pending donation found. Please initiate a donation first.' });
+  const { receiverId, gamepassId, amount } = pending;
+  const User = mongoose.model('User');
+  const donor = await User.findById(donorId);
+  if (!donor) return res.status(404).json({ error: 'User not found' });
+  // Check inventory
+  try {
+    const inventoryRes = await axios.get(`https://inventory.roblox.com/v1/users/${donorId}/items/GamePass/${gamepassId}`, { timeout: 5000 });
+    const owns = inventoryRes.data?.data?.length > 0;
+    if (!owns) return res.status(400).json({ error: 'You do not own this gamepass. Purchase it first.' });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to verify ownership. Please try again later.' });
+  }
+  // Record donation
+  const Donation = mongoose.model('Donation');
+  const receiver = await User.findById(receiverId);
+  if (!receiver) return res.status(404).json({ error: 'Receiver not found' });
+  const donation = new Donation({
+    _id: crypto.randomBytes(8).toString('hex'),
+    donorId, donorName: donor.robloxUsername,
+    receiverId, receiverName: receiver.robloxUsername,
+    gamepassId, amount,
+    roomId: null,
+    verified: true,
+    timestamp: new Date()
+  });
+  await donation.save();
+  // Update user totals
+  await User.findByIdAndUpdate(donorId, { $inc: { 'donations.given': amount } });
+  await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': amount } });
+  // Clear pending donation
+  pendingDonations.delete(donorId);
+  res.json({ success: true, message: 'Donation recorded! Thank you.' });
+});
+// ========== ADMIN & MODERATION ==========
 const OWNER_ROBLOX_ID = '3115362000'; // Replace with your actual Roblox ID
 const ADMINS = new Set();
 const BANNED = new Set();
@@ -563,7 +743,10 @@ app.get('/api/admin/data', authenticateToken, async (req, res) => {
 });
 app.post('/api/admin/grant', authenticateToken, async (req, res) => {
   if (req.user.id !== OWNER_ROBLOX_ID) return res.status(403).json({ error: 'Owner only' });
-  ADMINS.add(req.body.userId); res.json({ success: true });
+  const { userId, role } = req.body; // role: 'admin' or 'vip'
+  const User = mongoose.model('User');
+  await User.findByIdAndUpdate(userId, { role });
+  res.json({ success: true });
 });
 app.post('/api/admin/ban', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
@@ -574,7 +757,8 @@ app.post('/api/admin/ban', authenticateToken, async (req, res) => {
 });
 app.post('/api/admin/unban', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
-  BANNED.delete(req.body.userId); res.json({ success: true });
+  BANNED.delete(req.body.userId);
+  res.json({ success: true });
 });
 app.post('/api/report', authenticateToken, async (req, res) => {
   const { reportedUserId, reason } = req.body;
@@ -590,64 +774,35 @@ app.get('/api/admin/search-user', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403);
   const user = await mongoose.model('User').findOne({ robloxUsername: new RegExp(`^${req.query.username}$`, 'i') });
   if (!user) return res.json({ error: 'User not found' });
-  res.json({ id: user._id, username: user.robloxUsername });
+  res.json({ id: user._id, username: user.robloxUsername, role: user.role });
 });
 app.post('/api/admin/broadcast', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403);
   io.emit('admin-message', { roomId: 'GLOBAL', message: req.body.message });
   res.json({ success: true });
 });
+// NEW: Admin close room by ID
+app.post('/api/admin/close-room', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const { roomId } = req.body;
+  if (!roomId) return res.status(400).json({ error: 'Room ID required' });
+  const Room = mongoose.model('Room');
+  const room = await Room.findById(roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  // Notify and delete
+  io.to(roomId).emit('room-closed', { message: 'This room has been closed by an admin.' });
+  const sockets = await io.in(roomId).fetchSockets();
+  for (const sock of sockets) {
+    sock.emit('force-leave', { reason: 'Room was closed by admin.' });
+    sock.leave(roomId);
+  }
+  await Room.deleteOne({ _id: roomId });
+  await mongoose.model('User').updateMany({ roomId: roomId }, { $unset: { roomId: "", inQueue: "" } });
+  res.json({ success: true, message: `Room ${roomId} closed.` });
+});
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 
-// ========== DONATION VERIFICATION ENDPOINT (new) ==========
-app.post('/api/donate/verify', authenticateToken, async (req, res) => {
-  const { receiverId, gamepassId, amount } = req.body;
-  if (!receiverId || !gamepassId || !amount) {
-    return res.status(400).json({ error: 'Missing donation details' });
-  }
-
-  const User = mongoose.model('User');
-  const donor = await User.findById(req.user.id);
-  if (!donor) return res.status(404).json({ error: 'User not found' });
-
-  // Check if donor owns the gamepass
-  try {
-    const inventoryRes = await axios.get(`https://inventory.roblox.com/v1/users/${req.user.id}/items/GamePass/${gamepassId}`, {
-      timeout: 5000
-    });
-    const owns = inventoryRes.data?.data?.length > 0;
-    if (!owns) {
-      return res.status(400).json({ error: 'You do not own this gamepass. Purchase it first.' });
-    }
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to verify ownership. Please try again later.' });
-  }
-
-  // Record donation
-  const Donation = mongoose.model('Donation');
-  const receiver = await User.findById(receiverId);
-  if (!receiver) return res.status(404).json({ error: 'Receiver not found' });
-
-  const donation = new Donation({
-    _id: crypto.randomBytes(8).toString('hex'),
-    donorId: req.user.id,
-    donorName: donor.robloxUsername,
-    receiverId: receiverId,
-    receiverName: receiver.robloxUsername,
-    gamepassId: gamepassId,
-    amount: amount,
-    roomId: null,
-    timestamp: new Date()
-  });
-  await donation.save();
-
-  // Update user totals
-  await User.findByIdAndUpdate(req.user.id, { $inc: { 'donations.given': amount } });
-  await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': amount } });
-
-  res.json({ success: true, message: 'Donation recorded! Thank you.' });
-});
-// FALLBACK (MUST BE LAST)
+// ========== FALLBACK (MUST BE LAST) ==========
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
