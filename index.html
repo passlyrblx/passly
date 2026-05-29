@@ -18,14 +18,13 @@
       overflow: hidden;
     }
 
-    /* Your custom background image */
+    /* Background image – now more visible */
     .bg-image {
       position: absolute;
       inset: 0;
-      /* 👇 Direct link to your ImgBB image */
       background: url('https://i.ibb.co/whGL4zhg/1000039438.jpg') center/cover no-repeat;
-      opacity: 0.15;       /* adjust to make background more/less visible */
-      filter: blur(3px);
+      opacity: 0.5;       /* increased from 0.15 to 0.5 */
+      filter: blur(1px);  /* reduced blur from 3px to 1px */
       z-index: 0;
     }
 
@@ -41,8 +40,8 @@
       z-index: 2;
       width: 90%;
       max-width: 500px;
-      /* lowered opacity so background shows through */
-      background: rgba(20, 20, 35, 0.55);
+      /* More transparent – background shows through clearly */
+      background: rgba(20, 20, 35, 0.35);
       backdrop-filter: blur(20px);
       border-radius: 24px;
       padding: 40px 30px;
