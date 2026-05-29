@@ -23,7 +23,7 @@ const ORIGIN = process.env.ORIGIN || 'http://localhost:3000';
 mongoose.connect(MONGO_URI).then(async () => {
   console.log('MongoDB connected');
 
-  // Schemas (must be defined before use)
+  // Schemas
   const userSchema = new mongoose.Schema({
     _id: String, robloxUsername: String, robloxDisplayName: String,
     customDisplayName: String, avatarUrl: String,
@@ -65,7 +65,13 @@ mongoose.connect(MONGO_URI).then(async () => {
 
   const Room = mongoose.model('Room');
 
-  // Default rooms with FIXED IDs (never duplicate, never missing)
+  // Step 1: Remove any old default rooms that aren't the fixed IDs
+  await Room.deleteMany({
+    name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] },
+    _id: { $nin: ["room1", "room2", "room3"] }
+  });
+
+  // Step 2: Ensure the three fixed‑ID rooms exist
   const defaultRooms = [
     { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators." },
     { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players." },
@@ -73,14 +79,15 @@ mongoose.connect(MONGO_URI).then(async () => {
   ];
 
   for (const r of defaultRooms) {
-    const exists = await Room.findById(r._id);
-    if (!exists) {
-      await Room.create({ ...r, type: 'Public', players: [], queue: [], maxPlayers: 18, createdBy: 'system' });
-    }
+    await Room.findOneAndUpdate(
+      { _id: r._id },
+      { $setOnInsert: { ...r, type: 'Public', players: [], queue: [], maxPlayers: 18, createdBy: 'system' } },
+      { upsert: true, new: true }
+    );
   }
-  console.log('Default rooms ensured.');
+  console.log('Default rooms cleaned and ensured.');
 
-  // Now start the server
+  // Start the server after everything is ready
   server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
 }).catch(err => { console.error('MongoDB error:', err); process.exit(1); });
 
@@ -229,7 +236,7 @@ app.post('/api/board/remove', authenticateToken, async (req, res) => {
   res.json({ success: true, board: user.board });
 });
 
-// ========== ROOMS (default rooms already exist) ==========
+// ========== ROOMS ==========
 app.get('/api/rooms', async (req, res) => {
   const rooms = await mongoose.model('Room').find({});
   res.json(rooms);
