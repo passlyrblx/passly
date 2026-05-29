@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -57,7 +56,7 @@
     .donate-btn { padding:4px 10px; background:#f59e0b; border:none; border-radius:6px; color:white; cursor:pointer; font-size:0.8rem; font-weight:600; }
     .chat-box { background:rgba(15,15,30,0.6); border-radius:12px; padding:20px; height:400px; overflow-y:auto; margin-bottom:15px; }
     .chat-msg { display:flex; gap:10px; margin-bottom:15px; }
-    .chat-pfp { width:35px; height:35px; border-radius:50%; background:#8b5cf6; flex-shrink:0; }
+    .chat-pfp { width:35px; height:35px; border-radius:50%; background:#8b5cf6; flex-shrink:0; background-size:cover; background-position:center; }
     .msg-content { background:rgba(30,30,50,0.6); padding:10px 14px; border-radius:12px; }
     .msg-username { font-weight:bold; color:#a78bfa; margin-bottom:4px; }
     .chat-input-area { display:flex; gap:10px; }
@@ -88,7 +87,7 @@
     .mute-popup { position:absolute; background:rgba(20,20,40,0.98); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; z-index:50; min-width:200px; display:none; }
     .mute-popup .player-mute-row { display:flex; align-items:center; gap:10px; padding:5px 0; }
     .mute-popup label { cursor:pointer; }
-    .ad-msg .msg-content { background: linear-gradient(135deg, #3b2f1e, #5a4a2c) !important; border: 2px solid #ffd700 !important; box-shadow: 0 0 12px rgba(255, 215, 0, 0.3); }
+    .ad-msg .msg-content { background: linear-gradient(135deg, #3b2f1e, #5a4a2c) !important; border: 2px solid #ffd700 !important; box-shadow: 0 0 12px rgba(255,215,0,0.3); }
     .ad-msg .msg-username { color: #ffd700 !important; }
     .ad-mini-board { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .ad-mini-board-item { background: #22c55e; color: white; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
@@ -98,6 +97,7 @@
     .verify-donate-btn:hover { background: #d97706; }
     .gp-link-btn { background: transparent; border: 1px solid #ffd700; color: #ffd700; padding: 12px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 15px; width: 100%; }
     .gp-link-btn:hover { background: rgba(255,215,0,0.1); }
+    .login-prompt { background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); border-radius:12px; padding:15px; margin:20px 0; text-align:center; }
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -122,134 +122,128 @@
       <span class="user-name" id="userName">Loading...</span>
     </div>
   </nav>
-
-  <div class="main-content">
-    <div id="roomsListPage">
-      <div class="page-header">
-        <h1>🚪 Public Rooms</h1>
-        <div style="display:flex; gap:15px; align-items:center;">
-          <button class="create-btn" onclick="requireLoginThen(openCreateModal)">+ Create Room</button>
-          <button class="refresh-btn" onclick="loadRooms()">🔄 Refresh</button>
-          <div class="join-by-id">
-            <input type="text" id="joinRoomIdInput" placeholder="Room ID" maxlength="16">
-            <button onclick="joinRoomById()">Join</button>
-          </div>
+<div class="main-content">
+  <div id="roomsListPage">
+    <div class="page-header">
+      <h1>🚪 Public Rooms</h1>
+      <div style="display:flex; gap:15px; align-items:center;">
+        <button class="create-btn" onclick="requireLoginThen(openCreateModal)">+ Create Room</button>
+        <button class="refresh-btn" onclick="loadRooms()">🔄 Refresh</button>
+        <div class="join-by-id">
+          <input type="text" id="joinRoomIdInput" placeholder="Room ID" maxlength="16">
+          <button onclick="joinRoomById()">Join</button>
         </div>
       </div>
-      <div class="error-msg" id="errorBox"></div>
-      <div class="rooms-grid" id="roomsGrid"></div>
-      <div id="loginPrompt" class="login-prompt" style="display:none;">
-        <p>🔐 <strong>Log in with Roblox</strong> to create rooms and donate.</p>
-        <button class="create-btn" onclick="window.location.href='/auth/roblox'">Login</button>
+    </div>
+    <div class="error-msg" id="errorBox"></div>
+    <div class="rooms-grid" id="roomsGrid"></div>
+    <div id="loginPrompt" class="login-prompt" style="display:none;">
+      <p>🔐 <strong>Log in with Roblox</strong> to create rooms and donate.</p>
+      <button class="create-btn" onclick="window.location.href='/auth/roblox'">Login</button>
+    </div>
+  </div>
+
+  <div class="room-view" id="roomView">
+    <button class="back-btn" onclick="leaveRoom()">⬅ Back to Rooms</button>
+    <h2 id="viewRoomName"></h2>
+    <p class="room-view-desc" id="viewRoomDesc"></p>
+    <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
+    <div class="player-list" id="playerList"></div>
+    <div class="voice-controls">
+      <button class="voice-btn speak" id="speakButton" onclick="toggleSpeak()">🎤 Speak</button>
+      <div style="position:relative;">
+        <button class="voice-btn mute" id="muteButton" onclick="toggleMutePopup()">🔇 Mute</button>
+        <div class="mute-popup" id="mutePopup"></div>
       </div>
     </div>
-
-    <div class="room-view" id="roomView">
-      <button class="back-btn" onclick="leaveRoom()">⬅ Back to Rooms</button>
-      <h2 id="viewRoomName"></h2>
-      <p class="room-view-desc" id="viewRoomDesc"></p>
-      <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
-      <div class="player-list" id="playerList"></div>
-      <div class="voice-controls">
-        <button class="voice-btn speak" id="speakButton" onclick="toggleSpeak()">🎤 Speak</button>
-        <div style="position:relative;">
-          <button class="voice-btn mute" id="muteButton" onclick="toggleMutePopup()">🔇 Mute</button>
-          <div class="mute-popup" id="mutePopup"></div>
+    <button class="create-btn" style="margin-bottom:15px;" onclick="requireLoginThen(showBoard)">🎁 Show My Board</button>
+    <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="requireLoginThen(sendBoardToChat)">📤 Send Board to Chat</button>
+    <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="requireLoginThen(openAdModal)">📢 Advertise Board</button>
+    <div class="queue-box" id="queueBox">
+      ⏳ You are in queue position #<span id="queuePos">1</span>
+      <button onclick="leaveQueue()" style="margin-left:10px; background:#ef4444; border:none; color:white; padding:6px 14px; border-radius:8px; cursor:pointer;">Leave Queue</button>
+    </div>
+    <div class="chat-box" id="chatBox">
+      <div class="chat-msg">
+        <div class="chat-pfp"></div>
+        <div class="msg-content">
+          <div class="msg-username">System</div>
+          <div>Welcome to the room! 👋</div>
         </div>
       </div>
-      <button class="create-btn" style="margin-bottom:15px;" onclick="requireLoginThen(showBoard)">🎁 Show My Board</button>
-      <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="requireLoginThen(sendBoardToChat)">📤 Send Board to Chat</button>
-      <button class="create-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); margin-bottom:15px;" onclick="requireLoginThen(openAdModal)">📢 Advertise Board</button>
-      <div class="queue-box" id="queueBox">
-        ⏳ You are in queue position #<span id="queuePos">1</span>
-        <button onclick="leaveQueue()" style="margin-left:10px; background:#ef4444; border:none; color:white; padding:6px 14px; border-radius:8px; cursor:pointer;">Leave Queue</button>
-      </div>
-      <div class="chat-box" id="chatBox">
-        <div class="chat-msg">
-          <div class="chat-pfp"></div>
-          <div class="msg-content">
-            <div class="msg-username">System</div>
-            <div>Welcome to the room! 👋</div>
-          </div>
-        </div>
-      </div>
-      <div class="chat-input-area">
-        <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
-        <button class="send-btn" onclick="sendMessage()">Send</button>
-      </div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
+      <button class="send-btn" onclick="sendMessage()">Send</button>
     </div>
   </div>
+</div>
 
-  <!-- Modals -->
-  <div class="modal-overlay" id="modalOverlay"></div>
+<!-- Modals -->
+<div class="modal-overlay" id="modalOverlay"></div>
 
-  <!-- Create Room Modal -->
-  <div class="modal" id="createModal">
-    <h2>Create New Room</h2>
-    <input type="text" id="roomNameInput" placeholder="Room Name">
-    <textarea id="roomDescInput" placeholder="Room Description"></textarea>
-    <div class="type-btns">
-      <button class="type-btn active" onclick="setType('Public')">Public</button>
-      <button class="type-btn" onclick="setType('Private')">Private</button>
-    </div>
-    <button class="modal-btn" onclick="createRoom()">Create Room</button>
-    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
+<div class="modal" id="createModal">
+  <h2>Create New Room</h2>
+  <input type="text" id="roomNameInput" placeholder="Room Name">
+  <textarea id="roomDescInput" placeholder="Room Description"></textarea>
+  <div class="type-btns">
+    <button class="type-btn active" onclick="setType('Public')">Public</button>
+    <button class="type-btn" onclick="setType('Private')">Private</button>
   </div>
+  <button class="modal-btn" onclick="createRoom()">Create Room</button>
+  <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
+</div>
 
-  <!-- Board Modal -->
-  <div class="modal" id="boardModal">
-    <h2>🎁 My Board</h2>
-    <div class="add-board-section">
-      <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
-      <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
-      <button class="send-btn" onclick="addGamepassToBoard()">Add</button>
-    </div>
-    <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
-    <div class="board-gamepass-grid" id="boardGamepassGrid">
-      <p style="color:#a0a0b0;">No gamepasses added yet.</p>
-    </div>
-    <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closeBoardModal()">Close</button>
+<div class="modal" id="boardModal">
+  <h2>🎁 My Board</h2>
+  <div class="add-board-section">
+    <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
+    <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
+    <button class="send-btn" onclick="addGamepassToBoard()">Add</button>
   </div>
+  <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
+  <div class="board-gamepass-grid" id="boardGamepassGrid">
+    <p style="color:#a0a0b0;">No gamepasses added yet.</p>
+  </div>
+  <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closeBoardModal()">Close</button>
+</div>
 
-  <!-- Advertise Tier Selection Modal -->
-  <div class="modal" id="adModal">
-    <h2>📢 Advertise Your Board</h2>
-    <p style="color:#a0a0b0; margin-bottom:20px;">Choose a tier. You will be redirected to the Roblox gamepass page to purchase, then come back to verify.</p>
-    <textarea id="adMessage" placeholder="Your message (optional)" style="width:100%; height:60px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; padding:10px; margin-bottom:15px;"></textarea>
-    <div class="ad-buttons">
-      <button class="ad-btn" onclick="openAdVerification('5k')">
-        <span class="tier">5,000 Robux</span>
-        <span class="shows">1 Broadcast + 1 Cloud</span>
-      </button>
-      <button class="ad-btn" onclick="openAdVerification('10k')">
-        <span class="tier">10,000 Robux</span>
-        <span class="shows">1 Broadcast + 3 Clouds</span>
-      </button>
-    </div>
-    <div id="adPurchaseStatus" style="margin-top:15px;"></div>
-    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
+<div class="modal" id="adModal">
+  <h2>📢 Advertise Your Board</h2>
+  <p style="color:#a0a0b0; margin-bottom:20px;">Choose a tier. You will be redirected to the Roblox gamepass page to purchase, then come back to verify.</p>
+  <textarea id="adMessage" placeholder="Your message (optional)" style="width:100%; height:60px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; padding:10px; margin-bottom:15px;"></textarea>
+  <div class="ad-buttons">
+    <button class="ad-btn" onclick="openAdVerification('5k')">
+      <span class="tier">5,000 Robux</span>
+      <span class="shows">1 Broadcast + 1 Cloud</span>
+    </button>
+    <button class="ad-btn" onclick="openAdVerification('10k')">
+      <span class="tier">10,000 Robux</span>
+      <span class="shows">1 Broadcast + 3 Clouds</span>
+    </button>
   </div>
+  <div id="adPurchaseStatus" style="margin-top:15px;"></div>
+  <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
+</div>
 
-  <!-- Ad Verification Modal -->
-  <div class="modal" id="adVerifyModal">
-    <h2>📢 Advertise Your Board</h2>
-    <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
-    <button class="gp-link-btn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
-    <p style="color:#a0a0b0; font-size:0.85rem; margin-top:5px;">After purchasing, come back and click below.</p>
-    <button class="modal-btn" onclick="verifyAdPurchase()">✅ Verify Purchase</button>
-    <div id="adVerifyStatus" style="margin-top:10px; text-align:center;"></div>
-    <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
-  </div>
+<div class="modal" id="adVerifyModal">
+  <h2>📢 Advertise Your Board</h2>
+  <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
+  <button class="gp-link-btn" onclick="openAdGamepass()">🔗 Go to Roblox Gamepass Page</button>
+  <p style="color:#a0a0b0; font-size:0.85rem; margin-top:5px;">After purchasing, come back and click below.</p>
+  <button class="modal-btn" onclick="verifyAdPurchase()">✅ Verify Purchase</button>
+  <div id="adVerifyStatus" style="margin-top:10px; text-align:center;"></div>
+  <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
+</div>
 
-  <!-- Player Board Modal (for donations) -->
-  <div class="modal" id="playerBoardModal">
-    <h2 id="playerBoardTitle">🎁 Player's Board</h2>
-    <div id="playerBoardAvatar" style="width:60px; height:60px; border-radius:50%; margin:0 auto 10px; background-size:cover;"></div>
-    <p id="playerBoardName" style="color:#a78bfa; text-align:center;"></p>
-    <div class="board-gamepass-grid" id="playerBoardGrid"></div>
-    <div id="playerBoardStatus" style="margin-top:10px; text-align:center; font-size:0.9rem;"></div>
-    <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
-  </div>
+<div class="modal" id="playerBoardModal">
+  <h2 id="playerBoardTitle">🎁 Player's Board</h2>
+  <div id="playerBoardAvatar" style="width:60px; height:60px; border-radius:50%; margin:0 auto 10px; background-size:cover;"></div>
+  <p id="playerBoardName" style="color:#a78bfa; text-align:center;"></p>
+  <div class="board-gamepass-grid" id="playerBoardGrid"></div>
+  <div id="playerBoardStatus" style="margin-top:10px; text-align:center; font-size:0.9rem;"></div>
+  <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
+</div>
 <script>
   const socket = io();
   let token = localStorage.getItem('passly_token');
@@ -349,25 +343,21 @@
   async function loadRooms() {
     const grid = document.getElementById('roomsGrid');
     grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
-
     try {
       const res = await fetch('/api/rooms');
       if (!res.ok) throw new Error('Server error');
       const allRooms = await res.json();
       const publicRooms = allRooms.filter(r => r.type === 'Public');
-
       if (publicRooms.length === 0) {
         grid.innerHTML = '<p style="color:#a0a0b0;">No public rooms yet. Create one!</p>';
         return;
       }
-
       const seen = new Set();
       const uniqueRooms = publicRooms.filter(room => {
         if (seen.has(room._id)) return false;
         seen.add(room._id);
         return true;
       });
-
       grid.innerHTML = uniqueRooms.map(room => `
         <div class="room-card">
           <div class="room-name">${room.name}</div>
@@ -387,23 +377,13 @@
   async function joinRoomById(id) {
     if (!id) {
       id = document.getElementById('joinRoomIdInput').value.trim();
-      if (!id) {
-        showError('Enter a room ID.');
-        return;
-      }
+      if (!id) { showError('Enter a room ID.'); return; }
     }
-
     showError('Joining room ' + id + '…');
-
     try {
       const res = await fetch(`/api/rooms/join/${id}`, { method: 'POST', headers: authHeaders() });
       const data = await res.json();
-
-      if (!res.ok || data.error) {
-        showError(data.error || 'Join failed');
-        return;
-      }
-
+      if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
       if (data.queued) {
         document.getElementById('roomsListPage').style.display = 'none';
         document.getElementById('roomView').style.display = 'block';
@@ -414,14 +394,11 @@
         currentRoom = { id, queued: true };
         return;
       }
-
       if (data.success && data.room) {
         document.getElementById('errorBox').style.display = 'none';
         showRoomView(data.room);
       }
-    } catch (e) {
-      showError('Network error: ' + e.message);
-    }
+    } catch (e) { showError('Network error: ' + e.message); }
   }
 
   function openCreateModal() {
@@ -429,32 +406,26 @@
     document.getElementById('modalOverlay').style.display = 'block';
     document.getElementById('createModal').style.display = 'block';
   }
-
   function closeModal() {
     document.getElementById('modalOverlay').style.display = 'none';
     document.getElementById('createModal').style.display = 'none';
   }
-
   function setType(type) {
     roomType = type;
     document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
   }
-
   async function createRoom() {
     const name = document.getElementById('roomNameInput').value.trim();
     const desc = document.getElementById('roomDescInput').value.trim();
     if (!name) { showError('Enter a room name'); return; }
-
     try {
       const res = await fetch('/api/rooms/create', {
-        method: 'POST',
-        headers: authHeaders(),
+        method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ name, desc, type: roomType })
       });
       const room = await res.json();
       if (room.error) { showError(room.error); return; }
-
       closeModal();
       await joinRoomById(room._id);
       loadRooms();
@@ -468,10 +439,8 @@
     document.getElementById('viewRoomName').textContent = room.name;
     document.getElementById('viewRoomDesc').textContent = room.desc || '';
     document.getElementById('queueBox').style.display = 'none';
-
     document.getElementById('roomIdDisplay').style.display = 'inline-block';
     document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong> (share to invite)`;
-
     const playerList = document.getElementById('playerList');
     playerList.innerHTML = room.players.map(playerId => {
       const isMe = (userData.id && playerId === userData.id);
@@ -483,374 +452,275 @@
         </div>
       `;
     }).join('');
-
     socket.emit('join-room', room._id);
     if (adPollInterval) clearInterval(adPollInterval);
     lastAdCheck = Date.now();
     checkAdBroadcasts();
     adPollInterval = setInterval(checkAdBroadcasts, 10000);
-
     isSpeaking = false;
     updateSpeakButton();
     mutedUsers.clear();
     updateMutePopup();
   }
-    // ---------- VOICE (Speak & Mute) ----------
-    async function toggleSpeak() {
-      if (!currentRoom) return;
-      if (!isSpeaking) {
-        try {
-          localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const audioContext = new AudioContext();
-          const source = audioContext.createMediaStreamSource(localStream);
-          const processor = audioContext.createScriptProcessor(4096, 1, 1);
-          source.connect(processor);
-          processor.connect(audioContext.destination);
-          processor.onaudioprocess = (e) => {
-            if (!isSpeaking || !currentRoom) return;
-            const inputData = e.inputBuffer.getChannelData(0);
-            const buffer = new Int16Array(inputData.length);
-            for (let i = 0; i < inputData.length; i++) {
-              buffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-            }
-            socket.emit('voice-data', buffer.buffer);
-          };
-          window.currentAudioProcessor = processor;
-          isSpeaking = true;
-        } catch (err) {
-          alert('Could not access microphone.');
-          return;
-        }
-      } else {
-        if (localStream) {
-          localStream.getTracks().forEach(track => track.stop());
-          localStream = null;
-        }
-        if (window.currentAudioProcessor) {
-          window.currentAudioProcessor.disconnect();
-          window.currentAudioProcessor = null;
-        }
-        isSpeaking = false;
-      }
-      updateSpeakButton();
-    }
 
-    function updateSpeakButton() {
-      const btn = document.getElementById('speakButton');
-      btn.textContent = isSpeaking ? '🔇 Stop Speaking' : '🎤 Speak';
-      if (isSpeaking) btn.classList.add('active');
-      else btn.classList.remove('active');
-    }
-
-    function toggleMutePopup() {
-      const popup = document.getElementById('mutePopup');
-      popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
-      if (popup.style.display === 'block') updateMutePopup();
-    }
-
-    function updateMutePopup() {
-      const popup = document.getElementById('mutePopup');
-      if (!currentRoom) return;
-      const players = currentRoom.players || [];
-      popup.innerHTML = players.map(playerId => {
-        const isMe = (userData.id && playerId === userData.id);
-        const label = isMe ? 'You' : 'Player';
-        const checked = mutedUsers.has(playerId) ? 'checked' : '';
-        return `
-          <div class="player-mute-row">
-            <input type="checkbox" id="mute-${playerId}" ${checked} onchange="toggleMuteUser('${playerId}', this.checked)" ${isMe ? 'disabled' : ''}>
-            <label for="mute-${playerId}">${label}</label>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function toggleMuteUser(userId, mute) {
-      if (mute) mutedUsers.add(userId);
-      else mutedUsers.delete(userId);
-    }
-
-    socket.off('voice-data');
-    socket.on('voice-data', (data) => {
-      if (mutedUsers.has(data.userId)) return;
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
-      const channel = buffer.getChannelData(0);
-      const int16Array = new Int16Array(data.audio);
-      for (let i = 0; i < int16Array.length; i++) {
-        channel[i] = int16Array[i] / 0x7FFF;
-      }
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioCtx.destination);
-      source.start();
-    });
-
-    // ---------- LEAVE ----------
-    async function leaveRoom() {
-      if (adPollInterval) clearInterval(adPollInterval);
-      if (isSpeaking) await toggleSpeak();
-      socket.emit('leave-room');
-      await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
-      currentRoom = null;
-      document.getElementById('roomsListPage').style.display = 'block';
-      document.getElementById('roomView').style.display = 'none';
-      loadRooms();
-    }
-    async function leaveQueue() { await leaveRoom(); }
-
-    // ---------- CHAT ----------
-    function sendMessage() {
-      const input = document.getElementById('chatInput');
-      const msg = input.value.trim();
-      if (!msg || !userData) return;
-      socket.emit('chat-message', msg);
-      input.value = '';
-    }
-    socket.on('chat-message', (data) => addChatMessage(data.username, data.message));
-    function addChatMessage(username, text, color='#a78bfa', extraClass='') {
-      const chatBox = document.getElementById('chatBox');
-      const msgDiv = document.createElement('div');
-      msgDiv.className = 'chat-msg';
-      if (extraClass) msgDiv.classList.add(extraClass);
-      msgDiv.innerHTML = `
-        <div class="chat-pfp"></div>
-        <div class="msg-content ${extraClass}">
-          <div class="msg-username" style="color:${color}">${username}</div>
-          <div>${text}</div>
-        </div>`;
-      chatBox.appendChild(msgDiv);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    // ---------- DONATIONS (player board) ----------
-    async function openDonate(playerId) {
-      if (!token) { alert('Login required'); return; }
-      selectedReceiverId = playerId;
+  // ========== VOICE ==========
+  async function toggleSpeak() {
+    if (!currentRoom) return;
+    if (!isSpeaking) {
       try {
-        const res = await fetch(`/api/user/${playerId}/board`, { headers: authHeaders() });
-        if (!res.ok) throw new Error('Failed');
-        const data = await res.json();
-        selectedReceiverName = data.displayName || 'Player';
-        document.getElementById('playerBoardTitle').textContent = `🎁 ${selectedReceiverName}'s Board`;
-        document.getElementById('playerBoardName').textContent = selectedReceiverName;
-        if (data.avatarUrl) {
-          document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
-        } else {
-          document.getElementById('playerBoardAvatar').style.backgroundImage = '';
-        }
-        const board = data.board || [];
-        const grid = document.getElementById('playerBoardGrid');
-        if (board.length === 0) {
-          grid.innerHTML = '<p style="color:#a0a0b0;">This player has no gamepasses added.</p>';
-        } else {
-          grid.innerHTML = board.map(gp => `
-            <div class="board-gamepass-btn" style="position:relative;">
-              <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price}</span>
-              <span class="board-gamepass-name" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">${gp.name}</span>
-              <button class="verify-donate-btn" onclick="verifyDonation('${gp.id}', ${gp.price})">Verify Purchase</button>
-            </div>
-          `).join('');
-        }
-        document.getElementById('playerBoardStatus').textContent = '';
-        document.getElementById('modalOverlay').style.display = 'block';
-        document.getElementById('playerBoardModal').style.display = 'block';
-      } catch (e) { alert('Error loading player board.'); }
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(localStream);
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+        processor.onaudioprocess = (e) => {
+          if (!isSpeaking || !currentRoom) return;
+          const inputData = e.inputBuffer.getChannelData(0);
+          const buffer = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            buffer[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+          }
+          socket.emit('voice-data', buffer.buffer);
+        };
+        window.currentAudioProcessor = processor;
+        isSpeaking = true;
+      } catch (err) { alert('Could not access microphone.'); return; }
+    } else {
+      if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
+      if (window.currentAudioProcessor) { window.currentAudioProcessor.disconnect(); window.currentAudioProcessor = null; }
+      isSpeaking = false;
     }
+    updateSpeakButton();
+  }
+  function updateSpeakButton() {
+    const btn = document.getElementById('speakButton');
+    btn.textContent = isSpeaking ? '🔇 Stop Speaking' : '🎤 Speak';
+    if (isSpeaking) btn.classList.add('active');
+    else btn.classList.remove('active');
+  }
+  function toggleMutePopup() {
+    const popup = document.getElementById('mutePopup');
+    popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+    if (popup.style.display === 'block') updateMutePopup();
+  }
+  function updateMutePopup() {
+    const popup = document.getElementById('mutePopup');
+    if (!currentRoom) return;
+    const players = currentRoom.players || [];
+    popup.innerHTML = players.map(playerId => {
+      const isMe = (userData.id && playerId === userData.id);
+      const label = isMe ? 'You' : 'Player';
+      const checked = mutedUsers.has(playerId) ? 'checked' : '';
+      return `<div class="player-mute-row"><input type="checkbox" id="mute-${playerId}" ${checked} onchange="toggleMuteUser('${playerId}', this.checked)" ${isMe ? 'disabled' : ''}><label for="mute-${playerId}">${label}</label></div>`;
+    }).join('');
+  }
+  function toggleMuteUser(userId, mute) {
+    if (mute) mutedUsers.add(userId);
+    else mutedUsers.delete(userId);
+  }
+  socket.off('voice-data');
+  socket.on('voice-data', (data) => {
+    if (mutedUsers.has(data.userId)) return;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const buffer = audioCtx.createBuffer(1, data.audio.byteLength / 2, audioCtx.sampleRate);
+    const channel = buffer.getChannelData(0);
+    const int16Array = new Int16Array(data.audio);
+    for (let i = 0; i < int16Array.length; i++) channel[i] = int16Array[i] / 0x7FFF;
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+    source.start();
+  });
 
-    function closePlayerBoardModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('playerBoardModal').style.display = 'none';
+  async function leaveRoom() {
+    if (adPollInterval) clearInterval(adPollInterval);
+    if (isSpeaking) await toggleSpeak();
+    socket.emit('leave-room');
+    await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
+    currentRoom = null;
+    document.getElementById('roomsListPage').style.display = 'block';
+    document.getElementById('roomView').style.display = 'none';
+    loadRooms();
+  }
+  async function leaveQueue() { await leaveRoom(); }
+
+  // ========== CHAT ==========
+  function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg || !userData) return;
+    socket.emit('chat-message', msg);
+    input.value = '';
+  }
+  socket.on('chat-message', (data) => {
+    addChatMessage(data.username, data.message, data.userId, data.avatarUrl);
+  });
+  function addChatMessage(username, message, userId, avatarUrl) {
+    const chatBox = document.getElementById('chatBox');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-msg';
+    if (userId === 'system') msgDiv.classList.add('ad-msg');
+    const avatarDiv = document.createElement('div');
+    avatarDiv.className = 'chat-pfp';
+    if (avatarUrl) {
+      avatarDiv.style.backgroundImage = `url(${avatarUrl})`;
+      avatarDiv.style.backgroundSize = 'cover';
+      avatarDiv.style.backgroundPosition = 'center';
     }
-
-    async function verifyDonation(gamepassId, price) {
-      if (!token) { alert('Login required'); return; }
-      const statusDiv = document.getElementById('playerBoardStatus');
-      statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying...</span>';
-      try {
-        const res = await fetch('/api/donate', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ receiverId: selectedReceiverId, gamepassId, amount: price })
-        });
-        const data = await res.json();
-        if (data.success) {
-          statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Donation successful!</span>';
-          addChatMessage('💰 Donation!', data.message, '#ffd700');
-          setTimeout(closePlayerBoardModal, 2000);
-        } else {
-          statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-        }
-      } catch (e) { statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying donation.</span>'; }
-    }
-
-    // ---------- BOARD MANAGEMENT ----------
-    function renderBoard() {
-      const grid = document.getElementById('boardGamepassGrid');
-      const board = userData.board || [];
-      if (board.length === 0) {
-        grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
-        return;
-      }
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'msg-content';
+    const usernameDiv = document.createElement('div');
+    usernameDiv.className = 'msg-username';
+    usernameDiv.textContent = username;
+    const messageDiv = document.createElement('div');
+    messageDiv.textContent = message;
+    contentDiv.appendChild(usernameDiv);
+    contentDiv.appendChild(messageDiv);
+    msgDiv.appendChild(avatarDiv);
+    msgDiv.appendChild(contentDiv);
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+  // ========== BOARD ==========
+  async function showBoard() {
+    if (!userData) return;
+    const modal = document.getElementById('boardModal');
+    const grid = document.getElementById('boardGamepassGrid');
+    const board = userData.board || [];
+    if (board.length === 0) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
+    else {
       grid.innerHTML = board.map(gp => `
-        <div class="board-gamepass-btn" style="position:relative;">
-          <button class="remove-gp-btn" onclick="removeGamepassFromBoard('${gp.id}')">✕</button>
-          <span class="board-gamepass-amount" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price}</span>
-          <span class="board-gamepass-name" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">${gp.name || 'Gamepass'}</span>
+        <div class="board-gamepass-btn">
+          <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+          <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+          <span class="board-gamepass-name">🆔 ${gp.id}</span>
         </div>
       `).join('');
     }
-
-    function closeBoardModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('boardModal').style.display = 'none';
-    }
-
-    async function addGamepassToBoard() {
-      if (!token) return;
-      const assetId = document.getElementById('newGamepassId').value.trim();
-      const price = parseInt(document.getElementById('newGamepassPrice').value);
-      if (!assetId || !price || price <= 0) {
-        document.getElementById('boardAddStatus').innerHTML = '<span style="color:#f87171;">Enter valid Asset ID and Robux amount</span>';
-        return;
-      }
-      const status = document.getElementById('boardAddStatus');
-      status.innerHTML = '<span style="color:#fbbf24;">Adding...</span>';
-      try {
-        const res = await fetch('/api/board/add', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ assetId, price })
-        });
-        const data = await res.json();
-        if (data.success) {
-          userData.board = data.board;
-          renderBoard();
-          document.getElementById('newGamepassId').value = '';
-          document.getElementById('newGamepassPrice').value = '';
-          status.innerHTML = '<span style="color:#4ade80;">✅ Added!</span>';
-        } else {
-          status.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-        }
-      } catch (e) { status.innerHTML = '<span style="color:#f87171;">❌ Error adding gamepass.</span>'; }
-    }
-
-    async function removeGamepassFromBoard(assetId) {
-      if (!token) return;
-      if (!confirm('Remove this gamepass from your board?')) return;
-      const res = await fetch('/api/board/remove', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ assetId })
-      });
+    modal.style.display = 'block';
+    document.getElementById('modalOverlay').style.display = 'block';
+  }
+  function closeBoardModal() {
+    document.getElementById('boardModal').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
+  }
+  async function addGamepassToBoard() {
+    const assetId = document.getElementById('newGamepassId').value.trim();
+    const price = parseInt(document.getElementById('newGamepassPrice').value);
+    if (!assetId || !price) { document.getElementById('boardAddStatus').textContent = 'Asset ID and Robux amount required'; return; }
+    try {
+      const res = await fetch('/api/board/add', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId, price }) });
       const data = await res.json();
-      if (data.success) { userData.board = data.board; renderBoard(); }
-    }
+      if (data.error) document.getElementById('boardAddStatus').textContent = data.error;
+      else { document.getElementById('boardAddStatus').textContent = '✅ Added to board!'; userData.board = data.board; showBoard(); }
+    } catch (e) { document.getElementById('boardAddStatus').textContent = 'Error adding gamepass'; }
+  }
+  async function removeGamepass(assetId) {
+    if (!confirm('Remove this gamepass from your board?')) return;
+    try {
+      const res = await fetch('/api/board/remove', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId }) });
+      const data = await res.json();
+      if (data.success) { userData.board = data.board; showBoard(); }
+    } catch (e) {}
+  }
+  async function sendBoardToChat() {
+    if (!currentRoom || !userData.board || userData.board.length === 0) { alert('No gamepasses on your board.'); return; }
+    const boardData = userData.board.map(gp => ({ id: gp.id, price: gp.price }));
+    socket.emit('chat-board', boardData);
+  }
 
-    async function showBoard() {
-      if (!userData) return;
-      if (token) {
-        const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
-        if (res.ok) userData = await res.json();
+  // ========== DONATIONS ==========
+  async function openDonate(receiverId) {
+    if (!token) { alert('Login to donate'); window.location.href = '/auth/roblox'; return; }
+    selectedReceiverId = receiverId;
+    try {
+      const res = await fetch(`/api/user/${receiverId}/board`, { headers: authHeaders() });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      document.getElementById('playerBoardTitle').textContent = `🎁 ${data.displayName}'s Board`;
+      document.getElementById('playerBoardName').textContent = data.displayName;
+      if (data.avatarUrl) {
+        document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
+        document.getElementById('playerBoardAvatar').style.backgroundSize = 'cover';
       }
-      renderBoard();
+      const grid = document.getElementById('playerBoardGrid');
+      if (!data.board || data.board.length === 0) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses on this player\'s board.</p>';
+      else {
+        grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn" onclick="confirmDonate('${receiverId}', '${gp.id}', ${gp.price})"><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('');
+      }
+      document.getElementById('playerBoardModal').style.display = 'block';
       document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('boardModal').style.display = 'block';
-    }
+    } catch (e) { alert('Could not load player\'s board: ' + e.message); }
+  }
+  function closePlayerBoardModal() {
+    document.getElementById('playerBoardModal').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
+  }
+  async function confirmDonate(receiverId, gamepassId, amount) {
+    if (!confirm(`Donate ${amount} Robux to this player? You will be redirected to Roblox to complete the purchase.`)) return;
+    try {
+      const res = await fetch('/api/donate/initiate', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ receiverId, gamepassId, amount }) });
+      const data = await res.json();
+      if (data.url) { window.open(data.url, '_blank'); closePlayerBoardModal(); }
+      else alert(data.error || 'Failed to initiate donation');
+    } catch (e) { alert('Error starting donation'); }
+  }
 
-    function sendBoardToChat() {
-      if (!userData || !currentRoom) return;
-      const board = userData.board || [];
-      if (board.length === 0) { alert('Your board is empty.'); return; }
-      const boardItems = board.map(gp =>
-        `<span class="ad-mini-board-item" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price} ${gp.name}</span>`
-      ).join('');
-      const content = `<div><strong>🎁 ${userData.displayName || userData.username}'s Board</strong><div class="ad-mini-board">${boardItems}</div></div>`;
-      socket.emit('chat-message', content);
-    }
-
-    // ---------- AD BROADCASTS ----------
-    async function checkAdBroadcasts() {
-      if (!currentRoom || !currentRoom.id) return;
-      try {
-        const res = await fetch(`/api/rooms/${currentRoom.id}/ad-broadcasts?since=${lastAdCheck}`);
-        const broadcasts = await res.json();
-        lastAdCheck = Date.now();
-        for (const b of broadcasts) {
-          const boardItems = (b.board || []).map(gp =>
-            `<span class="ad-mini-board-item" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">R$ ${gp.price} ${gp.name}</span>`
-          ).join('');
-          const messageHtml = b.message ? `<p class="ad-message-text">"${b.message}"</p>` : '';
-          const adContent = `
-            <div>
-              <strong>📢 ${b.advertiserName} wants your support!</strong>
-              ${messageHtml}
-              <div class="ad-mini-board">${boardItems}</div>
-            </div>
-          `;
-          addChatMessage(b.advertiserName, adContent, '#ffd700', 'ad-msg');
+  // ========== ADVERTISEMENT ==========
+  function openAdModal() {
+    if (!token) { alert('Login to advertise'); window.location.href = '/auth/roblox'; return; }
+    document.getElementById('adModal').style.display = 'block';
+    document.getElementById('modalOverlay').style.display = 'block';
+  }
+  function closeAdModal() {
+    document.getElementById('adModal').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
+  }
+  let selectedAdTier = null, selectedAdGamepassId = null;
+  function openAdVerification(tier) {
+    selectedAdTier = tier;
+    selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
+    document.getElementById('adVerifyTierText').textContent = `Tier: ${tier === '5k' ? '5,000' : '10,000'} Robux`;
+    closeAdModal();
+    document.getElementById('adVerifyModal').style.display = 'block';
+    document.getElementById('modalOverlay').style.display = 'block';
+  }
+  function closeAdVerifyModal() {
+    document.getElementById('adVerifyModal').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
+  }
+  function openAdGamepass() { window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank'); }
+  async function verifyAdPurchase() {
+    const message = document.getElementById('adMessage').value.trim();
+    const statusDiv = document.getElementById('adVerifyStatus');
+    statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
+    try {
+      const res = await fetch('/api/purchase-ad', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ tier: selectedAdTier, message }) });
+      const data = await res.json();
+      if (data.success) {
+        statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased successfully!</span>';
+        setTimeout(() => { closeAdVerifyModal(); if (userData) userData.ad = data.ad; }, 3000);
+      } else statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+    } catch (e) { statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>'; }
+  }
+  async function checkAdBroadcasts() {
+    if (!currentRoom || !currentRoom.id) return;
+    try {
+      const res = await fetch(`/api/ads/broadcast?roomId=${currentRoom.id}&since=${lastAdCheck}`);
+      const ads = await res.json();
+      ads.forEach(ad => {
+        let boardHtml = '';
+        if (ad.board && ad.board.length) {
+          boardHtml = `<div class="ad-mini-board">${ad.board.map(gp => `<div class="ad-mini-board-item" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">💰 ${gp.price} R$</div>`).join('')}</div>`;
         }
-      } catch (e) {}
-    }
+        addChatMessage(`📢 AD: ${ad.advertiserName}`, `${ad.message || 'Check out my board!'}${boardHtml}`, 'system');
+      });
+      lastAdCheck = Date.now();
+    } catch (e) {}
+  }
 
-    // ---------- AD FLOW ----------
-    let selectedAdTier = null, selectedAdGamepassId = null;
-
-    function openAdVerification(tier) {
-      if (!token) { alert('Login required'); return; }
-      selectedAdTier = tier;
-      selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
-      document.getElementById('adVerifyTierText').textContent = `Tier: ${tier==='5k'?'5,000':'10,000'} Robux`;
-      document.getElementById('adVerifyStatus').textContent = '';
-      document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('adVerifyModal').style.display = 'block';
-      document.getElementById('adModal').style.display = 'none';
-    }
-
-    function closeAdVerifyModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('adVerifyModal').style.display = 'none';
-    }
-
-    function openAdGamepass() {
-      window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank');
-    }
-
-    async function verifyAdPurchase() {
-      if (!token) { alert('Login required'); return; }
-      const message = document.getElementById('adMessage').value.trim();
-      const statusDiv = document.getElementById('adVerifyStatus');
-      statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying...</span>';
-      try {
-        const res = await fetch('/api/purchase-ad', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ tier: selectedAdTier, message })
-        });
-        const data = await res.json();
-        if (data.success) {
-          statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased!</span>';
-          userData.ad = data.ad;
-          setTimeout(closeAdVerifyModal, 3000);
-        } else {
-          statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-        }
-      } catch (e) { statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>'; }
-    }
-
-    function openAdModal() {
-      document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('adModal').style.display = 'block';
-      document.getElementById('adPurchaseStatus').innerHTML = '';
-      document.getElementById('adMessage').value = '';
-    }
-
-    function closeAdModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('adModal').style.display = 'none';
-    }
-
-    init();
-  </script>
+  init();
+</script>
 </body>
 </html>
