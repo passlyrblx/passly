@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Passly - Dashboard</title>
+  <title>Passly - Donations Never Stop</title>
+  <!-- PWA support on ALL pages -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
+  <meta name="theme-color" content="#8b5cf6">
+
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -18,10 +23,7 @@
     .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
     .nav-links a:hover { color:#a78bfa; }
     .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,0.1); padding:8px 16px; border-radius:12px; }
-    .user-avatar {
-      width:35px; height:35px; border-radius:50%; background:#8b5cf6;
-      background-size:cover; background-position:center;
-    }
+    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; background-position:center; }
     .user-name { font-weight:600; color:#c4b5fd; }
     .main-content { padding:30px; max-width:1200px; margin:0 auto; }
     .welcome-section { margin-bottom:40px; }
@@ -195,9 +197,7 @@
         const avatarEl = document.getElementById('userAvatar');
         if (userData.avatarUrl) {
           avatarEl.style.backgroundImage = `url(${userData.avatarUrl})`;
-          avatarEl.onerror = function() {   // if image fails, keep the purple background
-            avatarEl.style.backgroundImage = '';
-          };
+          avatarEl.onerror = function() { avatarEl.style.backgroundImage = ''; };
         }
 
         document.getElementById('totalReceived').textContent = (userData.donations?.received || 0).toLocaleString();
