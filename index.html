@@ -11,17 +11,18 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: transparent;  /* This is the key change – was #0a0a14 */
+      background: #0a0a14;               /* <-- original dark background */
       color: white;
       display: flex;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
       position: relative;
-      overflow: hidden;
+      overflow-x: hidden;                 /* allow horizontal hidden */
+      overflow-y: auto;                   /* allow vertical scrolling */
     }
     .bg-image {
-      position: absolute;
+      position: fixed;
       inset: 0;
       background: url('https://i.ibb.co/whGL4zhg/1000039438.jpg') center/cover no-repeat;
       opacity: 0.5;
@@ -29,7 +30,7 @@
       z-index: 0;
     }
     .bg-overlay {
-      position: absolute;
+      position: fixed;
       inset: 0;
       background: radial-gradient(circle at center, rgba(139, 92, 246, 0.1), transparent 70%);
       z-index: 1;
@@ -43,16 +44,19 @@
       backdrop-filter: blur(20px);
       border-radius: 24px;
       padding: 40px 30px;
+      margin: 20px auto;
       border: 1px solid rgba(139, 92, 246, 0.3);
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
       text-align: center;
     }
-    .logo-img {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 15px;
-      display: block;
-      object-fit: contain;
+    /* Text logo – no image */
+    .logo-text {
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
     }
     .tagline {
       color: #a78bfa;
@@ -137,7 +141,7 @@
   <div class="bg-overlay"></div>
 
   <div class="container">
-    <img src="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png" alt="Passly" class="logo-img">
+    <div class="logo-text">Passly</div>
     <div class="tagline">Donations Never Stop</div>
 
     <div class="description">
