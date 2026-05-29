@@ -8,7 +8,6 @@
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
   <style>
-    /* ... same as before, unchanged ... */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -162,7 +161,6 @@
       📲 In Chrome, tap <strong>⋮ → Install app</strong> to add to home screen!
     </div>
   </div>
-
   <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
   <script>
     // Show passkey button if WebAuthn is supported
@@ -186,7 +184,7 @@
       const statusEl = document.getElementById('loginStatus');
       statusEl.textContent = 'Requesting passkey login...';
       try {
-        // 1. Get authentication options
+        // 1. Get authentication options (includes loginKey)
         const optionsRes = await fetch('/api/passkey/login-options', { method: 'POST' });
         const options = await optionsRes.json();
         if (options.error) {
@@ -194,19 +192,21 @@
           return;
         }
 
-        // 2. Prompt user for biometrics
-        const authResponse = await SimpleWebAuthnBrowser.startAuthentication(options);
+        // ── CRITICAL FIX: extract the loginKey BEFORE calling startAuthentication ──
+        const { loginKey, ...authOptions } = options;
 
-        // 3. Verify with server
+        // 2. Prompt user for biometrics
+        const authResponse = await SimpleWebAuthnBrowser.startAuthentication(authOptions);
+
+        // 3. Verify with server – include loginKey in the body
         const verifyRes = await fetch('/api/passkey/login-verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(authResponse)
+          body: JSON.stringify({ ...authResponse, loginKey })   // ✅ loginKey included here
         });
         const result = await verifyRes.json();
         if (result.success) {
           localStorage.setItem('passly_token', result.token);
-          // No need to store passly_user because user is real
           window.location.href = '/dashboard';
         } else {
           statusEl.textContent = result.error || 'Login failed';
