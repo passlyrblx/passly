@@ -701,7 +701,7 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
   const User = mongoose.model('User');
   const Donation = mongoose.model('Donation');
-  const totalUsers = await User.countDocuments({ role: { $ne: 'guest' } }); // guests are also role 'user', so better: exclude _id starting with Guest_
+  const totalUsers = await User.countDocuments({ role: { $ne: 'guest' } });
   const totalGuests = await User.countDocuments({ robloxUsername: /^Guest_/ });
   const totalDonations = await Donation.countDocuments();
   const totalRobuxDonated = await Donation.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]).then(r => r[0]?.total || 0);
@@ -715,6 +715,27 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
     onlineNow: onlineUsers.size,
     activeToday
   });
+});
+// NEW: Get list of online users with usernames
+app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const User = mongoose.model('User');
+  const onlineUsersArray = Array.from(onlineUsers);
+  const users = [];
+  for (const id of onlineUsersArray) {
+    const user = await User.findById(id);
+    if (user) {
+      users.push({
+        id: user._id,
+        username: user.robloxUsername,
+        displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
+        isGuest: user.robloxUsername?.startsWith('Guest_') || false
+      });
+    } else {
+      users.push({ id, username: id.startsWith('Guest_') ? id : 'Unknown', displayName: 'Unknown', isGuest: true });
+    }
+  }
+  res.json({ onlineUsers: users });
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 
