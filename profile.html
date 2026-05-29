@@ -54,6 +54,7 @@
     .add-board-section { display:flex; gap:10px; margin-top:10px; align-items:center; flex-wrap:wrap; }
     .add-board-section input { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; min-width:120px; }
     .add-board-btn { padding:12px 20px; background:#8b5cf6; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600; }
+    .admin-box { background:rgba(139,92,246,0.15); border-radius:15px; padding:15px; text-align:center; margin-top:20px; display:none; }
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -62,21 +63,22 @@
   </style>
 </head>
 <body>
-  <nav class="navbar">
-    <div class="nav-logo">Passly</div>
-    <div class="nav-links">
-      <a href="/dashboard">🏠 Home</a>
-      <a href="/rooms">🚪 Rooms</a>
-      <a href="/leaderboard">🏆 Leaderboard</a>
-      <a href="/profile">👤 Profile</a>
-      <a href="/advertisement">📢 Advertise</a>
-      <a href="/livedonations">💸 Live Donations</a>
-    </div>
-    <div class="user-box">
-      <div class="user-avatar" id="userAvatar"></div>
-      <span class="user-name" id="userName">Loading...</span>
-    </div>
-  </nav>
+<nav class="navbar">
+  <div class="nav-logo">Passly</div>
+  <div class="nav-links">
+    <a href="/dashboard">🏠 Home</a>
+    <a href="/rooms">🚪 Rooms</a>
+    <a href="/leaderboard">🏆 Leaderboard</a>
+    <a href="/profile">👤 Profile</a>
+    <a href="/advertisement">📢 Advertise</a>
+    <a href="/livedonations">💸 Live Donations</a>
+  </div>
+  <div class="user-box">
+    <div class="user-avatar" id="userAvatar"></div>
+    <span class="user-name" id="userName">Loading...</span>
+  </div>
+</nav>
+
 <div class="main-content">
   <div class="debug-status" id="debugStatus">🔄 Initialising…</div>
   <h1>👤 Profile Settings</h1>
@@ -98,7 +100,10 @@
         <p id="profileStatus"><span class="status-dot dot-online" id="statusDot"></span><span id="statusText">Online</span></p>
       </div>
     </div>
-    <div id="loginPrompt" class="login-prompt" style="display:none;"><p>🔐 <strong>Log in with Roblox</strong> to edit your profile, board, and purchase ads.</p><button class="save-btn" onclick="window.location.href='/auth/roblox'" style="margin-top:10px;">Login with Roblox</button></div>
+    <div id="loginPrompt" class="login-prompt" style="display:none;">
+      <p>🔐 <strong>Log in with Roblox</strong> to edit your profile, board, and purchase ads.</p>
+      <button class="save-btn" onclick="window.location.href='/auth/roblox'" style="margin-top:10px;">Login with Roblox</button>
+    </div>
     <div class="settings-group"><label class="settings-label">Custom Display Name</label><input type="text" class="custom-name-input" id="customDisplayName" placeholder="Leave blank to use Roblox name" maxlength="20"></div>
     <div class="settings-group"><label class="settings-label">Show Booth (Gamepass Board)</label><select class="settings-select" id="showBooth"><option value="true">✅ Yes - Show my board to others</option><option value="false">❌ No - Hide my board</option></select></div>
     <div class="settings-group"><label class="settings-label">Online Status Display</label><select class="settings-select" id="statusDotSelect" onchange="updateStatusPreview()"><option value="online">🟢 Green Dot - Show when online</option><option value="offline">⚫ Black Dot - Show when offline</option><option value="always-black">⚫ Always Black - Never show online status</option></select></div>
@@ -113,36 +118,41 @@
     <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
     <div class="board-gamepass-grid" id="boardGamepassGrid"><p style="color:#a0a0b0;">No gamepasses added yet.</p></div>
   </div>
+
+  <!-- Admin Box (hidden by default, shown only to admins) -->
+  <div id="adminBox" class="admin-box">
+    <h3 style="color:#a78bfa;">🔐 Admin Zone</h3>
+    <a href="/admin.html" class="add-board-btn" style="display:inline-block; margin-top:10px; text-decoration:none;">Open Admin Dashboard</a>
+  </div>
 </div>
-  <script>
-    (function() {
-      let token = localStorage.getItem('passly_token');
-      if (!token && window.location.hash.includes('token=')) {
-        const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
-        localStorage.setItem('passly_token', tokenPart);
-        token = tokenPart;
-        history.replaceState(null, null, ' ');
-      }
-    })();
-    
+<script>
+  (function() {
     let token = localStorage.getItem('passly_token');
-    let userData = null;
-
-    function debugMsg(msg) { const el = document.getElementById('debugStatus'); if (el) el.textContent = msg; }
-    function authHeaders() {
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      return headers;
+    if (!token && window.location.hash.includes('token=')) {
+      const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
+      localStorage.setItem('passly_token', tokenPart);
+      token = tokenPart;
+      history.replaceState(null, null, ' ');
     }
-    function requireLogin(callback) {
-      if (!token) {
-        alert('Please log in with Roblox first');
-        window.location.href = '/auth/roblox';
-        return;
-      }
-      callback();
-    }
+  })();
+  
+  let token = localStorage.getItem('passly_token');
+  let userData = null;
 
+  function debugMsg(msg) { const el = document.getElementById('debugStatus'); if (el) el.textContent = msg; }
+  function authHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+  function requireLogin(callback) {
+    if (!token) {
+      alert('Please log in with Roblox first');
+      window.location.href = '/auth/roblox';
+      return;
+    }
+    callback();
+  }
     async function init() {
       debugMsg('Loading user data...');
       if (token) {
@@ -212,6 +222,9 @@
           </div>
         `).join('');
       }
+
+      // Admin check (show admin box if user is admin or owner)
+      await checkAdminStatus();
     }
 
     function updateStatusPreview() {
@@ -313,6 +326,18 @@
           </div>
         `).join('') : '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
       }
+    }
+
+    // Admin check
+    async function checkAdminStatus() {
+      if (!token) return;
+      try {
+        const res = await fetch('/api/admin/check', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (data.isAdmin) {
+          document.getElementById('adminBox').style.display = 'block';
+        }
+      } catch(e) { console.error('Admin check failed', e); }
     }
 
     init();
