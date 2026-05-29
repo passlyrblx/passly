@@ -419,29 +419,23 @@ io.on('connection', (socket) => {
 
     // === ADMIN COMMAND: r.close ===
     if (!isGuest && (isAdmin || isOwner) && messageText.trim().toLowerCase() === 'r.close') {
-      // Delete the room
       const Room = mongoose.model('Room');
       const room = await Room.findById(currentRoomId);
       if (room) {
-        // Notify all users in the room that it's closing
         io.to(currentRoomId).emit('room-closed', { message: 'This room has been closed by an admin.' });
-        // Force disconnect all sockets in the room
         const sockets = await io.in(currentRoomId).fetchSockets();
         for (const sock of sockets) {
           sock.emit('force-leave', { reason: 'Room was closed by admin.' });
           sock.leave(currentRoomId);
         }
-        // Delete the room from database
         await Room.deleteOne({ _id: currentRoomId });
-        // Also remove roomId from users
         const UserModel = mongoose.model('User');
         await UserModel.updateMany({ roomId: currentRoomId }, { $unset: { roomId: "", inQueue: "" } });
         console.log(`Room ${currentRoomId} deleted by admin ${senderName}`);
       }
-      return; // do not broadcast the command message
+      return;
     }
 
-    // Filter bad words
     const filteredMsg = filterMessageServer(messageText);
     io.to(currentRoomId).emit('chat-message', {
       userId: senderId,
@@ -538,7 +532,7 @@ app.post('/api/guest-login', async (req, res) => {
   res.json({ id: guestId, username, displayName: username, isGuest: true });
 });
 
-// DONATION INITIATE
+// DONATION INITIATE (opens Roblox page, stores pending donation in session)
 app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   const { receiverId, gamepassId, amount } = req.body;
   if (!receiverId || !gamepassId || !amount) return res.status(400).json({ error: 'Missing fields' });
@@ -604,6 +598,55 @@ app.post('/api/admin/broadcast', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
+
+// ========== DONATION VERIFICATION ENDPOINT (new) ==========
+app.post('/api/donate/verify', authenticateToken, async (req, res) => {
+  const { receiverId, gamepassId, amount } = req.body;
+  if (!receiverId || !gamepassId || !amount) {
+    return res.status(400).json({ error: 'Missing donation details' });
+  }
+
+  const User = mongoose.model('User');
+  const donor = await User.findById(req.user.id);
+  if (!donor) return res.status(404).json({ error: 'User not found' });
+
+  // Check if donor owns the gamepass
+  try {
+    const inventoryRes = await axios.get(`https://inventory.roblox.com/v1/users/${req.user.id}/items/GamePass/${gamepassId}`, {
+      timeout: 5000
+    });
+    const owns = inventoryRes.data?.data?.length > 0;
+    if (!owns) {
+      return res.status(400).json({ error: 'You do not own this gamepass. Purchase it first.' });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to verify ownership. Please try again later.' });
+  }
+
+  // Record donation
+  const Donation = mongoose.model('Donation');
+  const receiver = await User.findById(receiverId);
+  if (!receiver) return res.status(404).json({ error: 'Receiver not found' });
+
+  const donation = new Donation({
+    _id: crypto.randomBytes(8).toString('hex'),
+    donorId: req.user.id,
+    donorName: donor.robloxUsername,
+    receiverId: receiverId,
+    receiverName: receiver.robloxUsername,
+    gamepassId: gamepassId,
+    amount: amount,
+    roomId: null,
+    timestamp: new Date()
+  });
+  await donation.save();
+
+  // Update user totals
+  await User.findByIdAndUpdate(req.user.id, { $inc: { 'donations.given': amount } });
+  await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': amount } });
+
+  res.json({ success: true, message: 'Donation recorded! Thank you.' });
+});
 // FALLBACK (MUST BE LAST)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
