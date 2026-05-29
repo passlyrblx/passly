@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Passly - Donations Never Stop</title>
+  <title>Passly - Profile</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
@@ -20,13 +20,13 @@
     .user-name { font-weight:600; color:#c4b5fd; }
     .main-content { padding:30px; max-width:600px; margin:0 auto; }
     h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
-    .debug-status { background:rgba(255,255,255,0.1); padding:8px 12px; border-radius:8px; text-align:center; margin-bottom:15px; font-size:0.9rem; color:#ffd700; }
     .section-card { background:rgba(20,20,40,0.6); border-radius:20px; padding:25px; border:1px solid rgba(139,92,246,0.2); margin-bottom:20px; }
     .profile-header { display:flex; align-items:center; gap:20px; margin-bottom:20px; }
     .profile-avatar { width:80px; height:80px; border-radius:50%; background:#8b5cf6; background-size:cover; background-position:center; border:3px solid rgba(139,92,246,0.5); }
     .profile-info h2 { font-size:1.5rem; margin-bottom:5px; }
     .profile-info p { color:#a0a0b0; font-size:0.9rem; }
     .guest-badge { background:rgba(139,92,246,0.2); padding:4px 12px; border-radius:8px; font-size:0.8rem; color:#a78bfa; display:inline-block; margin-top:5px; }
+    .vip-badge { background:linear-gradient(135deg,#ffd700,#f59e0b); color:#0a0a14; padding:4px 12px; border-radius:8px; font-size:0.8rem; font-weight:bold; display:inline-block; margin-left:8px; }
     .status-dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:5px; }
     .dot-online { background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,0.5); }
     .dot-offline { background:#000; border:1px solid #444; }
@@ -42,11 +42,6 @@
     .search-input { width:100%; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; font-size:1rem; outline:none; margin-bottom:10px; }
     .search-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:12px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
     .search-result { margin-top:15px; }
-    .search-result .board-gamepass-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-top:10px; }
-    .search-result .board-gamepass-btn { background:#22c55e; color:white; border:none; border-radius:14px; padding:18px 10px; font-weight:bold; font-size:1rem; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px; }
-    .search-result .board-gamepass-btn:hover { background:#16a34a; }
-    .board-gamepass-amount { font-size:1.2rem; }
-    .board-gamepass-name { font-size:0.8rem; opacity:0.9; }
     .board-gamepass-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-top:10px; max-height:400px; overflow-y:auto; }
     .board-gamepass-btn { background:#22c55e; color:white; border:none; border-radius:14px; padding:18px 10px; font-weight:bold; font-size:1rem; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px; position:relative; }
     .board-gamepass-btn:hover { background:#16a34a; transform:scale(1.03); }
@@ -55,6 +50,8 @@
     .add-board-section input { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; min-width:120px; }
     .add-board-btn { padding:12px 20px; background:#8b5cf6; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600; }
     .admin-box { background:rgba(139,92,246,0.15); border-radius:15px; padding:15px; text-align:center; margin-top:20px; display:none; }
+    .tos-modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; display:flex; align-items:center; justify-content:center; }
+    .tos-content { background:#1a1a2e; padding:30px; border-radius:20px; max-width:500px; text-align:center; border:1px solid #8b5cf6; }
     @media (max-width:768px) {
       .navbar { flex-direction:column; gap:15px; padding:15px; }
       .nav-links { gap:15px; flex-wrap:wrap; justify-content:center; }
@@ -80,7 +77,6 @@
 </nav>
 
 <div class="main-content">
-  <div class="debug-status" id="debugStatus">🔄 Initialising…</div>
   <h1>👤 Profile Settings</h1>
 
   <div class="search-section">
@@ -119,10 +115,26 @@
     <div class="board-gamepass-grid" id="boardGamepassGrid"><p style="color:#a0a0b0;">No gamepasses added yet.</p></div>
   </div>
 
-  <!-- Admin Box (hidden by default, shown only to admins) -->
+  <!-- Admin Box (hidden by default) -->
   <div id="adminBox" class="admin-box">
     <h3 style="color:#a78bfa;">🔐 Admin Zone</h3>
     <a href="/admin.html" class="add-board-btn" style="display:inline-block; margin-top:10px; text-decoration:none;">Open Admin Dashboard</a>
+  </div>
+</div>
+
+<!-- ToS Modal (hidden initially) -->
+<div id="tosModal" class="tos-modal" style="display:none;">
+  <div class="tos-content">
+    <h2>📜 Terms of Service</h2>
+    <p style="margin:15px 0; text-align:left;">By using Passly, you agree to:</p>
+    <ul style="text-align:left; margin-bottom:20px;">
+      <li>Follow all Roblox Terms of Use</li>
+      <li>Not exploit or cheat the donation system</li>
+      <li>Report bugs to passlyroblox@gmail.com</li>
+      <li>Accept that donations are final</li>
+    </ul>
+    <label><input type="checkbox" id="tosCheckbox"> I have read and agree to the Terms of Service</label><br><br>
+    <button class="save-btn" onclick="acceptTos()">Accept & Continue</button>
   </div>
 </div>
 <script>
@@ -139,7 +151,6 @@
   let token = localStorage.getItem('passly_token');
   let userData = null;
 
-  function debugMsg(msg) { const el = document.getElementById('debugStatus'); if (el) el.textContent = msg; }
   function authHeaders() {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -153,193 +164,214 @@
     }
     callback();
   }
-    async function init() {
-      debugMsg('Loading user data...');
-      if (token) {
-        try {
-          const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
-          if (res.ok) {
-            userData = await res.json();
-            userData.isGuest = false;
-            document.getElementById('loginPrompt').style.display = 'none';
-          } else {
-            localStorage.removeItem('passly_token');
-            token = null;
-          }
-        } catch (e) { debugMsg('Error loading user'); }
-      }
-      if (!userData) {
-        const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
-        if (guest && guest.username) userData = { ...guest, isGuest: true };
-        else {
-          const res = await fetch('/api/guest-login', { method: 'POST' });
-          const data = await res.json();
-          userData = { ...data, isGuest: true };
-          localStorage.setItem('passly_user', JSON.stringify(userData));
-        }
-        document.getElementById('loginPrompt').style.display = 'block';
-      }
 
-      document.getElementById('userName').textContent = userData.displayName || userData.username;
-      document.getElementById('profileName').textContent = userData.displayName || userData.username;
-      document.getElementById('robloxUsernameDisplay').innerHTML = userData.robloxUsername ? `Roblox: @${userData.robloxUsername}` : '';
-      if (userData.isGuest) document.getElementById('guestBadge').style.display = 'inline-block';
-
-      // Avatar
-      const avatarUrl = userData.avatarUrl;
-      const avatarFallback = userData.avatarFallback || `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png`;
-      const setAvatar = (el) => {
-        if (avatarUrl) {
-          el.style.backgroundImage = `url(${avatarUrl})`;
-          el.onerror = () => { el.style.backgroundImage = `url(${avatarFallback})`; };
-        } else if (avatarFallback) {
-          el.style.backgroundImage = `url(${avatarFallback})`;
-        } else {
-          el.style.backgroundImage = '';
-        }
-      };
-      setAvatar(document.getElementById('userAvatar'));
-      setAvatar(document.getElementById('profileAvatar'));
-
-      // Profile settings
-      if (userData.profile) {
-        document.getElementById('showBooth').value = userData.profile.showBooth ? 'true' : 'false';
-        let dotSetting = userData.profile.statusDot || 'online';
-        document.getElementById('statusDotSelect').value = dotSetting;
-        document.getElementById('showRoomId').value = userData.profile.showRoomId ? 'true' : 'false';
-        updateStatusPreview();
-      }
-      if (userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
-
-      // Board
-      if (userData.board && userData.board.length) {
-        const grid = document.getElementById('boardGamepassGrid');
-        grid.innerHTML = userData.board.map(gp => `
-          <div class="board-gamepass-btn">
-            <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
-            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
-            <span class="board-gamepass-name">🆔 ${gp.id}</span>
-          </div>
-        `).join('');
-      }
-
-      // Admin check (show admin box if user is admin or owner)
-      await checkAdminStatus();
+  // --- ToS acceptance ---
+  async function acceptTos() {
+    const checkbox = document.getElementById('tosCheckbox');
+    if (!checkbox.checked) {
+      alert('You must accept the Terms of Service to continue.');
+      return;
     }
-
-    function updateStatusPreview() {
-      const val = document.getElementById('statusDotSelect').value;
-      const dot = document.getElementById('statusDot');
-      const statusText = document.getElementById('statusText');
-      if (val === 'online') {
-        dot.className = 'status-dot dot-online';
-        statusText.textContent = 'Online';
-      } else {
-        dot.className = 'status-dot dot-offline';
-        statusText.textContent = 'Offline';
-      }
-    }
-
-    async function saveProfile() {
-      const showBooth = document.getElementById('showBooth').value === 'true';
-      const statusDot = document.getElementById('statusDotSelect').value;
-      const showRoomId = document.getElementById('showRoomId').value === 'true';
-      const customDisplayName = document.getElementById('customDisplayName').value.trim();
-      try {
-        const res = await fetch('/api/profile/update', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName })
-        });
-        if (res.ok) {
-          const msg = document.getElementById('saveMessage');
-          msg.style.display = 'block';
-          setTimeout(() => msg.style.display = 'none', 3000);
-          if (customDisplayName) userData.displayName = customDisplayName;
-          document.getElementById('profileName').textContent = userData.displayName || userData.username;
-        } else alert('Save failed');
-      } catch (e) { alert('Error saving'); }
-    }
-
-    async function searchPlayer() {
-      const username = document.getElementById('searchUsername').value.trim();
-      if (!username) return alert('Enter a username');
-      const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`);
-      const data = await res.json();
-      const container = document.getElementById('searchResult');
-      if (data.error) { container.innerHTML = `<p style="color:#ff4444;">${data.error}</p>`; return; }
-      let boardHtml = '';
-      if (data.board && data.board.length) {
-        boardHtml = `<div class="board-gamepass-grid">${data.board.map(gp => `<div class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span class="board-gamepass-amount">💰 ${gp.price} R$</span><span class="board-gamepass-name">${gp.id}</span></div>`).join('')}</div>`;
-      } else boardHtml = '<p>No gamepasses on board.</p>';
-      container.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-          <div style="width:40px; height:40px; border-radius:50%; background:url(${data.avatarUrl || ''}) center/cover;"></div>
-          <div><strong>${data.displayName || data.robloxUsername}</strong><br><small>@${data.robloxUsername}</small></div>
-        </div>
-        ${boardHtml}
-      `;
-    }
-
-    async function addGamepassToBoard() {
-      const assetId = document.getElementById('newGamepassId').value.trim();
-      const price = parseInt(document.getElementById('newGamepassPrice').value);
-      if (!assetId || !price) { alert('Enter asset ID and Robux amount'); return; }
-      const res = await fetch('/api/board/add', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ assetId, price })
-      });
-      const data = await res.json();
-      if (data.error) alert(data.error);
-      else {
-        userData.board = data.board;
-        const grid = document.getElementById('boardGamepassGrid');
-        grid.innerHTML = data.board.map(gp => `
-          <div class="board-gamepass-btn">
-            <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
-            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
-            <span class="board-gamepass-name">🆔 ${gp.id}</span>
-          </div>
-        `).join('');
-        document.getElementById('newGamepassId').value = '';
-        document.getElementById('newGamepassPrice').value = '';
-      }
-    }
-
-    async function removeGamepass(assetId) {
-      if (!confirm('Remove this gamepass?')) return;
-      const res = await fetch('/api/board/remove', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ assetId })
-      });
+    try {
+      const res = await fetch('/api/accept-tos', { method: 'POST', headers: authHeaders() });
       const data = await res.json();
       if (data.success) {
-        userData.board = data.board;
-        const grid = document.getElementById('boardGamepassGrid');
-        grid.innerHTML = data.board.length ? data.board.map(gp => `
-          <div class="board-gamepass-btn">
-            <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
-            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
-            <span class="board-gamepass-name">🆔 ${gp.id}</span>
-          </div>
-        `).join('') : '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
+        document.getElementById('tosModal').style.display = 'none';
+        alert('Thank you for accepting the Terms.');
+      } else {
+        alert('Failed to accept. Please try again.');
       }
+    } catch (err) { alert('Error accepting ToS.'); }
+  }
+
+  async function init() {
+    if (token) {
+      try {
+        const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          userData = await res.json();
+          userData.isGuest = false;
+          document.getElementById('loginPrompt').style.display = 'none';
+          // Show ToS modal if not accepted
+          if (!userData.acceptedTos) {
+            document.getElementById('tosModal').style.display = 'flex';
+          }
+        } else {
+          localStorage.removeItem('passly_token');
+          token = null;
+        }
+      } catch (e) {}
+    }
+    if (!userData) {
+      const guest = JSON.parse(localStorage.getItem('passly_user') || 'null');
+      if (guest && guest.username) userData = { ...guest, isGuest: true };
+      else {
+        const res = await fetch('/api/guest-login', { method: 'POST' });
+        const data = await res.json();
+        userData = { ...data, isGuest: true };
+        localStorage.setItem('passly_user', JSON.stringify(userData));
+      }
+      document.getElementById('loginPrompt').style.display = 'block';
+    }
+
+    document.getElementById('userName').textContent = userData.displayName || userData.username;
+    document.getElementById('profileName').innerHTML = (userData.displayName || userData.username) + (userData.role && (userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') ? ' <span class="vip-badge">' + (userData.role === 'vip' ? 'VIP' : userData.role.toUpperCase()) + '</span>' : '');
+    document.getElementById('robloxUsernameDisplay').innerHTML = userData.robloxUsername ? `Roblox: @${userData.robloxUsername}` : '';
+    if (userData.isGuest) document.getElementById('guestBadge').style.display = 'inline-block';
+
+    // Avatar
+    const avatarUrl = userData.avatarUrl;
+    const avatarFallback = userData.avatarFallback || `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png`;
+    const setAvatar = (el) => {
+      if (avatarUrl) {
+        el.style.backgroundImage = `url(${avatarUrl})`;
+        el.onerror = () => { el.style.backgroundImage = `url(${avatarFallback})`; };
+      } else if (avatarFallback) {
+        el.style.backgroundImage = `url(${avatarFallback})`;
+      } else {
+        el.style.backgroundImage = '';
+      }
+    };
+    setAvatar(document.getElementById('userAvatar'));
+    setAvatar(document.getElementById('profileAvatar'));
+
+    // Profile settings
+    if (userData.profile) {
+      document.getElementById('showBooth').value = userData.profile.showBooth ? 'true' : 'false';
+      let dotSetting = userData.profile.statusDot || 'online';
+      document.getElementById('statusDotSelect').value = dotSetting;
+      document.getElementById('showRoomId').value = userData.profile.showRoomId ? 'true' : 'false';
+      updateStatusPreview();
+    }
+    if (userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
+
+    // Board
+    if (userData.board && userData.board.length) {
+      const grid = document.getElementById('boardGamepassGrid');
+      grid.innerHTML = userData.board.map(gp => `
+        <div class="board-gamepass-btn">
+          <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+          <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+          <span class="board-gamepass-name">🆔 ${gp.id}</span>
+        </div>
+      `).join('');
     }
 
     // Admin check
-    async function checkAdminStatus() {
-      if (!token) return;
-      try {
-        const res = await fetch('/api/admin/check', { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
-        if (data.isAdmin) {
-          document.getElementById('adminBox').style.display = 'block';
-        }
-      } catch(e) { console.error('Admin check failed', e); }
-    }
+    await checkAdminStatus();
+  }
 
+  function updateStatusPreview() {
+    const val = document.getElementById('statusDotSelect').value;
+    const dot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    if (val === 'online') {
+      dot.className = 'status-dot dot-online';
+      statusText.textContent = 'Online';
+    } else {
+      dot.className = 'status-dot dot-offline';
+      statusText.textContent = 'Offline';
+    }
+  }
+
+  async function saveProfile() {
+    const showBooth = document.getElementById('showBooth').value === 'true';
+    const statusDot = document.getElementById('statusDotSelect').value;
+    const showRoomId = document.getElementById('showRoomId').value === 'true';
+    const customDisplayName = document.getElementById('customDisplayName').value.trim();
+    try {
+      const res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName })
+      });
+      if (res.ok) {
+        const msg = document.getElementById('saveMessage');
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 3000);
+        if (customDisplayName) userData.displayName = customDisplayName;
+        document.getElementById('profileName').innerHTML = (userData.displayName || userData.username) + (userData.role && (userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') ? ' <span class="vip-badge">' + (userData.role === 'vip' ? 'VIP' : userData.role.toUpperCase()) + '</span>' : '');
+      } else alert('Save failed');
+    } catch (e) { alert('Error saving'); }
+  }
+
+  async function searchPlayer() {
+    const username = document.getElementById('searchUsername').value.trim();
+    if (!username) return alert('Enter a username');
+    const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`);
+    const data = await res.json();
+    const container = document.getElementById('searchResult');
+    if (data.error) { container.innerHTML = `<p style="color:#ff4444;">${data.error}</p>`; return; }
+    let boardHtml = '';
+    if (data.board && data.board.length) {
+      boardHtml = `<div class="board-gamepass-grid">${data.board.map(gp => `<div class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span class="board-gamepass-amount">💰 ${gp.price} R$</span><span class="board-gamepass-name">${gp.id}</span></div>`).join('')}</div>`;
+    } else boardHtml = '<p>No gamepasses on board.</p>';
+    container.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+        <div style="width:40px; height:40px; border-radius:50%; background:url(${data.avatarUrl || ''}) center/cover;"></div>
+        <div><strong>${data.displayName || data.robloxUsername}</strong><br><small>@${data.robloxUsername}</small></div>
+      </div>
+      ${boardHtml}
+    `;
+  }
+
+  async function addGamepassToBoard() {
+    const assetId = document.getElementById('newGamepassId').value.trim();
+    const price = parseInt(document.getElementById('newGamepassPrice').value);
+    if (!assetId || !price) { alert('Enter asset ID and Robux amount'); return; }
+    const res = await fetch('/api/board/add', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ assetId, price })
+    });
+    const data = await res.json();
+    if (data.error) alert(data.error);
+    else {
+      userData.board = data.board;
+      const grid = document.getElementById('boardGamepassGrid');
+      grid.innerHTML = data.board.map(gp => `
+        <div class="board-gamepass-btn">
+          <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+          <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+          <span class="board-gamepass-name">🆔 ${gp.id}</span>
+        </div>
+      `).join('');
+      document.getElementById('newGamepassId').value = '';
+      document.getElementById('newGamepassPrice').value = '';
+    }
+  }
+
+  async function removeGamepass(assetId) {
+    if (!confirm('Remove this gamepass?')) return;
+    const res = await fetch('/api/board/remove', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ assetId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      userData.board = data.board;
+      const grid = document.getElementById('boardGamepassGrid');
+      grid.innerHTML = data.board.length ? data.board.map(gp => `
+        <div class="board-gamepass-btn">
+          <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+          <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+          <span class="board-gamepass-name">🆔 ${gp.id}</span>
+        </div>
+      `).join('') : '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
+    }
+  }
+
+  async function checkAdminStatus() {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/check', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.isAdmin) {
+        document.getElementById('adminBox').style.display = 'block';
+      }
+    } catch(e) { console.error('Admin check failed', e); }
+  }
     init();
   </script>
 </body>
