@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Passly - Donations Never Stop</title>
+  <title>Passly - Rooms</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
   <script src="/socket.io/socket.io.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Segoe UI',Arial,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
+    body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display:flex; gap:25px; }
@@ -124,11 +124,12 @@
 </nav>
 
 <div class="main-content">
+  <!-- Rooms List Page -->
   <div id="roomsListPage">
     <div class="page-header">
       <h1>🚪 Public Rooms</h1>
       <div style="display:flex; gap:15px; align-items:center;">
-        <button class="create-btn" onclick="openCreateModal()">+ Create Room</button>
+        <button class="create-btn" onclick="requireLoginThen(openCreateModal)">+ Create Room</button>
         <button class="refresh-btn" onclick="loadRooms()">🔄 Refresh</button>
         <div class="join-by-id">
           <input type="text" id="joinRoomIdInput" placeholder="Room ID" maxlength="16">
@@ -144,6 +145,7 @@
     </div>
   </div>
 
+  <!-- Room View (hidden initially) -->
   <div class="room-view" id="roomView">
     <button class="back-btn" onclick="leaveRoom()">⬅ Back to Rooms</button>
     <h2 id="viewRoomName"></h2>
@@ -182,6 +184,7 @@
 <!-- Modals -->
 <div class="modal-overlay" id="modalOverlay"></div>
 
+<!-- Create Room Modal -->
 <div class="modal" id="createModal">
   <h2>Create New Room</h2>
   <input type="text" id="roomNameInput" placeholder="Room Name">
@@ -194,6 +197,7 @@
   <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
 </div>
 
+<!-- Board Modal -->
 <div class="modal" id="boardModal">
   <h2>🎁 My Board</h2>
   <div class="add-board-section">
@@ -202,30 +206,24 @@
     <button class="send-btn" onclick="addGamepassToBoard()">Add</button>
   </div>
   <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
-  <div class="board-gamepass-grid" id="boardGamepassGrid">
-    <p style="color:#a0a0b0;">No gamepasses added yet.</p>
-  </div>
+  <div class="board-gamepass-grid" id="boardGamepassGrid"><p style="color:#a0a0b0;">No gamepasses added yet.</p></div>
   <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closeBoardModal()">Close</button>
 </div>
 
+<!-- Ad Modal -->
 <div class="modal" id="adModal">
   <h2>📢 Advertise Your Board</h2>
   <p style="color:#a0a0b0; margin-bottom:20px;">Choose a tier. You will be redirected to the Roblox gamepass page to purchase, then come back to verify.</p>
   <textarea id="adMessage" placeholder="Your message (optional)" style="width:100%; height:60px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; padding:10px; margin-bottom:15px;"></textarea>
   <div class="ad-buttons">
-    <button class="ad-btn" onclick="openAdVerification('5k')">
-      <span class="tier">5,000 Robux</span>
-      <span class="shows">1 Broadcast + 1 Cloud</span>
-    </button>
-    <button class="ad-btn" onclick="openAdVerification('10k')">
-      <span class="tier">10,000 Robux</span>
-      <span class="shows">1 Broadcast + 3 Clouds</span>
-    </button>
+    <button class="ad-btn" onclick="openAdVerification('5k')"><span class="tier">5,000 Robux</span><span class="shows">1 Broadcast + 1 Cloud</span></button>
+    <button class="ad-btn" onclick="openAdVerification('10k')"><span class="tier">10,000 Robux</span><span class="shows">1 Broadcast + 3 Clouds</span></button>
   </div>
   <div id="adPurchaseStatus" style="margin-top:15px;"></div>
   <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdModal()">Cancel</button>
 </div>
 
+<!-- Ad Verification Modal -->
 <div class="modal" id="adVerifyModal">
   <h2>📢 Advertise Your Board</h2>
   <p style="color:#a0a0b0; margin-bottom:15px;" id="adVerifyTierText"></p>
@@ -236,6 +234,7 @@
   <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeAdVerifyModal()">Cancel</button>
 </div>
 
+<!-- Player Board Modal (Donation) -->
 <div class="modal" id="playerBoardModal">
   <h2 id="playerBoardTitle">🎁 Player's Board</h2>
   <div id="playerBoardAvatar" style="width:60px; height:60px; border-radius:50%; margin:0 auto 10px; background-size:cover;"></div>
@@ -245,7 +244,7 @@
   <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closePlayerBoardModal()">Close</button>
 </div>
 
-<!-- User Report Modal -->
+<!-- User Report Modal (click avatar) -->
 <div id="userModal" class="modal" style="display:none;">
   <h2>User Info</h2>
   <div id="modalAvatar" style="width:80px; height:80px; border-radius:50%; margin:0 auto; background-size:cover;"></div>
@@ -255,63 +254,260 @@
     <button class="modal-btn" style="background:#333;" onclick="closeUserModal()">Close</button>
   </div>
 </div>
-  <script>
-    const socket = io();
-    let token = localStorage.getItem('passly_token');
+<script>
+  const socket = io();
+  let token = localStorage.getItem('passly_token');
 
-    // Token from URL hash
-    (function() {
-      if (!token && window.location.hash.includes('token=')) {
-        const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
-        localStorage.setItem('passly_token', tokenPart);
-        token = tokenPart;
-        history.replaceState(null, null, ' ');
+  // Token from URL hash
+  (function() {
+    if (!token && window.location.hash.includes('token=')) {
+      const tokenPart = window.location.hash.split('token=')[1].split('&')[0];
+      localStorage.setItem('passly_token', tokenPart);
+      token = tokenPart;
+      history.replaceState(null, null, ' ');
+    }
+  })();
+
+  let userData = null;
+  let currentRoom = null;
+  let roomType = 'Public';
+  let selectedReceiverId = null;
+  let lastAdCheck = Date.now();
+  let adPollInterval = null;
+  let localStream = null;
+  let isSpeaking = false;
+  let mutedUsers = new Set();
+  let boardCooldown = false;
+
+  // ========== IMPROVED BAD WORDS FILTER ==========
+  const BAD_WORDS_LIST = [
+    'fuck', 'shit', 'ass', 'bitch', 'cunt', 'dick', 'pussy', 'twat', 'whore', 'slut', 'bastard', 'damn', 'hell', 'piss', 'cock',
+    'faggot', 'nigga', 'nigger', 'retard', 'fck', 'fcuk', 'phuk', 'fuk', 'sh1t', 'sht', 'b1tch', 'btch', 'c0ck', 'd1ck', 'dck',
+    'pussy', 'cunt', 'cnt', 'n1gga', 'n1gger', 'ngga', 'f4ggot', 'fag', 'f4g', 'ret4rd', 'rtrd', 'b8stard', 'bstrd', 'wh0re',
+    'whre', 'slut', 'b!tch', 'c0k', 'dik', 'dikhed', 'clit', 'cl1t', 'tw4t', 'wanker', 'w4nker', 'bollocks', 'arse', 'arsehole',
+    '5hit', '5h1t', 'phoque', 'kunt', 'kuk', 'kak'
+  ];
+
+  function normalizeText(text) {
+    let normalized = text.toLowerCase();
+    normalized = normalized.replace(/0/g, 'o');
+    normalized = normalized.replace(/1/g, 'i');
+    normalized = normalized.replace(/3/g, 'e');
+    normalized = normalized.replace(/4/g, 'a');
+    normalized = normalized.replace(/5/g, 's');
+    normalized = normalized.replace(/7/g, 't');
+    normalized = normalized.replace(/@/g, 'a');
+    normalized = normalized.replace(/\$/g, 's');
+    normalized = normalized.replace(/\+/g, 't');
+    normalized = normalized.replace(/[\s\._\-*]/g, '');
+    return normalized;
+  }
+
+  function filterMessage(text) {
+    if (!text) return text;
+    const normalized = normalizeText(text);
+    for (const bad of BAD_WORDS_LIST) {
+      if (normalized.includes(bad)) {
+        return '#'.repeat(text.length);
       }
-    })();
-
-    let userData = null;
-    let currentRoom = null;
-    let roomType = 'Public';
-    let selectedReceiverId = null;
-    let lastAdCheck = Date.now();
-    let adPollInterval = null;
-    let localStream = null;
-    let isSpeaking = false;
-    let mutedUsers = new Set();
-    let boardCooldown = false;
-
-    // --- Bad words filter (client-side) ---
-    const BAD_WORDS_PATTERN = /\b(fuck|shit|ass|bitch|cunt|dick|pussy|twat|whore|slut|bastard|damn|hell|piss|cock|faggot|nigga|nigger|retard|fck|fcuk|phuk|fuk|sh1t|sh\*t|sht|b1tch|b\*tch|btch|c0ck|d1ck|dck|p\*ssy|puss|c\*nt|cnt|n1gga|n1gger|ngga|f4ggot|fag|f4g|ret4rd|rtrd|b8stard|bstrd|wh0re|whre|slut|sl\*t|b!tch|b!\+ch|c0k|dik|dikhed|clit|cl1t|tw4t|wanker|w4nker|bollocks|b0ll0cks|arse|arsehole|5hit|5h1t|phoque|kunt|kuk|kak)\b/gi;
-    function filterMessage(text) {
-      if (!text) return text;
-      return text.replace(BAD_WORDS_PATTERN, '#####');
     }
+    return text;
+  }
+  // =============================================
 
-    // --- Helper functions ---
-    function showError(msg) {
-      const box = document.getElementById('errorBox');
-      box.textContent = msg;
-      box.style.display = 'block';
-      setTimeout(() => { box.style.display = 'none'; }, 5000);
+  // --- Helper functions ---
+  function showError(msg) {
+    const box = document.getElementById('errorBox');
+    box.textContent = msg;
+    box.style.display = 'block';
+    setTimeout(() => { box.style.display = 'none'; }, 5000);
+  }
+  function authHeaders() {
+    const h = { 'Content-Type': 'application/json' };
+    if (token) h['Authorization'] = `Bearer ${token}`;
+    return h;
+  }
+  function requireLoginThen(callback) {
+    if (!token) {
+      document.getElementById('loginPrompt').style.display = 'block';
+      if (confirm('You need to log in with Roblox to do this. Go to login?')) window.location.href = '/auth/roblox';
+      return;
     }
-    function authHeaders() {
-      const h = { 'Content-Type': 'application/json' };
-      if (token) h['Authorization'] = `Bearer ${token}`;
-      return h;
+    callback();
+  }
+
+  // --- User report modal functions ---
+  let currentReportUserId = null;
+  function openUserModal(userId, username, avatarUrl) {
+    if (userId === userData?.id) {
+      alert('This is you! Edit your profile from the Profile page.');
+      return;
     }
-    function requireLoginThen(callback) {
-      if (!token) {
-        document.getElementById('loginPrompt').style.display = 'block';
-        if (confirm('You need to log in with Roblox to do this. Go to login?')) {
-          window.location.href = '/auth/roblox';
-        }
+    currentReportUserId = userId;
+    document.getElementById('modalUsername').innerText = username;
+    if (avatarUrl) {
+      const avatarDiv = document.getElementById('modalAvatar');
+      avatarDiv.style.backgroundImage = `url(${avatarUrl})`;
+      avatarDiv.style.backgroundSize = 'cover';
+    }
+    const reportBtn = document.getElementById('reportUserBtn');
+    reportBtn.style.display = 'inline-block';
+    reportBtn.onclick = () => reportUser();
+    document.getElementById('userModal').style.display = 'block';
+  }
+  function closeUserModal() {
+    document.getElementById('userModal').style.display = 'none';
+    currentReportUserId = null;
+  }
+  async function reportUser() {
+    if (!currentReportUserId) return;
+    const reason = prompt('Report this user. Reason (e.g., fake donations, harassment):');
+    if (!reason) return;
+    try {
+      const res = await fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ reportedUserId: currentReportUserId, reason })
+      });
+      const data = await res.json();
+      alert(data.success ? 'Report sent to admins.' : 'Failed to send report.');
+    } catch (err) { alert('Error sending report.'); }
+    closeUserModal();
+  }
+
+  // --- Chat display (with filter and avatar click) ---
+  function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false) {
+    const chatBox = document.getElementById('chatBox');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-msg';
+    const avatarDiv = document.createElement('div');
+    avatarDiv.className = 'chat-pfp';
+    avatarDiv.style.cursor = 'pointer';
+    avatarDiv.onclick = () => openUserModal(userId, username, avatarUrl);
+    if (avatarUrl) {
+      avatarDiv.style.backgroundImage = `url(${avatarUrl})`;
+      avatarDiv.style.backgroundSize = 'cover';
+      avatarDiv.style.backgroundPosition = 'center';
+    }
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'msg-content';
+    const usernameSpan = document.createElement('span');
+    usernameSpan.className = 'msg-username';
+    let badge = '';
+    if (isOwner) badge = ' <span style="background:#ef4444; padding:2px 6px; border-radius:8px; font-size:0.7rem;">OWNER</span>';
+    else if (isAdmin) badge = ' <span style="background:#10b981; padding:2px 6px; border-radius:8px; font-size:0.7rem;">ADMIN</span>';
+    usernameSpan.innerHTML = username + badge;
+    const messageDiv = document.createElement('div');
+    messageDiv.innerHTML = filterMessage(message);
+    contentDiv.appendChild(usernameSpan);
+    contentDiv.appendChild(messageDiv);
+    msgDiv.appendChild(avatarDiv);
+    msgDiv.appendChild(contentDiv);
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  window.sendMessage = function() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg || !userData) return;
+    const filteredMsg = filterMessage(msg);
+    socket.emit('chat-message', filteredMsg);
+    input.value = '';
+  };
+
+  socket.on('chat-message', (data) => {
+    addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner);
+  });
+
+  window.sendBoardToChat = async function() {
+    if (!currentRoom || !userData.board || userData.board.length === 0) { alert('No gamepasses on your board.'); return; }
+    if (boardCooldown) { alert('Please wait 30 seconds before sending your board again.'); return; }
+    const boardData = userData.board.map(gp => ({ id: gp.id, price: gp.price }));
+    socket.emit('chat-board', boardData);
+    boardCooldown = true;
+    setTimeout(() => { boardCooldown = false; }, 30000);
+  };
+
+  socket.on('force-logout', (data) => {
+    alert(data.reason);
+    localStorage.clear();
+    window.location.href = '/';
+  });
+
+  socket.emit('authenticate', token);
+  socket.on('authenticated', (data) => {});
+
+  // --- Room loading & joining (part 1) ---
+  async function loadRooms() {
+    const grid = document.getElementById('roomsGrid');
+    grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
+    try {
+      const res = await fetch('/api/rooms');
+      if (!res.ok) throw new Error();
+      const allRooms = await res.json();
+      const publicRooms = allRooms.filter(r => r.type === 'Public');
+      if (publicRooms.length === 0) { grid.innerHTML = '<p style="color:#a0a0b0;">No public rooms yet. Create one!</p>'; return; }
+      const seen = new Set();
+      const uniqueRooms = publicRooms.filter(room => {
+        if (seen.has(room._id)) return false;
+        seen.add(room._id);
+        return true;
+      });
+      grid.innerHTML = uniqueRooms.map(room => `
+        <div class="room-card">
+          <div class="room-name">${escapeHtml(room.name)}</div>
+          <div class="room-type">${room.type}</div>
+          <div class="room-desc">${escapeHtml(room.desc || 'No description')}</div>
+          <div class="room-stats">
+            <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
+            <button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) { grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms.</p>'; }
+  }
+
+  window.joinRoomById = async function(id) {
+    if (!id) id = document.getElementById('joinRoomIdInput').value.trim();
+    if (!id) { showError('Enter a room ID.'); return; }
+    showError('Joining room ' + id + '…');
+    try {
+      const res = await fetch(`/api/rooms/join/${id}`, { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
+      if (data.queued) {
+        document.getElementById('roomsListPage').style.display = 'none';
+        document.getElementById('roomView').style.display = 'block';
+        document.getElementById('viewRoomName').textContent = 'Room (Queued)';
+        document.getElementById('viewRoomDesc').textContent = '';
+        document.getElementById('queueBox').style.display = 'block';
+        document.getElementById('queuePos').textContent = data.position;
+        currentRoom = { id, queued: true };
         return;
       }
-      callback();
+      if (data.success && data.room) {
+        document.getElementById('errorBox').style.display = 'none';
+        showRoomView(data.room);
+      }
+    } catch (e) { showError('Network error: ' + e.message); }
+  };
+    // --- Room creation helpers ---
+    function openCreateModal() {
+      if (!token) { showError('Login required'); return; }
+      document.getElementById('modalOverlay').style.display = 'block';
+      document.getElementById('createModal').style.display = 'block';
     }
-
-    // --- Create Room (added fix) ---
-    async function createRoom() {
+    function closeModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      document.getElementById('createModal').style.display = 'none';
+    }
+    function setType(type) {
+      roomType = type;
+      document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+    window.createRoom = async function() {
       const name = document.getElementById('roomNameInput').value.trim();
       const desc = document.getElementById('roomDescInput').value.trim();
       if (!name) { showError('Enter a room name'); return; }
@@ -327,183 +523,7 @@
         await joinRoomById(room._id);
         loadRooms();
       } catch (e) { showError('Error creating room'); }
-    }
-
-    // --- User report modal functions ---
-    let currentReportUserId = null;
-    function openUserModal(userId, username, avatarUrl) {
-      if (userId === userData?.id) {
-        alert('This is you! Edit your profile from the Profile page.');
-        return;
-      }
-      currentReportUserId = userId;
-      document.getElementById('modalUsername').innerText = username;
-      if (avatarUrl) {
-        const avatarDiv = document.getElementById('modalAvatar');
-        avatarDiv.style.backgroundImage = `url(${avatarUrl})`;
-        avatarDiv.style.backgroundSize = 'cover';
-      }
-      const reportBtn = document.getElementById('reportUserBtn');
-      reportBtn.style.display = 'inline-block';
-      reportBtn.onclick = () => reportUser();
-      document.getElementById('userModal').style.display = 'block';
-    }
-    function closeUserModal() {
-      document.getElementById('userModal').style.display = 'none';
-      currentReportUserId = null;
-    }
-    async function reportUser() {
-      if (!currentReportUserId) return;
-      const reason = prompt('Report this user. Reason (e.g., fake donations, harassment):');
-      if (!reason) return;
-      try {
-        const res = await fetch('/api/report', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ reportedUserId: currentReportUserId, reason })
-        });
-        const data = await res.json();
-        if (data.success) alert('Report sent to admins.');
-        else alert('Failed to send report.');
-      } catch (err) { alert('Error sending report.'); }
-      closeUserModal();
-    }
-
-    // --- Chat display with filtering and avatar click ---
-    function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false) {
-      const chatBox = document.getElementById('chatBox');
-      const msgDiv = document.createElement('div');
-      msgDiv.className = 'chat-msg';
-      const avatarDiv = document.createElement('div');
-      avatarDiv.className = 'chat-pfp';
-      avatarDiv.style.cursor = 'pointer';
-      avatarDiv.onclick = () => openUserModal(userId, username, avatarUrl);
-      if (avatarUrl) {
-        avatarDiv.style.backgroundImage = `url(${avatarUrl})`;
-        avatarDiv.style.backgroundSize = 'cover';
-        avatarDiv.style.backgroundPosition = 'center';
-      }
-      const contentDiv = document.createElement('div');
-      contentDiv.className = 'msg-content';
-      const usernameSpan = document.createElement('span');
-      usernameSpan.className = 'msg-username';
-      let badge = '';
-      if (isOwner) badge = ' <span style="background:#ef4444; padding:2px 6px; border-radius:8px; font-size:0.7rem;">OWNER</span>';
-      else if (isAdmin) badge = ' <span style="background:#10b981; padding:2px 6px; border-radius:8px; font-size:0.7rem;">ADMIN</span>';
-      usernameSpan.innerHTML = username + badge;
-      const messageDiv = document.createElement('div');
-      messageDiv.innerHTML = filterMessage(message);
-      contentDiv.appendChild(usernameSpan);
-      contentDiv.appendChild(messageDiv);
-      msgDiv.appendChild(avatarDiv);
-      msgDiv.appendChild(contentDiv);
-      chatBox.appendChild(msgDiv);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    // --- Send message ---
-    window.sendMessage = function() {
-      const input = document.getElementById('chatInput');
-      const msg = input.value.trim();
-      if (!msg || !userData) return;
-      const filteredMsg = filterMessage(msg);
-      socket.emit('chat-message', filteredMsg);
-      input.value = '';
     };
-    socket.on('chat-message', (data) => {
-      addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner);
-    });
-
-    // --- Board send with cooldown ---
-    window.sendBoardToChat = async function() {
-      if (!currentRoom || !userData.board || userData.board.length === 0) { alert('No gamepasses on your board.'); return; }
-      if (boardCooldown) { alert('Please wait 30 seconds before sending your board again.'); return; }
-      const boardData = userData.board.map(gp => ({ id: gp.id, price: gp.price }));
-      socket.emit('chat-board', boardData);
-      boardCooldown = true;
-      setTimeout(() => { boardCooldown = false; }, 30000);
-    };
-
-    // --- Socket events ---
-    socket.on('force-logout', (data) => {
-      alert(data.reason);
-      localStorage.clear();
-      window.location.href = '/';
-    });
-    socket.emit('authenticate', token);
-    socket.on('authenticated', (data) => {});
-
-    // --- Room functions (load, join, leave, etc.) ---
-    async function loadRooms() {
-      const grid = document.getElementById('roomsGrid');
-      grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
-      try {
-        const res = await fetch('/api/rooms');
-        if (!res.ok) throw new Error('Server error');
-        const allRooms = await res.json();
-        const publicRooms = allRooms.filter(r => r.type === 'Public');
-        if (publicRooms.length === 0) { grid.innerHTML = '<p style="color:#a0a0b0;">No public rooms yet. Create one!</p>'; return; }
-        const seen = new Set();
-        const uniqueRooms = publicRooms.filter(room => {
-          if (seen.has(room._id)) return false;
-          seen.add(room._id);
-          return true;
-        });
-        grid.innerHTML = uniqueRooms.map(room => `
-          <div class="room-card">
-            <div class="room-name">${room.name}</div>
-            <div class="room-type">${room.type}</div>
-            <div class="room-desc">${room.desc || 'No description'}</div>
-            <div class="room-stats">
-              <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
-              <button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button>
-            </div>
-          </div>
-        `).join('');
-      } catch (e) { grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms. Try refreshing.</p>'; }
-    }
-
-    window.joinRoomById = async function(id) {
-      if (!id) {
-        id = document.getElementById('joinRoomIdInput').value.trim();
-        if (!id) { showError('Enter a room ID.'); return; }
-      }
-      showError('Joining room ' + id + '…');
-      try {
-        const res = await fetch(`/api/rooms/join/${id}`, { method: 'POST', headers: authHeaders() });
-        const data = await res.json();
-        if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
-        if (data.queued) {
-          document.getElementById('roomsListPage').style.display = 'none';
-          document.getElementById('roomView').style.display = 'block';
-          document.getElementById('viewRoomName').textContent = 'Room (Queued)';
-          document.getElementById('viewRoomDesc').textContent = '';
-          document.getElementById('queueBox').style.display = 'block';
-          document.getElementById('queuePos').textContent = data.position;
-          currentRoom = { id, queued: true };
-          return;
-        }
-        if (data.success && data.room) {
-          document.getElementById('errorBox').style.display = 'none';
-          showRoomView(data.room);
-        }
-      } catch (e) { showError('Network error: ' + e.message); }
-    };
-
-    function openCreateModal() {
-      if (!token) { showError('Login required'); return; }
-      document.getElementById('modalOverlay').style.display = 'block';
-      document.getElementById('createModal').style.display = 'block';
-    }
-    function closeModal() {
-      document.getElementById('modalOverlay').style.display = 'none';
-      document.getElementById('createModal').style.display = 'none';
-    }
-    function setType(type) {
-      roomType = type;
-      document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
-    }
 
     function showRoomView(room) {
       currentRoom = room;
@@ -543,7 +563,7 @@
     }
     async function leaveQueue() { await leaveRoom(); }
 
-    // --- Voice functions (simplified) ---
+    // --- Voice functions ---
     async function toggleSpeak() {
       if (!currentRoom) return;
       if (!isSpeaking) {
@@ -611,7 +631,7 @@
       source.start();
     });
 
-    // --- Board, donations, ads (simplified – keep your existing ones) ---
+    // --- Board management, donations, ads ---
     async function showBoard() {
       if (!userData) return;
       const modal = document.getElementById('boardModal');
@@ -619,13 +639,7 @@
       const board = userData.board || [];
       if (board.length === 0) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
       else {
-        grid.innerHTML = board.map(gp => `
-          <div class="board-gamepass-btn">
-            <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
-            <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
-            <span class="board-gamepass-name">🆔 ${gp.id}</span>
-          </div>
-        `).join('');
+        grid.innerHTML = board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('');
       }
       modal.style.display = 'block';
       document.getElementById('modalOverlay').style.display = 'block';
@@ -634,19 +648,110 @@
       document.getElementById('boardModal').style.display = 'none';
       document.getElementById('modalOverlay').style.display = 'none';
     }
-    async function addGamepassToBoard() { /* you have this */ }
-    async function removeGamepass(assetId) { /* you have this */ }
-    async function openDonate(receiverId) { /* you have this */ }
-    function closePlayerBoardModal() { document.getElementById('playerBoardModal').style.display = 'none'; document.getElementById('modalOverlay').style.display = 'none'; }
-    async function confirmDonate(receiverId, gamepassId, amount) { /* you have this */ }
-    function openAdModal() { /* you have this */ }
-    function closeAdModal() { /* you have this */ }
-    let selectedAdTier, selectedAdGamepassId;
-    function openAdVerification(tier) { /* you have this */ }
-    function closeAdVerifyModal() { /* you have this */ }
+    async function addGamepassToBoard() {
+      const assetId = document.getElementById('newGamepassId').value.trim();
+      const price = parseInt(document.getElementById('newGamepassPrice').value);
+      if (!assetId || !price) { document.getElementById('boardAddStatus').textContent = 'Asset ID and Robux amount required'; return; }
+      try {
+        const res = await fetch('/api/board/add', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId, price }) });
+        const data = await res.json();
+        if (data.error) document.getElementById('boardAddStatus').textContent = data.error;
+        else { document.getElementById('boardAddStatus').textContent = '✅ Added to board!'; userData.board = data.board; showBoard(); }
+      } catch (e) { document.getElementById('boardAddStatus').textContent = 'Error adding gamepass'; }
+    }
+    async function removeGamepass(assetId) {
+      if (!confirm('Remove this gamepass?')) return;
+      const res = await fetch('/api/board/remove', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId }) });
+      const data = await res.json();
+      if (data.success) { userData.board = data.board; showBoard(); }
+    }
+    async function openDonate(receiverId) {
+      if (!token) { alert('Login to donate'); window.location.href = '/auth/roblox'; return; }
+      selectedReceiverId = receiverId;
+      try {
+        const res = await fetch(`/api/user/${receiverId}/board`, { headers: authHeaders() });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        document.getElementById('playerBoardTitle').textContent = `🎁 ${data.displayName}'s Board`;
+        document.getElementById('playerBoardName').textContent = data.displayName;
+        if (data.avatarUrl) {
+          document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
+          document.getElementById('playerBoardAvatar').style.backgroundSize = 'cover';
+        }
+        const grid = document.getElementById('playerBoardGrid');
+        if (!data.board || data.board.length === 0) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses on this player\'s board.</p>';
+        else {
+          grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn" onclick="confirmDonate('${receiverId}', '${gp.id}', ${gp.price})"><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('');
+        }
+        document.getElementById('playerBoardModal').style.display = 'block';
+        document.getElementById('modalOverlay').style.display = 'block';
+      } catch (e) { alert('Could not load player\'s board: ' + e.message); }
+    }
+    function closePlayerBoardModal() {
+      document.getElementById('playerBoardModal').style.display = 'none';
+      document.getElementById('modalOverlay').style.display = 'none';
+    }
+    async function confirmDonate(receiverId, gamepassId, amount) {
+      if (!confirm(`Donate ${amount} Robux to this player? You will be redirected to Roblox to complete the purchase.`)) return;
+      try {
+        const res = await fetch('/api/donate/initiate', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ receiverId, gamepassId, amount }) });
+        const data = await res.json();
+        if (data.url) { window.open(data.url, '_blank'); closePlayerBoardModal(); }
+        else alert(data.error || 'Failed to initiate donation');
+      } catch (e) { alert('Error starting donation'); }
+    }
+    function openAdModal() {
+      if (!token) { alert('Login to advertise'); window.location.href = '/auth/roblox'; return; }
+      document.getElementById('adModal').style.display = 'block';
+      document.getElementById('modalOverlay').style.display = 'block';
+    }
+    function closeAdModal() {
+      document.getElementById('adModal').style.display = 'none';
+      document.getElementById('modalOverlay').style.display = 'none';
+    }
+    let selectedAdTier = null, selectedAdGamepassId = null;
+    function openAdVerification(tier) {
+      selectedAdTier = tier;
+      selectedAdGamepassId = tier === '5k' ? '1862184808' : '1860026243';
+      document.getElementById('adVerifyTierText').textContent = `Tier: ${tier === '5k' ? '5,000' : '10,000'} Robux`;
+      closeAdModal();
+      document.getElementById('adVerifyModal').style.display = 'block';
+      document.getElementById('modalOverlay').style.display = 'block';
+    }
+    function closeAdVerifyModal() {
+      document.getElementById('adVerifyModal').style.display = 'none';
+      document.getElementById('modalOverlay').style.display = 'none';
+    }
     function openAdGamepass() { window.open(`https://www.roblox.com/game-pass/${selectedAdGamepassId}`, '_blank'); }
-    async function verifyAdPurchase() { /* you have this */ }
-    async function checkAdBroadcasts() { /* you have this */ }
+    async function verifyAdPurchase() {
+      const message = document.getElementById('adMessage').value.trim();
+      const statusDiv = document.getElementById('adVerifyStatus');
+      statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying your purchase...</span>';
+      try {
+        const res = await fetch('/api/purchase-ad', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ tier: selectedAdTier, message }) });
+        const data = await res.json();
+        if (data.success) {
+          statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Ad purchased successfully!</span>';
+          setTimeout(() => { closeAdVerifyModal(); if (userData) userData.ad = data.ad; }, 3000);
+        } else statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
+      } catch (e) { statusDiv.innerHTML = '<span style="color:#f87171;">❌ Error verifying purchase.</span>'; }
+    }
+    async function checkAdBroadcasts() {
+      if (!currentRoom || !currentRoom.id) return;
+      try {
+        const res = await fetch(`/api/ads/broadcast?roomId=${currentRoom.id}&since=${lastAdCheck}`);
+        const ads = await res.json();
+        ads.forEach(ad => {
+          let boardHtml = '';
+          if (ad.board && ad.board.length) {
+            boardHtml = `<div class="ad-mini-board">${ad.board.map(gp => `<div class="ad-mini-board-item" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')">💰 ${gp.price} R$</div>`).join('')}</div>`;
+          }
+          addChatMessage(`📢 AD: ${ad.advertiserName}`, `${ad.message || 'Check out my board!'}${boardHtml}`, 'system', null);
+        });
+        lastAdCheck = Date.now();
+      } catch (e) {}
+    }
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
 
     // --- Initialisation ---
     async function init() {
@@ -657,10 +762,7 @@
             userData = await res.json();
             userData.isGuest = false;
             document.getElementById('loginPrompt').style.display = 'none';
-          } else {
-            localStorage.removeItem('passly_token');
-            token = null;
-          }
+          } else { localStorage.removeItem('passly_token'); token = null; }
         } catch (e) {}
       }
       if (!userData) {
@@ -680,15 +782,11 @@
         if (!url && !fallback) return;
         const tryUrl = url || fallback;
         el.style.backgroundImage = `url(${tryUrl})`;
-        el.onerror = function() {
-          if (url && fallback && tryUrl === url) el.style.backgroundImage = `url(${fallback})`;
-          else el.style.backgroundImage = '';
-        };
+        el.onerror = function() { if (url && fallback && tryUrl === url) el.style.backgroundImage = `url(${fallback})`; else el.style.backgroundImage = ''; };
       }
       setAvatar(avatarEl, userData.avatarUrl, userData.avatarFallback);
       loadRooms();
     }
-
     init();
   </script>
 </body>
