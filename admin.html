@@ -11,47 +11,57 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; padding:20px; min-height:100vh; }
-    /* Navbar & mobile menu (same as before) */
-    .navbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: rgba(15,15,30,0.95); border-bottom: 1px solid rgba(139,92,246,0.2); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
-    .nav-logo { font-size: 1.8rem; font-weight: bold; background: linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-    .hamburger { display: none; flex-direction: column; cursor: pointer; gap: 5px; background: none; border: none; padding: 8px; }
+    /* Navbar styles (same as dashboard) */
+    .navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: rgba(15,15,30,0.95);
+      border-bottom: 1px solid rgba(139,92,246,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .navbar-left { display: flex; align-items: center; gap: 15px; }
+    .hamburger { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 5px; padding: 8px; }
     .hamburger span { width: 28px; height: 3px; background: #c4b5fd; border-radius: 3px; }
+    .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display: flex; gap: 25px; }
-    .nav-links a { color: #b0b0c0; text-decoration: none; font-weight: 500; font-size: 0.95rem; }
-    .nav-links a:hover { color: #a78bfa; }
-    .mobile-menu { position: fixed; top: 0; left: -100%; width: 75%; max-width: 300px; height: 100%; background: rgba(10,10,20,0.98); backdrop-filter: blur(12px); border-right: 1px solid rgba(139,92,246,0.3); z-index: 200; transition: left 0.3s; padding-top: 70px; display: flex; flex-direction: column; gap: 20px; padding-left: 25px; }
-    .mobile-menu a { color: #e0e0e0; text-decoration: none; font-size: 1.2rem; padding: 10px 0; border-bottom: 1px solid rgba(139,92,246,0.2); }
-    .close-menu { position: absolute; top: 20px; right: 20px; background: none; border: none; color: #c4b5fd; font-size: 28px; cursor: pointer; }
-    .menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 150; display: none; }
+    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; font-size:0.95rem; }
+    .nav-links a:hover { color:#a78bfa; }
     .user-box { display: flex; align-items: center; gap: 12px; background: rgba(139,92,246,0.1); padding: 6px 14px; border-radius: 40px; }
-    .user-avatar { width: 35px; height: 35px; border-radius: 50%; background: #8b5cf6; background-size: cover; }
-    .user-name { font-weight: 600; color: #c4b5fd; font-size: 0.9rem; }
-    .container { max-width: 1400px; margin: 0 auto; }
-    h1 { color: #a78bfa; margin-bottom: 20px; }
-    .admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
-    .card { background: rgba(20,20,40,0.8); backdrop-filter: blur(8px); border-radius: 20px; padding: 25px; border: 1px solid rgba(139,92,246,0.3); }
-    .card h3 { margin-bottom: 15px; color: #c4b5fd; border-left: 3px solid #8b5cf6; padding-left: 12px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid rgba(139,92,246,0.2); }
-    button { background: #8b5cf6; border: none; padding: 8px 16px; border-radius: 8px; color: white; cursor: pointer; margin: 0 4px; }
-    button:hover { background: #7c3aed; }
-    .btn-ban { background: #ef4444; }
-    .btn-admin { background: #10b981; }
-    .btn-vip { background: #f59e0b; }
-    input { padding: 10px; background: #1e1e2e; border: 1px solid #8b5cf6; border-radius: 8px; color: white; width: 100%; margin-bottom: 10px; }
-    .chat-area { height: 300px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px; }
-    @media (max-width: 768px) {
+    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; }
+    .user-name { font-weight:600; color:#c4b5fd; font-size:0.9rem; }
+    .mobile-menu, .menu-overlay, .close-menu { /* same as dashboard */ }
+    .container { max-width:1400px; margin:0 auto; }
+    h1 { color:#a78bfa; margin-bottom:20px; }
+    .admin-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(400px,1fr)); gap:20px; }
+    .card { background:rgba(20,20,40,0.8); backdrop-filter:blur(8px); border-radius:20px; padding:25px; border:1px solid rgba(139,92,246,0.3); }
+    .card h3 { margin-bottom:15px; color:#c4b5fd; border-left:3px solid #8b5cf6; padding-left:12px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:12px 10px; text-align:left; border-bottom:1px solid rgba(139,92,246,0.2); }
+    button { background:#8b5cf6; border:none; padding:8px 16px; border-radius:8px; color:white; cursor:pointer; margin:0 4px; }
+    button:hover { background:#7c3aed; }
+    .btn-ban { background:#ef4444; }
+    .btn-admin { background:#10b981; }
+    .btn-vip { background:#f59e0b; }
+    input { padding:10px; background:#1e1e2e; border:1px solid #8b5cf6; border-radius:8px; color:white; width:100%; margin-bottom:10px; }
+    .chat-area { height:300px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:12px; padding:15px; margin-bottom:15px; }
+    @media (max-width:768px) {
       .nav-links { display: none; }
-      .hamburger { display: flex; }
-      .admin-grid { grid-template-columns: 1fr; }
-      .container { padding: 10px; }
+      .admin-grid { grid-template-columns:1fr; }
+      .container { padding:10px; }
     }
   </style>
 </head>
 <body>
 <nav class="navbar">
-  <div class="nav-logo">Passly</div>
-  <button class="hamburger" id="hamburgerBtn"><span></span><span></span><span></span></button>
+  <div class="navbar-left">
+    <button class="hamburger" id="hamburgerBtn"><span></span><span></span><span></span></button>
+    <div class="nav-logo">Passly</div>
+  </div>
   <div class="nav-links">
     <a href="/dashboard">🏠 Home</a>
     <a href="/rooms">🚪 Rooms</a>
@@ -65,6 +75,7 @@
     <span class="user-name" id="userName">Loading...</span>
   </div>
 </nav>
+
 <div class="mobile-menu" id="mobileMenu">
   <button class="close-menu" id="closeMenuBtn">&times;</button>
   <a href="/dashboard">🏠 Home</a>
@@ -95,7 +106,7 @@
     async function loadStats() { const data = await authFetch('/api/admin/stats'); if(data.error) { document.getElementById('statsContainer').innerHTML = '<p>Error loading stats.</p>'; return; } document.getElementById('statsContainer').innerHTML = `<div>Total Users: ${data.totalUsers}</div><div>Guests: ${data.totalGuests}</div><div>Donations: ${data.totalDonations}</div><div>Robux Donated: ${data.totalRobuxDonated.toLocaleString()}</div><div>Online Now: ${data.onlineNow}</div><div>Active Today: ${data.activeToday}</div>`; }
     async function loadOnlineUsers() { const data = await authFetch('/api/admin/online-users'); if(data.error) { document.getElementById('onlineUsersList').innerHTML = '<p>Error.</p>'; return; } const list = data.onlineUsers || []; if(!list.length) { document.getElementById('onlineUsersList').innerHTML = '<p>No users online.</p>'; return; } document.getElementById('onlineUsersList').innerHTML = list.map(u => `<div>${u.displayName} (${u.username}) <button onclick="window.open('/profile?userId=${u.id}','_blank')">View</button></div>`).join(''); }
     async function loadAdminData() { const data = await authFetch('/api/admin/data'); if(data.error) return; renderReports(data.reports); renderBanned(data.banned); }
-    function renderReports(reports) { const container = document.getElementById('reportsList'); if(!reports.length) { container.innerHTML = '<p>No pending reports.</p>'; return; } container.innerHTML = `<table><thead><tr><th>Reported</th><th>Reason</th><th>By</th><th>Actions</th></tr></thead><tbody>${reports.map(r => `<tr><td>${r.reportedUsername}</td><td>${r.reason}</td><td>${r.reporterUsername}</td><td><button class="btn-ban" onclick="banUser('${r.reportedId}')">Ban</button><button onclick="resolveReport('${r._id}')">Resolve</button></td></tr>`).join('')}</tbody></table>`; }
+    function renderReports(reports) { const container = document.getElementById('reportsList'); if(!reports.length) { container.innerHTML = '<p>No pending reports.</p>'; return; } container.innerHTML = `<table><thead><tr><th>Reported</th><th>Reason</th><th>By</th><th>Actions</th></tr></thead><tbody>${reports.map(r => `<tr><td>${r.reportedUsername}</td><td>${r.reason}</td><td>${r.reporterUsername}</td><td><button class="btn-ban" onclick="banUser('${r.reportedId}')">Ban</button><button onclick="resolveReport('${r._id}')">Resolve</button></td>`).join('')}</tbody></table>`; }
     function renderBanned(banned) { const container = document.getElementById('bannedList'); if(!banned.length) { container.innerHTML = '<p>No banned users.</p>'; return; } container.innerHTML = `<ul>${banned.map(b => `<li>${b.username} <button class="btn-admin" onclick="unbanUser('${b.userId}')">Unban</button></li>`).join('')}</ul>`; }
     window.searchUser = async function() { const username = document.getElementById('searchUser').value.trim(); if(!username) return; const data = await authFetch(`/api/admin/search-user?username=${encodeURIComponent(username)}`); if(data.error) return document.getElementById('userResult').innerHTML = `<p>${data.error}</p>`; document.getElementById('userResult').innerHTML = `<div><strong>${data.username}</strong> (Role: ${data.role})<br><button class="btn-ban" onclick="banUser('${data.id}')">Ban</button><button class="btn-admin" onclick="grantAdmin('${data.id}')">Make Admin</button><button class="btn-vip" onclick="grantVip('${data.id}')">Grant VIP</button></div>`; };
     window.banUser = async function(userId) { if(confirm('Ban this user?')) { const res = await authFetch('/api/admin/ban', { method:'POST', body:JSON.stringify({ userId }) }); if(res.success) { alert('Banned'); loadAdminData(); loadOnlineUsers(); } else alert(res.error); } };
