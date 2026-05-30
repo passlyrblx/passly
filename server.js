@@ -78,7 +78,6 @@ mongoose.connect(MONGO_URI).then(async () => {
   mongoose.model('AdBroadcast', adBroadcastSchema);
 
   const Room = mongoose.model('Room');
-
   // Ensure the 3 default public rooms exist
   await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
   const defaultRooms = [
@@ -296,13 +295,15 @@ async function canCreateRoom(userId, roomType) {
   return { allowed: true, counts, key };
 }
 
-// ROBUST /api/rooms endpoint
+// ROBUST /api/rooms endpoint with full error details
 app.get('/api/rooms', async (req, res) => {
+  console.log('GET /api/rooms called');
   try {
     const Room = mongoose.model('Room');
     let rooms = await Room.find();
-    // If for some reason no rooms exist, create default ones on the fly
+    console.log(`Found ${rooms.length} rooms in DB`);
     if (!rooms || rooms.length === 0) {
+      console.log('No rooms found, creating default rooms');
       const defaultRooms = [
         { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
         { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
@@ -313,8 +314,14 @@ app.get('/api/rooms', async (req, res) => {
     }
     res.json(rooms);
   } catch (err) {
-    console.error('/api/rooms error:', err);
-    res.status(500).json({ error: 'Failed to load rooms', details: err.message });
+    console.error('CRITICAL ERROR in /api/rooms:', err);
+    // Send a detailed error response that will be visible in the frontend
+    res.status(500).json({ 
+      error: 'Failed to load rooms',
+      details: err.message,
+      stack: err.stack,
+      mongoState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    });
   }
 });
 
