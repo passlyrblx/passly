@@ -531,7 +531,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat-message', async (msg) => {
-    // CRITICAL: Only process if the socket has joined a room
     if (!currentRoomId) {
       console.log('Chat message ignored – no room joined');
       return;
@@ -595,7 +594,6 @@ io.on('connection', (socket) => {
     }
 
     const filteredMsg = filterMessageServer(messageText);
-    // IMPORTANT: Emit only to the current room
     io.to(currentRoomId).emit('chat-message', {
       userId: senderId,
       username: senderName,
@@ -627,8 +625,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('leave-room', () => {
-    if (currentRoomId) socket.leave(currentRoomId);
-    currentRoomId = null;
+    if (currentRoomId) {
+      socket.leave(currentRoomId);
+      currentRoomId = null;
+    }
   });
 });
 
