@@ -78,7 +78,8 @@ mongoose.connect(MONGO_URI).then(async () => {
   mongoose.model('AdBroadcast', adBroadcastSchema);
 
   const Room = mongoose.model('Room');
-  // Ensure default 3 rooms (Public)
+
+  // Ensure the 3 default public rooms exist
   await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
   const defaultRooms = [
     { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public" },
@@ -92,9 +93,9 @@ mongoose.connect(MONGO_URI).then(async () => {
       { upsert: true, new: true }
     );
   }
-  console.log('Default rooms cleaned and ensured.');
+  console.log('Default rooms ensured.');
 
-  // Auto‑delete inactive rooms (non‑default) after 12 hours
+  // Auto‑delete inactive non‑default rooms after 12 hours
   async function deleteInactiveRooms() {
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const result = await Room.deleteMany({
@@ -295,14 +296,25 @@ async function canCreateRoom(userId, roomType) {
   return { allowed: true, counts, key };
 }
 
-// THIS IS THE ENDPOINT THAT RETURNS ALL ROOMS
+// ROBUST /api/rooms endpoint
 app.get('/api/rooms', async (req, res) => {
   try {
-    const rooms = await mongoose.model('Room').find();
+    const Room = mongoose.model('Room');
+    let rooms = await Room.find();
+    // If for some reason no rooms exist, create default ones on the fly
+    if (!rooms || rooms.length === 0) {
+      const defaultRooms = [
+        { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+        { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+        { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
+      ];
+      await Room.insertMany(defaultRooms, { ordered: false });
+      rooms = defaultRooms;
+    }
     res.json(rooms);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load rooms' });
+    console.error('/api/rooms error:', err);
+    res.status(500).json({ error: 'Failed to load rooms', details: err.message });
   }
 });
 
@@ -757,5 +769,5 @@ app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 
-// FALLBACK
+// FALLBACK – MUST BE LAST
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
