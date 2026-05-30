@@ -108,7 +108,6 @@ mongoose.connect(MONGO_URI).then(async () => {
   server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
 }).catch(err => {
   console.error('MongoDB connection error:', err);
-  // Even if DB fails, the server will still start and serve fallback rooms
   console.log('Starting server without MongoDB – using fallback rooms only.');
   server.listen(PORT, () => console.log(`Passly running on port ${PORT} (no DB)`));
 });
@@ -143,14 +142,24 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// Update lastSeen on every authenticated request (if DB available)
-app.use('/api', authenticateToken, async (req, res, next) => {
+// ========== PUBLIC API PATHS (no token required) ==========
+const publicApiPaths = ['/rooms', '/health', '/guest-login', '/search'];
+app.use('/api', (req, res, next) => {
+  if (publicApiPaths.some(path => req.path === path)) {
+    return next();
+  }
+  authenticateToken(req, res, next);
+});
+
+// Update lastSeen only for authenticated requests (req.user is set by authenticateToken)
+app.use('/api', (req, res, next) => {
   if (req.user && req.user.id && mongoose.connection.readyState === 1) {
-    await mongoose.model('User').findByIdAndUpdate(req.user.id, { lastSeen: new Date() }).catch(() => {});
+    mongoose.model('User').findByIdAndUpdate(req.user.id, { lastSeen: new Date() }).catch(() => {});
   }
   next();
 });
 
+// PAGE ROUTES
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
@@ -318,7 +327,7 @@ async function canCreateRoom(userId, roomType) {
   return { allowed: true, counts, key };
 }
 
-// ROBUST /api/rooms endpoint – always returns rooms (fallback if DB fails)
+// PUBLIC /api/rooms endpoint – always returns rooms (no auth required)
 app.get('/api/rooms', async (req, res) => {
   console.log('GET /api/rooms called');
   try {
@@ -336,7 +345,6 @@ app.get('/api/rooms', async (req, res) => {
     res.json(rooms);
   } catch (err) {
     console.error('/api/rooms error:', err);
-    // Return fallback rooms on any error
     res.json(FALLBACK_ROOMS);
   }
 });
@@ -413,7 +421,7 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
 app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   const User = getUserModel();
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
-  if (!User || !Room) return res.json({ success: true }); // no DB, just leave
+  if (!User || !Room) return res.json({ success: true });
   const user = await User.findById(req.user.id);
   if (!user || !user.roomId) return res.json({ success: true });
   const room = await Room.findById(user.roomId);
