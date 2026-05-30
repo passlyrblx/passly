@@ -21,7 +21,7 @@
     .user-name { font-weight:600; color:#c4b5fd; }
     .main-content { padding:30px; max-width:1400px; margin:0 auto; display:flex; gap:30px; flex-wrap:wrap; }
     .rooms-container { flex:2; min-width:300px; }
-    .room-view-container { flex:3; min-width:400px; display:none; }  /* hidden until joined */
+    .room-view-container { flex:3; min-width:400px; display:none; }
     .members-container { flex:1; min-width:200px; background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; border:1px solid rgba(139,92,246,0.2); backdrop-filter:blur(4px); display:none; }
     .members-container h3 { color:#a78bfa; margin-bottom:15px; }
     .member-list { max-height:500px; overflow-y:auto; }
@@ -441,6 +441,18 @@
   socket.on('chat-error', (errMsg) => showError(errMsg));
   socket.on('room-closed', (data) => { alert(data.message); leaveRoom(); });
   socket.on('force-leave', (data) => { alert(data.reason); leaveRoom(); });
+  socket.on('player-left', (data) => {
+    if (currentRoom && currentRoom.players) {
+      currentRoom.players = currentRoom.players.filter(pid => pid !== data.userId);
+      fetchPlayerDetails(currentRoom.players);
+    }
+  });
+  socket.on('player-joined', (data) => {
+    if (currentRoom && !currentRoom.players.includes(data.userId)) {
+      currentRoom.players.push(data.userId);
+      fetchPlayerDetails(currentRoom.players);
+    }
+  });
 
   window.sendBoardToChat = async function() {
     if (!currentRoom || !userData.board || !userData.board.length) { alert('No gamepasses on your board.'); return; }
@@ -558,7 +570,6 @@ function renderRooms(rooms) {
   `).join('');
 }
 
-// Deduplicate rooms by _id before rendering
 async function loadRooms() {
   const grid = document.getElementById('roomsGrid');
   grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
@@ -596,7 +607,6 @@ window.joinRoomById = async function(id) {
     const data = await res.json();
     if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
     if (data.queued) {
-      // Show queued message
       document.getElementById('roomsListPage').style.display = 'none';
       document.getElementById('roomViewContainer').style.display = 'block';
       document.getElementById('membersPanel').style.display = 'block';
@@ -608,7 +618,6 @@ window.joinRoomById = async function(id) {
       return;
     }
     if (data.success && data.room) {
-      // Successfully joined
       showRoomView(data.room);
     } else {
       showError('Unexpected response from server.');
@@ -664,8 +673,9 @@ window.createRoom = async function() {
 };
 
 function showRoomView(room) {
+  // Clear chat box before showing new room
+  document.getElementById('chatBox').innerHTML = '<div class="chat-msg"><div class="chat-pfp"></div><div class="msg-content"><div class="msg-username">System</div><div>Welcome to the room! 👋</div></div></div>';
   currentRoom = room;
-  // Hide room list, show room view and members panel
   document.getElementById('roomsListPage').style.display = 'none';
   document.getElementById('roomViewContainer').style.display = 'block';
   document.getElementById('membersPanel').style.display = 'block';
@@ -704,13 +714,20 @@ async function leaveRoom() {
   if (adPollInterval) clearInterval(adPollInterval);
   if (isSpeaking) await toggleSpeak();
   socket.emit('leave-room');
-  if (isGuest && guestData.id) await fetch('/api/rooms/guest/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guestId: guestData.id }) });
-  else if (token) await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
+  if (isGuest && guestData.id) {
+    await fetch('/api/rooms/guest/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guestId: guestData.id }) });
+  } else if (token) {
+    await fetch('/api/rooms/leave', { method: 'POST', headers: authHeaders() });
+  }
   currentRoom = null;
+  // Clear chat and members
+  document.getElementById('chatBox').innerHTML = '<div class="chat-msg"><div class="chat-pfp"></div><div class="msg-content"><div class="msg-username">System</div><div>Welcome to the room! 👋</div></div></div>';
+  document.getElementById('memberList').innerHTML = '';
+  // Hide room view, show rooms list
   document.getElementById('roomsListPage').style.display = 'block';
   document.getElementById('roomViewContainer').style.display = 'none';
   document.getElementById('membersPanel').style.display = 'none';
-  loadRooms();
+  loadRooms(); // refresh room list (updates player counts)
 }
 async function leaveQueue() { await leaveRoom(); }
 // Voice
