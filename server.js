@@ -903,5 +903,9 @@ app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 
+
+app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
+app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
+
 // FALLBACK – MUST BE LAST
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
