@@ -29,9 +29,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
 const VIP_GAMEPASS_ID = '1859054633';
 
+// Fallback default rooms (in case DB fails)
+const FALLBACK_ROOMS = [
+  { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+  { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+  { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
+];
+
 mongoose.connect(MONGO_URI).then(async () => {
   console.log('MongoDB connected');
-
   const userSchema = new mongoose.Schema({
     _id: String, robloxUsername: String, robloxDisplayName: String,
     customDisplayName: String, avatarUrl: String,
@@ -78,23 +84,18 @@ mongoose.connect(MONGO_URI).then(async () => {
   mongoose.model('AdBroadcast', adBroadcastSchema);
 
   const Room = mongoose.model('Room');
-  // Ensure the 3 default public rooms exist
+  // Ensure default rooms exist
   await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
-  const defaultRooms = [
-    { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public" },
-    { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public" },
-    { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public" }
-  ];
-  for (const r of defaultRooms) {
+  for (const r of FALLBACK_ROOMS) {
     await Room.findOneAndUpdate(
       { _id: r._id },
-      { $setOnInsert: { ...r, players: [], queue: [], maxPlayers: 18, createdBy: 'system' } },
+      { $setOnInsert: { ...r } },
       { upsert: true, new: true }
     );
   }
-  console.log('Default rooms ensured.');
+  console.log('Default rooms ensured in DB.');
 
-  // Auto‑delete inactive non‑default rooms after 12 hours
+  // Auto-delete inactive non-default rooms after 12 hours
   async function deleteInactiveRooms() {
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const result = await Room.deleteMany({
@@ -104,9 +105,13 @@ mongoose.connect(MONGO_URI).then(async () => {
     if (result.deletedCount) console.log(`Deleted ${result.deletedCount} inactive rooms.`);
   }
   setInterval(deleteInactiveRooms, 60 * 60 * 1000);
-
   server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
-}).catch(err => { console.error('MongoDB error:', err); process.exit(1); });
+}).catch(err => {
+  console.error('MongoDB connection error:', err);
+  // Even if DB fails, the server will still start and serve fallback rooms
+  console.log('Starting server without MongoDB – using fallback rooms only.');
+  server.listen(PORT, () => console.log(`Passly running on port ${PORT} (no DB)`));
+});
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -138,9 +143,9 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// Update lastSeen on every authenticated request
+// Update lastSeen on every authenticated request (if DB available)
 app.use('/api', authenticateToken, async (req, res, next) => {
-  if (req.user && req.user.id) {
+  if (req.user && req.user.id && mongoose.connection.readyState === 1) {
     await mongoose.model('User').findByIdAndUpdate(req.user.id, { lastSeen: new Date() }).catch(() => {});
   }
   next();
@@ -194,9 +199,15 @@ app.get('/auth/roblox/callback', async (req, res) => {
     res.redirect(`/dashboard#token=${jwtToken}`);
   } catch (e) { console.error(e); res.send('<h1>Login Failed</h1><a href="/">Go back</a>'); }
 });
+// Helper to get User model (may be undefined if DB not connected)
+function getUserModel() {
+  return mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+}
+
 // USER API
 app.get('/api/user', authenticateToken, async (req, res) => {
-  const User = mongoose.model('User');
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready', fallback: true });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const avatarUrl = user.avatarUrl || '';
@@ -213,7 +224,8 @@ app.get('/api/user', authenticateToken, async (req, res) => {
 
 // Get user stats for member profile
 app.get('/api/user/:userId/stats', authenticateToken, async (req, res) => {
-  const User = mongoose.model('User');
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.params.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({
@@ -226,7 +238,8 @@ app.get('/api/user/:userId/stats', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/accept-tos', authenticateToken, async (req, res) => {
-  const User = mongoose.model('User');
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.acceptedTos) return res.json({ success: true, alreadyAccepted: true });
@@ -237,34 +250,41 @@ app.post('/api/accept-tos', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/profile/update', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
   const { showBooth, statusDot, showRoomId, customDisplayName } = req.body;
   const update = {};
   if (showBooth !== undefined) update['profile.showBooth'] = showBooth;
   if (statusDot) update['profile.statusDot'] = statusDot;
   if (showRoomId !== undefined) update['profile.showRoomId'] = showRoomId;
   if (customDisplayName !== undefined) update.customDisplayName = customDisplayName.trim().substring(0,20) || null;
-  await mongoose.model('User').findByIdAndUpdate(req.user.id, { $set: update });
+  await User.findByIdAndUpdate(req.user.id, { $set: update });
   res.json({ success: true });
 });
 
 app.get('/api/search', async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
   const q = (req.query.username || '').toLowerCase().trim();
   if (!q) return res.status(400).json({ error: 'Username required' });
-  const found = await mongoose.model('User').findOne({ robloxUsername: new RegExp(`^${q}$`, 'i') });
+  const found = await User.findOne({ robloxUsername: new RegExp(`^${q}$`, 'i') });
   if (!found) return res.json({ error: 'User not found' });
   res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, board: found.profile?.showBooth !== false ? (found.board || []) : [] });
 });
 
 app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
-  const user = await mongoose.model('User').findById(req.params.userId);
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.params.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ id: user._id, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl, board: user.profile?.showBooth !== false ? (user.board || []) : [] });
 });
 
 app.post('/api/board/add', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
   const { assetId, price } = req.body;
   if (!assetId || !price) return res.status(400).json({ error: 'Asset ID and Robux amount required' });
-  const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.board.some(g => g.id === assetId)) return res.status(400).json({ error: 'Already on board' });
@@ -277,13 +297,16 @@ app.post('/api/board/add', authenticateToken, async (req, res) => {
   res.json({ success: true, board: user.board });
 });
 app.post('/api/board/remove', authenticateToken, async (req, res) => {
-  await mongoose.model('User').findByIdAndUpdate(req.user.id, { $pull: { board: { id: req.body.assetId } } });
-  const user = await mongoose.model('User').findById(req.user.id);
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  await User.findByIdAndUpdate(req.user.id, { $pull: { board: { id: req.body.assetId } } });
+  const user = await User.findById(req.user.id);
   res.json({ success: true, board: user.board });
 });
 function sanitizeInput(str) { if (!str) return ''; return str.replace(/<[^>]*>/g, '').trim().substring(0, 100); }
 async function canCreateRoom(userId, roomType) {
-  const User = mongoose.model('User');
+  const User = getUserModel();
+  if (!User) return { allowed: false, error: 'Database not ready' };
   const user = await User.findById(userId);
   if (!user) return { allowed: false, error: 'User not found' };
   const today = new Date().toISOString().slice(0,10);
@@ -295,49 +318,43 @@ async function canCreateRoom(userId, roomType) {
   return { allowed: true, counts, key };
 }
 
-// ROBUST /api/rooms endpoint with full error details
+// ROBUST /api/rooms endpoint – always returns rooms (fallback if DB fails)
 app.get('/api/rooms', async (req, res) => {
   console.log('GET /api/rooms called');
   try {
-    const Room = mongoose.model('Room');
+    const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+    if (!Room) {
+      console.log('DB not ready, returning fallback rooms');
+      return res.json(FALLBACK_ROOMS);
+    }
     let rooms = await Room.find();
-    console.log(`Found ${rooms.length} rooms in DB`);
     if (!rooms || rooms.length === 0) {
-      console.log('No rooms found, creating default rooms');
-      const defaultRooms = [
-        { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-        { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-        { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
-      ];
-      await Room.insertMany(defaultRooms, { ordered: false });
-      rooms = defaultRooms;
+      console.log('No rooms in DB, inserting fallback');
+      await Room.insertMany(FALLBACK_ROOMS, { ordered: false });
+      rooms = FALLBACK_ROOMS;
     }
     res.json(rooms);
   } catch (err) {
-    console.error('CRITICAL ERROR in /api/rooms:', err);
-    // Send a detailed error response that will be visible in the frontend
-    res.status(500).json({ 
-      error: 'Failed to load rooms',
-      details: err.message,
-      stack: err.stack,
-      mongoState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-    });
+    console.error('/api/rooms error:', err);
+    // Return fallback rooms on any error
+    res.json(FALLBACK_ROOMS);
   }
 });
 
 app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, res) => {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  const User = getUserModel();
+  if (!Room || !User) return res.status(503).json({ error: 'Database not ready' });
   let { name, desc, type } = req.body;
   name = sanitizeInput(name); desc = sanitizeInput(desc);
   if (!name) return res.status(400).json({ error: 'Room name required' });
   if (!['Public', 'Private', 'VIP'].includes(type)) type = 'Public';
-  const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
   if (type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
     return res.status(403).json({ error: 'VIP role required to create VIP rooms.' });
   }
   const limitCheck = await canCreateRoom(req.user.id, type);
   if (!limitCheck.allowed) return res.status(429).json({ error: limitCheck.error });
-  const Room = mongoose.model('Room');
   const roomId = crypto.randomBytes(8).toString('hex');
   const room = new Room({ _id: roomId, name, desc, type, players: [req.user.id], queue: [], createdBy: req.user.id });
   await room.save();
@@ -349,9 +366,10 @@ app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, 
 });
 
 app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  const User = getUserModel();
+  if (!Room || !User) return res.status(503).json({ error: 'Database not ready' });
   const roomId = req.params.id;
-  const Room = mongoose.model('Room');
-  const User = mongoose.model('User');
   const room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   const user = await User.findById(req.user.id);
@@ -372,10 +390,11 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/rooms/guest/join/:id', async (req, res) => {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room) return res.status(503).json({ error: 'Database not ready' });
   const roomId = req.params.id;
   const { guestId, guestName } = req.body;
   if (!guestId) return res.status(400).json({ error: 'Guest ID required' });
-  const Room = mongoose.model('Room');
   const room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.type === 'VIP') return res.status(403).json({ error: 'Guests cannot join VIP rooms.' });
@@ -392,10 +411,11 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
 });
 
 app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
-  const User = mongoose.model('User');
+  const User = getUserModel();
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!User || !Room) return res.json({ success: true }); // no DB, just leave
   const user = await User.findById(req.user.id);
   if (!user || !user.roomId) return res.json({ success: true });
-  const Room = mongoose.model('Room');
   const room = await Room.findById(user.roomId);
   if (room) {
     room.players = room.players.filter(id => id !== req.user.id);
@@ -414,16 +434,18 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/rooms/guest/leave', async (req, res) => {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room) return res.json({ success: true });
   const { guestId } = req.body;
   if (!guestId) return res.status(400).json({ error: 'Guest ID required' });
-  const Room = mongoose.model('Room');
   const room = await Room.findOne({ players: guestId });
   if (room) {
     room.players = room.players.filter(id => id !== guestId);
     if (room.queue.length > 0 && room.players.length < room.maxPlayers) {
       const nextId = room.queue.shift();
       room.players.push(nextId);
-      await mongoose.model('User').findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false });
+      const User = getUserModel();
+      if (User) await User.findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false });
       io.to(room._id).emit('player-joined', { userId: nextId });
       io.to(room._id).emit('queue-updated', { queue: room.queue });
     }
@@ -468,7 +490,9 @@ io.on('connection', (socket) => {
       socket.userId = userId;
       isGuest = false;
       onlineUsers.add(userId);
-      mongoose.model('User').findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(()=>{});
+      if (mongoose.connection.readyState === 1) {
+        mongoose.model('User').findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(()=>{});
+      }
     } catch (e) {}
   });
   socket.on('guest-auth', (id) => {
@@ -501,23 +525,29 @@ io.on('connection', (socket) => {
       if (typeof msg === 'object') { messageText = msg.text; senderName = msg.guestName || 'Guest'; }
       else senderName = 'Guest';
     } else if (userId) {
-      const user = await mongoose.model('User').findById(userId);
+      const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+      const user = User ? await User.findById(userId) : null;
       if (user) {
         senderName = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
         senderAvatar = user.avatarUrl || '';
         isOwner = (userId === OWNER_ROBLOX_ID);
         isAdmin = ADMINS.has(userId) || isOwner;
+      } else {
+        senderName = 'User';
       }
     }
     if (!isGuest && (isAdmin || isOwner) && messageText.trim().toLowerCase() === 'r.close') {
-      const Room = mongoose.model('Room');
-      const room = await Room.findById(currentRoomId);
-      if (room) {
-        io.to(currentRoomId).emit('room-closed', { message: 'Room closed by admin.' });
-        const sockets = await io.in(currentRoomId).fetchSockets();
-        for (const sock of sockets) { sock.emit('force-leave', { reason: 'Room closed.' }); sock.leave(currentRoomId); }
-        await Room.deleteOne({ _id: currentRoomId });
-        await mongoose.model('User').updateMany({ roomId: currentRoomId }, { $unset: { roomId: "", inQueue: "" } });
+      const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+      if (Room) {
+        const room = await Room.findById(currentRoomId);
+        if (room) {
+          io.to(currentRoomId).emit('room-closed', { message: 'Room closed by admin.' });
+          const sockets = await io.in(currentRoomId).fetchSockets();
+          for (const sock of sockets) { sock.emit('force-leave', { reason: 'Room closed.' }); sock.leave(currentRoomId); }
+          await Room.deleteOne({ _id: currentRoomId });
+          const UserModel = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+          if (UserModel) await UserModel.updateMany({ roomId: currentRoomId }, { $unset: { roomId: "", inQueue: "" } });
+        }
       }
       return;
     }
@@ -526,7 +556,8 @@ io.on('connection', (socket) => {
   });
   socket.on('chat-board', async (boardData) => {
     if (!userId || !currentRoomId) return;
-    const user = await mongoose.model('User').findById(userId);
+    const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+    const user = User ? await User.findById(userId) : null;
     if (!user) return;
     io.to(currentRoomId).emit('chat-board', { userId, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, board: boardData, avatarUrl: user.avatarUrl });
   });
@@ -534,45 +565,53 @@ io.on('connection', (socket) => {
   socket.on('leave-room', () => { if (currentRoomId) socket.leave(currentRoomId); currentRoomId = null; });
 });
 
-// LEADERBOARD
+// LEADERBOARD (needs DB)
 app.get('/api/leaderboard', async (req, res) => {
+  const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
+  if (!Donation) return res.json({ receivers: [], donors: [] });
   const period = req.query.period || 'daily';
   let startDate = new Date();
   if (period === 'daily') startDate.setHours(0,0,0,0);
   else if (period === 'weekly') startDate.setDate(startDate.getDate() - 7);
   else if (period === 'total') startDate = new Date(0);
-  const Donation = mongoose.model('Donation');
   const match = period === 'total' ? {} : { timestamp: { $gte: startDate } };
   const receivers = await Donation.aggregate([{ $match: match }, { $group: { _id: '$receiverId', total: { $sum: '$amount' } } }, { $sort: { total: -1 } }, { $limit: 10 }]);
   const donors = await Donation.aggregate([{ $match: match }, { $group: { _id: '$donorId', total: { $sum: '$amount' } } }, { $sort: { total: -1 } }, { $limit: 10 }]);
-  const User = mongoose.model('User');
-  const enrich = async (arr) => { const result = []; for (const item of arr) { const user = await User.findById(item._id); result.push({ username: user ? (user.customDisplayName || user.robloxDisplayName || user.robloxUsername) : 'Unknown', amount: item.total }); } return result; };
+  const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+  const enrich = async (arr) => { const result = []; for (const item of arr) { const user = User ? await User.findById(item._id) : null; result.push({ username: user ? (user.customDisplayName || user.robloxDisplayName || user.robloxUsername) : 'Unknown', amount: item.total }); } return result; };
   res.json({ receivers: await enrich(receivers), donors: await enrich(donors) });
 });
 
-// ADS
+// ADS (needs DB)
 app.get('/api/ads', async (req, res) => {
-  const ads = await mongoose.model('Ad').find({ active: true, showsLeft: { $gt: 0 } }).limit(5);
+  const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
+  if (!Ad) return res.json([]);
+  const ads = await Ad.find({ active: true, showsLeft: { $gt: 0 } }).limit(5);
   res.json(ads.map(ad => ({ userId: ad.userId, username: ad.username, tier: ad.tier, message: ad.message, showsLeft: ad.showsLeft })));
 });
 app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
+  if (!User || !Ad) return res.status(503).json({ error: 'Database not ready' });
   const { tier, message } = req.body;
   if (!tier || !['5k','10k','vip'].includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
   const gamepassId = GAMEPASSES[tier];
   if (!gamepassId) return res.status(400).json({ error: 'Gamepass not configured' });
-  const User = mongoose.model('User');
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (tier === 'vip') return res.json({ url: `https://www.roblox.com/game-pass/${gamepassId}`, pendingType: 'vip' });
-  const existing = await mongoose.model('Ad').findOne({ userId: req.user.id, active: true });
+  const existing = await Ad.findOne({ userId: req.user.id, active: true });
   if (existing) return res.status(400).json({ error: 'You already have an active ad. Delete it first.' });
   const tierNum = tier === '5k' ? 5000 : 10000;
   const shows = tier === '5k' ? 1 : 3;
-  const ad = new (mongoose.model('Ad'))({ _id: crypto.randomBytes(8).toString('hex'), userId: req.user.id, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, tier: tierNum, gamepassId, broadcastsLeft: 1, showsLeft: shows, active: true, message: message || null });
+  const ad = new Ad({ _id: crypto.randomBytes(8).toString('hex'), userId: req.user.id, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, tier: tierNum, gamepassId, broadcastsLeft: 1, showsLeft: shows, active: true, message: message || null });
   await ad.save();
   res.json({ success: true, ad });
 });
 app.post('/api/verify-ad', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
+  if (!User || !Ad) return res.status(503).json({ error: 'Database not ready' });
   const { tier } = req.body;
   const gamepassId = GAMEPASSES[tier];
   if (!gamepassId) return res.status(400).json({ error: 'Invalid tier' });
@@ -580,36 +619,43 @@ app.post('/api/verify-ad', authenticateToken, async (req, res) => {
     const inv = await axios.get(`https://inventory.roblox.com/v1/users/${req.user.id}/items/GamePass/${gamepassId}`, { timeout: 5000 });
     if (!inv.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass.' });
     if (tier === 'vip') {
-      await mongoose.model('User').findByIdAndUpdate(req.user.id, { role: 'vip' });
+      await User.findByIdAndUpdate(req.user.id, { role: 'vip' });
       return res.json({ success: true, message: 'VIP role granted!' });
     }
-    const existingAd = await mongoose.model('Ad').findOne({ userId: req.user.id, active: true });
+    const existingAd = await Ad.findOne({ userId: req.user.id, active: true });
     if (!existingAd) {
-      const user = await mongoose.model('User').findById(req.user.id);
+      const user = await User.findById(req.user.id);
       const tierNum = tier === '5k' ? 5000 : 10000;
       const shows = tier === '5k' ? 1 : 3;
-      const ad = new (mongoose.model('Ad'))({ _id: crypto.randomBytes(8).toString('hex'), userId: req.user.id, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, tier: tierNum, gamepassId, broadcastsLeft: 1, showsLeft: shows, active: true, message: null });
+      const ad = new Ad({ _id: crypto.randomBytes(8).toString('hex'), userId: req.user.id, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, tier: tierNum, gamepassId, broadcastsLeft: 1, showsLeft: shows, active: true, message: null });
       await ad.save();
     }
     res.json({ success: true, message: 'Ad activated!' });
   } catch (err) { res.status(500).json({ error: 'Verification failed' }); }
 });
 app.post('/api/delete-ad', authenticateToken, async (req, res) => {
-  await mongoose.model('Ad').findOneAndDelete({ userId: req.user.id, active: true });
+  const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
+  if (!Ad) return res.json({ success: true });
+  await Ad.findOneAndDelete({ userId: req.user.id, active: true });
   res.json({ success: true });
 });
 app.get('/api/ads/broadcast', async (req, res) => {
+  const AdBroadcast = mongoose.connection.readyState === 1 ? mongoose.model('AdBroadcast') : null;
+  if (!AdBroadcast) return res.json([]);
   const { roomId, since } = req.query;
   const sinceDate = since ? new Date(parseInt(since)) : new Date(Date.now() - 60000);
-  const broadcasts = await mongoose.model('AdBroadcast').find({ roomId, timestamp: { $gt: sinceDate } }).sort({ timestamp: -1 }).limit(10);
+  const broadcasts = await AdBroadcast.find({ roomId, timestamp: { $gt: sinceDate } }).sort({ timestamp: -1 }).limit(10);
   res.json(broadcasts);
 });
 
 app.post('/api/guest-login', async (req, res) => {
+  const User = getUserModel();
   const guestId = crypto.randomBytes(8).toString('hex');
   const username = `Guest_${guestId.slice(0,6)}`;
-  const user = new (mongoose.model('User'))({ _id: guestId, robloxUsername: username, robloxDisplayName: username, customDisplayName: username, avatarUrl: '', donations: { received: 0, given: 0 }, board: [], role: 'user', acceptedTos: false });
-  await user.save();
+  if (User) {
+    const user = new User({ _id: guestId, robloxUsername: username, robloxDisplayName: username, customDisplayName: username, avatarUrl: '', donations: { received: 0, given: 0 }, board: [], role: 'user', acceptedTos: false });
+    await user.save();
+  }
   res.json({ id: guestId, username, displayName: username, isGuest: true });
 });
 const pendingDonations = new Map();
@@ -635,12 +681,12 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   if (pending) { receiverId = pending.receiverId; gamepassId = pending.gamepassId; amount = pending.amount; }
   if (!receiverId || !gamepassId || !amount) return res.status(400).json({ error: 'Missing donation details' });
 
-  const User = mongoose.model('User');
-  const Donation = mongoose.model('Donation');
+  const User = getUserModel();
+  const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
+  if (!User || !Donation) return res.status(503).json({ error: 'Database not ready' });
   const donor = await User.findById(donorId);
   if (!donor) return res.status(404).json({ error: 'User not found' });
 
-  // Prevent duplicate verification of the same donation
   const existing = await Donation.findOne({ donorId, receiverId, gamepassId, amount });
   if (existing) return res.status(400).json({ error: 'You have already donated this gamepass to this user.' });
 
@@ -667,7 +713,9 @@ const BANNED = new Set();
 let REPORTS = [];
 
 async function isAdminOrOwner(req) {
-  const user = await mongoose.model('User').findById(req.user.id);
+  const User = getUserModel();
+  if (!User) return false;
+  const user = await User.findById(req.user.id);
   if (!user) return false;
   if (user._id === OWNER_ROBLOX_ID) return true;
   return ADMINS.has(user._id);
@@ -676,14 +724,18 @@ app.use((req, res, next) => { if (req.user && BANNED.has(req.user.id)) return re
 app.get('/api/admin/check', authenticateToken, async (req, res) => { res.json({ isAdmin: await isAdminOrOwner(req) }); });
 app.get('/api/admin/data', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
-  const bannedUsersWithNames = await Promise.all(Array.from(BANNED).map(async (userId) => { const user = await mongoose.model('User').findById(userId); return { userId, username: user?.robloxUsername || 'Unknown' }; }));
-  const reportsWithNames = await Promise.all(REPORTS.map(async (report) => { const reportedUser = await mongoose.model('User').findById(report.reportedId); const reporterUser = await mongoose.model('User').findById(report.reporterId); return { ...report, reportedUsername: reportedUser?.robloxUsername || 'Unknown', reporterUsername: reporterUser?.robloxUsername || 'Unknown' }; }));
+  const User = getUserModel();
+  if (!User) return res.json({ reports: [], banned: [] });
+  const bannedUsersWithNames = await Promise.all(Array.from(BANNED).map(async (userId) => { const user = await User.findById(userId); return { userId, username: user?.robloxUsername || 'Unknown' }; }));
+  const reportsWithNames = await Promise.all(REPORTS.map(async (report) => { const reportedUser = await User.findById(report.reportedId); const reporterUser = await User.findById(report.reporterId); return { ...report, reportedUsername: reportedUser?.robloxUsername || 'Unknown', reporterUsername: reporterUser?.robloxUsername || 'Unknown' }; }));
   res.json({ reports: reportsWithNames, banned: bannedUsersWithNames });
 });
 app.post('/api/admin/grant', authenticateToken, async (req, res) => {
   if (req.user.id !== OWNER_ROBLOX_ID) return res.status(403).json({ error: 'Owner only' });
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
   const { userId, role } = req.body;
-  await mongoose.model('User').findByIdAndUpdate(userId, { role });
+  await User.findByIdAndUpdate(userId, { role });
   res.json({ success: true });
 });
 app.post('/api/admin/ban', authenticateToken, async (req, res) => {
@@ -710,7 +762,9 @@ app.post('/api/admin/resolve-report', authenticateToken, async (req, res) => {
 });
 app.get('/api/admin/search-user', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403);
-  const user = await mongoose.model('User').findOne({ robloxUsername: new RegExp(`^${req.query.username}$`, 'i') });
+  const User = getUserModel();
+  if (!User) return res.json({ error: 'Database not ready' });
+  const user = await User.findOne({ robloxUsername: new RegExp(`^${req.query.username}$`, 'i') });
   if (!user) return res.json({ error: 'User not found' });
   res.json({ id: user._id, username: user.robloxUsername, role: user.role });
 });
@@ -721,29 +775,31 @@ app.post('/api/admin/broadcast', authenticateToken, async (req, res) => {
 });
 app.post('/api/admin/close-room', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room) return res.status(503).json({ error: 'Database not ready' });
   const { roomId } = req.body;
   if (!roomId) return res.status(400).json({ error: 'Room ID required' });
-  const Room = mongoose.model('Room');
   const room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   io.to(roomId).emit('room-closed', { message: 'Room closed by admin.' });
   const sockets = await io.in(roomId).fetchSockets();
   for (const sock of sockets) { sock.emit('force-leave', { reason: 'Room closed.' }); sock.leave(roomId); }
   await Room.deleteOne({ _id: roomId });
-  await mongoose.model('User').updateMany({ roomId: roomId }, { $unset: { roomId: "", inQueue: "" } });
+  const User = getUserModel();
+  if (User) await User.updateMany({ roomId: roomId }, { $unset: { roomId: "", inQueue: "" } });
   res.json({ success: true, message: `Room ${roomId} closed.` });
 });
 // Website status endpoint
 app.get('/api/admin/stats', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
-  const User = mongoose.model('User');
-  const Donation = mongoose.model('Donation');
-  const totalUsers = await User.countDocuments({ role: { $ne: 'guest' } });
-  const totalGuests = await User.countDocuments({ robloxUsername: /^Guest_/ });
-  const totalDonations = await Donation.countDocuments();
-  const totalRobuxDonated = await Donation.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]).then(r => r[0]?.total || 0);
+  const User = getUserModel();
+  const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
+  const totalUsers = User ? await User.countDocuments({ role: { $ne: 'guest' } }) : 0;
+  const totalGuests = User ? await User.countDocuments({ robloxUsername: /^Guest_/ }) : 0;
+  const totalDonations = Donation ? await Donation.countDocuments() : 0;
+  const totalRobuxDonated = Donation ? (await Donation.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]).then(r => r[0]?.total || 0)) : 0;
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const activeToday = await User.countDocuments({ lastSeen: { $gte: oneDayAgo } });
+  const activeToday = User ? await User.countDocuments({ lastSeen: { $gte: oneDayAgo } }) : 0;
   res.json({
     totalUsers,
     totalGuests,
@@ -756,18 +812,22 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
 // Get list of online users with usernames
 app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
-  const User = mongoose.model('User');
+  const User = getUserModel();
   const onlineUsersArray = Array.from(onlineUsers);
   const users = [];
   for (const id of onlineUsersArray) {
-    const user = await User.findById(id);
-    if (user) {
-      users.push({
-        id: user._id,
-        username: user.robloxUsername,
-        displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
-        isGuest: user.robloxUsername?.startsWith('Guest_') || false
-      });
+    if (User) {
+      const user = await User.findById(id);
+      if (user) {
+        users.push({
+          id: user._id,
+          username: user.robloxUsername,
+          displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
+          isGuest: user.robloxUsername?.startsWith('Guest_') || false
+        });
+      } else {
+        users.push({ id, username: id.startsWith('Guest_') ? id : 'Unknown', displayName: 'Unknown', isGuest: true });
+      }
     } else {
       users.push({ id, username: id.startsWith('Guest_') ? id : 'Unknown', displayName: 'Unknown', isGuest: true });
     }
