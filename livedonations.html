@@ -11,7 +11,7 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
-    /* Navbar (same) */
+    /* ========== NAVBAR ========== */
     .navbar {
       display: flex;
       align-items: center;
@@ -34,7 +34,7 @@
     .user-box { display: flex; align-items: center; gap: 12px; background: rgba(139,92,246,0.1); padding: 6px 14px; border-radius: 40px; }
     .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; }
     .user-name { font-weight:600; color:#c4b5fd; font-size:0.9rem; }
-    .mobile-menu, .menu-overlay, .close-menu { /* same */ }
+    .mobile-menu, .menu-overlay, .close-menu { /* same as before */ }
     /* Live donations specific */
     .main-content { padding:30px; max-width:800px; margin:0 auto; }
     h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
@@ -45,7 +45,7 @@
     .donor-name { font-weight:bold; color:#c4b5fd; }
     .amount { color:#ffd700; font-weight:bold; }
     .empty-state { text-align:center; padding:40px; color:#a0a0b0; }
-    @media (max-width:768px) {
+    @media (max-width: 768px) {
       .hamburger { display: flex; }
       .nav-links { display: none; }
       .main-content { padding:20px; }
@@ -136,7 +136,6 @@
     // Listen for new donations
     socket.on('new-donation', (donation) => {
       const container = document.getElementById('donationList');
-      // Remove empty state if present
       if (container.querySelector('.empty-state')) container.innerHTML = '';
       const donationDiv = document.createElement('div');
       donationDiv.className = 'donation-item';
@@ -150,16 +149,13 @@
         </div>
       `;
       container.prepend(donationDiv);
-      // Keep only last 20 donations
       while (container.children.length > 20) container.removeChild(container.lastChild);
     });
 
-    // Optionally load recent donations from API
     async function loadRecentDonations() {
       try {
         const res = await fetch('/api/leaderboard?period=daily');
-        const data = await res.json();
-        // Just to show something, but socket will add live ones.
+        // optional: seed with recent donations, but not necessary
       } catch(e) {}
     }
     loadRecentDonations();
