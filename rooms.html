@@ -21,8 +21,8 @@
     .user-name { font-weight:600; color:#c4b5fd; }
     .main-content { padding:30px; max-width:1400px; margin:0 auto; display:flex; gap:30px; flex-wrap:wrap; }
     .rooms-container { flex:2; min-width:300px; }
-    .room-view-container { flex:3; min-width:400px; }
-    .members-container { flex:1; min-width:200px; background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; border:1px solid rgba(139,92,246,0.2); backdrop-filter:blur(4px); }
+    .room-view-container { flex:3; min-width:400px; display:none; }  /* hidden until joined */
+    .members-container { flex:1; min-width:200px; background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; border:1px solid rgba(139,92,246,0.2); backdrop-filter:blur(4px); display:none; }
     .members-container h3 { color:#a78bfa; margin-bottom:15px; }
     .member-list { max-height:500px; overflow-y:auto; }
     .member-item { display:flex; align-items:center; gap:12px; padding:8px; border-radius:12px; cursor:pointer; transition:background 0.2s; margin-bottom:5px; }
@@ -59,7 +59,7 @@
     .type-btn.active { background:rgba(139,92,246,0.3); border-color:#8b5cf6; }
     .type-btn.vip-btn { background:rgba(255,215,0,0.1); border-color:#ffd700; }
     .modal-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:10px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
-    .room-view { display:none; background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); }
+    .room-view { background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); }
     .room-view h2 { font-size:2rem; margin-bottom:10px; }
     .room-view-desc { color:#a0a0b0; margin-bottom:20px; }
     .player-list { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
@@ -143,8 +143,8 @@
     </div>
   </div>
 
-  <!-- Room View Container (hidden initially) -->
-  <div class="room-view-container" id="roomViewContainer" style="display:none;">
+  <!-- Room View Container (hidden until joined) -->
+  <div class="room-view-container" id="roomViewContainer">
     <div class="room-view" id="roomView">
       <button class="back-btn" onclick="leaveRoom()">⬅ Back to Rooms</button>
       <h2 id="viewRoomName"></h2>
@@ -180,8 +180,8 @@
     </div>
   </div>
 
-  <!-- Members List Panel (shown when in a room) -->
-  <div class="members-container" id="membersPanel" style="display:none;">
+  <!-- Members List Panel (hidden until joined) -->
+  <div class="members-container" id="membersPanel">
     <h3>👥 Room Members</h3>
     <div id="memberList" class="member-list">Loading members...</div>
   </div>
@@ -531,7 +531,7 @@
   window.confirmDonate = function(receiverId, gamepassId, amount, receiverName) {
     openDonationConfirm(receiverId, receiverName, gamepassId, amount);
   };
-// Room loading with filter and detailed error display
+// Room loading with deduplication (removes duplicates by _id)
 function setRoomFilter(filter) {
   currentRoomFilter = filter;
   document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -558,23 +558,18 @@ function renderRooms(rooms) {
   `).join('');
 }
 
-// UPDATED loadRooms with detailed error display
+// Deduplicate rooms by _id before rendering
 async function loadRooms() {
   const grid = document.getElementById('roomsGrid');
   grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
   try {
     const res = await fetch('/api/rooms');
-    if (!res.ok) {
-      let errorDetail = `HTTP ${res.status}`;
-      try {
-        const errorData = await res.json();
-        errorDetail = errorData.details || errorData.error || errorDetail;
-      } catch(e) {}
-      throw new Error(errorDetail);
-    }
-    const allRooms = await res.json();
-    // Keep only Public and VIP rooms (hide Private from list)
-    allRoomsCache = allRooms.filter(r => r.type !== 'Private');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    let allRooms = await res.json();
+    // Deduplicate by _id
+    const uniqueMap = new Map();
+    allRooms.forEach(room => uniqueMap.set(room._id, room));
+    allRoomsCache = Array.from(uniqueMap.values()).filter(r => r.type !== 'Private');
     renderRooms(allRoomsCache);
   } catch (e) {
     console.error('loadRooms error:', e);
@@ -601,16 +596,23 @@ window.joinRoomById = async function(id) {
     const data = await res.json();
     if (!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
     if (data.queued) {
+      // Show queued message
       document.getElementById('roomsListPage').style.display = 'none';
       document.getElementById('roomViewContainer').style.display = 'block';
       document.getElementById('membersPanel').style.display = 'block';
       document.getElementById('viewRoomName').textContent = 'Room (Queued)';
+      document.getElementById('viewRoomDesc').textContent = '';
       document.getElementById('queueBox').style.display = 'block';
       document.getElementById('queuePos').textContent = data.position;
       currentRoom = { id, queued: true };
       return;
     }
-    if (data.success && data.room) showRoomView(data.room);
+    if (data.success && data.room) {
+      // Successfully joined
+      showRoomView(data.room);
+    } else {
+      showError('Unexpected response from server.');
+    }
   } catch(e) { showError('Network error.'); }
 };
 
@@ -663,6 +665,7 @@ window.createRoom = async function() {
 
 function showRoomView(room) {
   currentRoom = room;
+  // Hide room list, show room view and members panel
   document.getElementById('roomsListPage').style.display = 'none';
   document.getElementById('roomViewContainer').style.display = 'block';
   document.getElementById('membersPanel').style.display = 'block';
