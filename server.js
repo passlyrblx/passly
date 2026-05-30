@@ -29,7 +29,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
 const VIP_GAMEPASS_ID = '1859054633';
 
-// Fallback default rooms (in case DB fails)
+// Fallback default rooms
 const FALLBACK_ROOMS = [
   { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
   { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
@@ -151,7 +151,7 @@ app.use('/api', (req, res, next) => {
   authenticateToken(req, res, next);
 });
 
-// Update lastSeen only for authenticated requests (req.user is set by authenticateToken)
+// Update lastSeen only for authenticated requests
 app.use('/api', (req, res, next) => {
   if (req.user && req.user.id && mongoose.connection.readyState === 1) {
     mongoose.model('User').findByIdAndUpdate(req.user.id, { lastSeen: new Date() }).catch(() => {});
@@ -902,10 +902,6 @@ app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
   res.json({ onlineUsers: users });
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
-
-
-app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
-app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
 
 // FALLBACK – MUST BE LAST
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
