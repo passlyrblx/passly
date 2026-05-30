@@ -10,7 +10,7 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
-    /* Navbar styles (same as dashboard) */
+    /* Navbar (same) */
     .navbar {
       display: flex;
       align-items: center;
@@ -23,30 +23,17 @@
       z-index: 100;
       backdrop-filter: blur(10px);
     }
-    .navbar-left {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-    }
-    .hamburger {
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      padding: 8px;
-    }
+    .navbar-left { display: flex; align-items: center; gap: 15px; }
+    .hamburger { background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 5px; padding: 8px; }
     .hamburger span { width: 28px; height: 3px; background: #c4b5fd; border-radius: 3px; }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display: flex; gap: 25px; }
-    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; transition:color 0.3s; font-size:0.95rem; }
+    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; font-size:0.95rem; }
     .nav-links a:hover { color:#a78bfa; }
     .user-box { display: flex; align-items: center; gap: 12px; background: rgba(139,92,246,0.1); padding: 6px 14px; border-radius: 40px; }
     .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; }
     .user-name { font-weight:600; color:#c4b5fd; font-size:0.9rem; }
-    .mobile-menu, .menu-overlay { /* same as dashboard */ }
-    .close-menu { /* same */ }
+    .mobile-menu, .menu-overlay, .close-menu { /* same */ }
     /* Profile specific styles */
     .main-content { padding:30px; max-width:600px; margin:0 auto; }
     h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
