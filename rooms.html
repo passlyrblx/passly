@@ -180,7 +180,7 @@
     </div>
   </div>
 
-  <!-- Members List Panel (shown when in a room) -->
+  <!-- Members List Panel -->
   <div class="members-container" id="membersPanel" style="display:none;">
     <h3>👥 Room Members</h3>
     <div id="memberList" class="member-list">Loading members...</div>
@@ -314,7 +314,6 @@
   let guestChatCooldown = false;
   let currentRoomFilter = 'all';
   let allRoomsCache = [];
-  let currentRoomPlayers = [];
 
   // Bad words filter (unchanged)
   const BAD_WORDS_LIST = [
@@ -354,13 +353,13 @@
   function requireLoginThen(callback) {
     if (!token && !isGuest) {
       document.getElementById('loginPrompt').style.display = 'block';
-      if (confirm('You need to log in with Roblox to do this. Go to login?')) window.location.href = '/auth/roblox';
+      if (confirm('Log in with Roblox to do this.')) window.location.href = '/auth/roblox';
       return;
     }
     callback();
   }
 
-  // User report modal (simplified)
+  // User report modal
   let currentReportUserId = null;
   function openUserModal(userId, username, avatarUrl) {
     if (userId === userData?.id || (isGuest && userId === guestData.id)) {
@@ -380,13 +379,9 @@
   function closeUserModal() { document.getElementById('userModal').style.display = 'none'; currentReportUserId = null; }
   async function reportUser() {
     if (!currentReportUserId) return;
-    const reason = prompt('Report this user. Reason:');
+    const reason = prompt('Reason for report:');
     if (!reason) return;
-    const res = await fetch('/api/report', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ reportedUserId: currentReportUserId, reason })
-    });
+    const res = await fetch('/api/report', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ reportedUserId: currentReportUserId, reason }) });
     const data = await res.json();
     alert(data.success ? 'Report sent.' : 'Failed.');
     closeUserModal();
@@ -507,11 +502,7 @@
     const { receiverId, gamepassId, amount } = currentDonation;
     if (!token) { alert('Login required'); return; }
     try {
-      const res = await fetch('/api/donate/initiate', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ receiverId, gamepassId, amount })
-      });
+      const res = await fetch('/api/donate/initiate', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ receiverId, gamepassId, amount }) });
       const data = await res.json();
       if (data.error) { alert(data.error); return; }
       sessionStorage.setItem('pendingDonation', JSON.stringify({ receiverId, gamepassId, amount, receiverName: currentDonation.receiverName, timestamp: Date.now() }));
@@ -526,11 +517,7 @@
     const statusDiv = document.getElementById('donationConfirmStatus');
     statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying...</span>';
     try {
-      const res = await fetch('/api/donate/verify', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ receiverId, gamepassId, amount })
-      });
+      const res = await fetch('/api/donate/verify', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ receiverId, gamepassId, amount }) });
       const data = await res.json();
       if (data.success) {
         statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Donation recorded!</span>';
@@ -570,15 +557,21 @@ function renderRooms(rooms) {
     </div>
   `).join('');
 }
+
 async function loadRooms() {
   const grid = document.getElementById('roomsGrid');
-  grid.innerHTML = '<p>Loading rooms…</p>';
+  grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
   try {
     const res = await fetch('/api/rooms');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const allRooms = await res.json();
+    // Keep only Public and VIP rooms (hide Private from list)
     allRoomsCache = allRooms.filter(r => r.type !== 'Private');
     renderRooms(allRoomsCache);
-  } catch(e) { grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms.</p>'; }
+  } catch (e) {
+    console.error('loadRooms error:', e);
+    grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms. Check server.</p>';
+  }
 }
 
 window.joinRoomById = async function(id) {
@@ -654,7 +647,10 @@ window.createRoom = async function() {
     closeModal();
     await joinRoomById(room._id);
     loadRooms();
-  } catch(e) { showError('Error creating room.'); }
+  } catch(e) { 
+    console.error('createRoom error:', e);
+    showError('Error creating room.'); 
+  }
 };
 
 function showRoomView(room) {
@@ -905,7 +901,6 @@ function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m =
       if (userData?.avatarUrl) avatarEl.style.backgroundImage = `url(${userData.avatarUrl})`;
       else if (userData?.avatarFallback) avatarEl.style.backgroundImage = `url(${userData.avatarFallback})`;
       loadRooms();
-      // Attach event to the create room button (in case onclick fails)
       document.getElementById('createRoomBtn').onclick = openCreateModal;
     }
     init();
