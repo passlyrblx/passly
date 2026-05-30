@@ -180,7 +180,7 @@
     </div>
   </div>
 
-  <!-- Members List Panel -->
+  <!-- Members List Panel (shown when in a room) -->
   <div class="members-container" id="membersPanel" style="display:none;">
     <h3>👥 Room Members</h3>
     <div id="memberList" class="member-list">Loading members...</div>
@@ -531,7 +531,7 @@
   window.confirmDonate = function(receiverId, gamepassId, amount, receiverName) {
     openDonationConfirm(receiverId, receiverName, gamepassId, amount);
   };
-// Room loading with filter
+// Room loading with filter and detailed error display
 function setRoomFilter(filter) {
   currentRoomFilter = filter;
   document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -558,19 +558,27 @@ function renderRooms(rooms) {
   `).join('');
 }
 
+// UPDATED loadRooms with detailed error display
 async function loadRooms() {
   const grid = document.getElementById('roomsGrid');
   grid.innerHTML = '<p style="color:#a0a0b0;">Loading rooms…</p>';
   try {
     const res = await fetch('/api/rooms');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      let errorDetail = `HTTP ${res.status}`;
+      try {
+        const errorData = await res.json();
+        errorDetail = errorData.details || errorData.error || errorDetail;
+      } catch(e) {}
+      throw new Error(errorDetail);
+    }
     const allRooms = await res.json();
     // Keep only Public and VIP rooms (hide Private from list)
     allRoomsCache = allRooms.filter(r => r.type !== 'Private');
     renderRooms(allRoomsCache);
   } catch (e) {
     console.error('loadRooms error:', e);
-    grid.innerHTML = '<p style="color:#ff4444;">Failed to load rooms. Check server.</p>';
+    grid.innerHTML = `<p style="color:#ff4444; padding:20px; text-align:center;">❌ Failed to load rooms: ${e.message}<br><button class="refresh-btn" style="margin-top:10px;" onclick="loadRooms()">Retry</button></p>`;
   }
 }
 
