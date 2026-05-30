@@ -78,6 +78,7 @@ mongoose.connect(MONGO_URI).then(async () => {
   mongoose.model('AdBroadcast', adBroadcastSchema);
 
   const Room = mongoose.model('Room');
+  // Ensure default 3 rooms (Public)
   await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
   const defaultRooms = [
     { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public" },
@@ -92,6 +93,17 @@ mongoose.connect(MONGO_URI).then(async () => {
     );
   }
   console.log('Default rooms cleaned and ensured.');
+
+  // Auto‑delete inactive rooms (non‑default) after 12 hours
+  async function deleteInactiveRooms() {
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    const result = await Room.deleteMany({
+      _id: { $nin: ['room1', 'room2', 'room3'] },
+      createdAt: { $lt: twelveHoursAgo }
+    });
+    if (result.deletedCount) console.log(`Deleted ${result.deletedCount} inactive rooms.`);
+  }
+  setInterval(deleteInactiveRooms, 60 * 60 * 1000);
 
   server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
 }).catch(err => { console.error('MongoDB error:', err); process.exit(1); });
@@ -283,9 +295,15 @@ async function canCreateRoom(userId, roomType) {
   return { allowed: true, counts, key };
 }
 
+// THIS IS THE ENDPOINT THAT RETURNS ALL ROOMS
 app.get('/api/rooms', async (req, res) => {
-  const rooms = await mongoose.model('Room').find();
-  res.json(rooms);
+  try {
+    const rooms = await mongoose.model('Room').find();
+    res.json(rooms);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to load rooms' });
+  }
 });
 
 app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, res) => {
@@ -419,7 +437,7 @@ function filterMessageServer(text) {
 }
 
 const guestChatCooldown = new Map();
-const onlineUsers = new Set(); // stores userId or guestId
+const onlineUsers = new Set();
 
 io.on('connection', (socket) => {
   let currentRoomId = null, userId = null, guestId = null, isGuest = false;
@@ -716,7 +734,7 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
     activeToday
   });
 });
-// NEW: Get list of online users with usernames
+// Get list of online users with usernames
 app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
   const User = mongoose.model('User');
