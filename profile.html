@@ -137,8 +137,8 @@
     <a href="/admin.html" class="save-btn" style="display:inline-block; text-decoration:none;">Open Admin Dashboard</a>
   </div>
 
-  <!-- NEW: Friends button -->
-  <div class="section-card" style="text-align:center;">
+  <!-- Friends button – hidden by default, shown only for non‑guests -->
+  <div id="friendsButtonContainer" class="section-card" style="text-align:center; display:none;">
     <h3>👥 Friends</h3>
     <button class="save-btn" onclick="window.location.href='/friends'" style="background:#22c55e;">Go to Friends</button>
   </div>
@@ -164,6 +164,12 @@
     if(userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
     if(userData.board && userData.board.length) { const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = userData.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); }
     await checkAdminStatus();
+
+    // Show friends button only if not a guest
+    if (!userData.isGuest && userData.role) {
+      const friendsBtnDiv = document.getElementById('friendsButtonContainer');
+      if (friendsBtnDiv) friendsBtnDiv.style.display = 'block';
+    }
   }
   async function saveProfile() { if(!token) return; const showBooth = document.getElementById('showBooth').value === 'true'; const statusDot = document.getElementById('statusDotSelect').value; const showRoomId = document.getElementById('showRoomId').value === 'true'; const customDisplayName = document.getElementById('customDisplayName').value.trim(); try { const res = await fetch('/api/profile/update', { method:'POST', headers:authHeaders(), body:JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName }) }); if(res.ok) { const msg = document.getElementById('saveMessage'); msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); if(customDisplayName) userData.displayName = customDisplayName; document.getElementById('profileName').innerHTML = (userData.displayName || userData.username) + ((userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') ? '<span class="vip-badge">' + (userData.role === 'vip' ? 'VIP' : userData.role.toUpperCase()) + '</span>' : ''); } else alert('Save failed'); } catch(e) { alert('Error saving'); } }
   async function searchPlayer() { const username = document.getElementById('searchUsername').value.trim(); if(!username) return alert('Enter a username'); const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`); const data = await res.json(); const container = document.getElementById('searchResult'); if(data.error) { container.innerHTML = `<p style="color:#ff4444;">${data.error}</p>`; return; } let boardHtml = ''; if(data.board && data.board.length) { boardHtml = `<div class="board-gamepass-grid">${data.board.map(gp => `<div class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span>💰 ${gp.price} R$</span><span>${gp.id}</span></div>`).join('')}</div>`; } else boardHtml = '<p>No gamepasses on board.</p>'; container.innerHTML = `<div style="display:flex; align-items:center; gap:10px;"><div style="width:40px; height:40px; border-radius:50%; background:url(${data.avatarUrl || ''}) center/cover;"></div><div><strong>${data.displayName || data.robloxUsername}</strong><br><small>@${data.robloxUsername}</small></div></div>${boardHtml}`; }
