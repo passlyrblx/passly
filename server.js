@@ -77,11 +77,40 @@ mongoose.connect(MONGO_URI).then(async () => {
     timestamp: { type: Date, default: Date.now }
   });
 
+  // ========== NEW FRIEND & MESSAGE SCHEMAS ==========
+  const friendRequestSchema = new mongoose.Schema({
+    _id: String,
+    from: String,
+    to: String,
+    status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+    timestamp: { type: Date, default: Date.now }
+  });
+  const privateMessageSchema = new mongoose.Schema({
+    _id: String,
+    from: String,
+    to: String,
+    message: String,
+    timestamp: { type: Date, default: Date.now },
+    read: { type: Boolean, default: false }
+  });
+  const notificationSchema = new mongoose.Schema({
+    _id: String,
+    userId: String,
+    type: { type: String, enum: ['friend_request', 'friend_accepted', 'new_message'] },
+    fromUserId: String,
+    message: String,
+    timestamp: { type: Date, default: Date.now },
+    read: { type: Boolean, default: false }
+  });
+
   mongoose.model('User', userSchema);
   mongoose.model('Room', roomSchema);
   mongoose.model('Donation', donationSchema);
   mongoose.model('Ad', adSchema);
   mongoose.model('AdBroadcast', adBroadcastSchema);
+  mongoose.model('FriendRequest', friendRequestSchema);
+  mongoose.model('PrivateMessage', privateMessageSchema);
+  mongoose.model('Notification', notificationSchema);
 
   const Room = mongoose.model('Room');
   // Ensure default rooms exist
@@ -167,6 +196,7 @@ app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderb
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
+app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
 
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
@@ -632,7 +662,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// LEADERBOARD (needs DB)
+// LEADERBOARD
 app.get('/api/leaderboard', async (req, res) => {
   const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
   if (!Donation) return res.json({ receivers: [], donors: [] });
@@ -649,7 +679,7 @@ app.get('/api/leaderboard', async (req, res) => {
   res.json({ receivers: await enrich(receivers), donors: await enrich(donors) });
 });
 
-// ADS (needs DB)
+// ADS
 app.get('/api/ads', async (req, res) => {
   const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
   if (!Ad) return res.json([]);
@@ -902,6 +932,190 @@ app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
   res.json({ onlineUsers: users });
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
+// ========== FRIEND & MESSAGE ENDPOINTS ==========
+// Send friend request
+app.post('/api/friends/request', authenticateToken, async (req, res) => {
+  const { toUserId } = req.body;
+  if (!toUserId) return res.status(400).json({ error: 'User ID required' });
+  if (toUserId === req.user.id) return res.status(400).json({ error: 'Cannot send request to yourself' });
+  const FriendRequest = mongoose.model('FriendRequest');
+  const existing = await FriendRequest.findOne({ from: req.user.id, to: toUserId, status: 'pending' });
+  if (existing) return res.status(400).json({ error: 'Request already sent' });
+  const request = new FriendRequest({
+    _id: crypto.randomBytes(8).toString('hex'),
+    from: req.user.id,
+    to: toUserId,
+    status: 'pending'
+  });
+  await request.save();
+  const Notification = mongoose.model('Notification');
+  const notification = new Notification({
+    _id: crypto.randomBytes(8).toString('hex'),
+    userId: toUserId,
+    type: 'friend_request',
+    fromUserId: req.user.id,
+    message: 'sent you a friend request',
+    read: false
+  });
+  await notification.save();
+  res.json({ success: true });
+});
 
-// FALLBACK – MUST BE LAST
+// Respond to friend request (accept/reject)
+app.post('/api/friends/respond', authenticateToken, async (req, res) => {
+  const { requestId, accept } = req.body;
+  const FriendRequest = mongoose.model('FriendRequest');
+  const request = await FriendRequest.findById(requestId);
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  if (request.to !== req.user.id) return res.status(403).json({ error: 'Not allowed' });
+  request.status = accept ? 'accepted' : 'rejected';
+  await request.save();
+  if (accept) {
+    const Notification = mongoose.model('Notification');
+    const notification = new Notification({
+      _id: crypto.randomBytes(8).toString('hex'),
+      userId: request.from,
+      type: 'friend_accepted',
+      fromUserId: req.user.id,
+      message: 'accepted your friend request',
+      read: false
+    });
+    await notification.save();
+  }
+  res.json({ success: true });
+});
+
+// Get friends list (accepted requests where user is either side)
+app.get('/api/friends/list', authenticateToken, async (req, res) => {
+  const FriendRequest = mongoose.model('FriendRequest');
+  const User = mongoose.model('User');
+  const requests = await FriendRequest.find({
+    $or: [{ from: req.user.id }, { to: req.user.id }],
+    status: 'accepted'
+  });
+  const friendIds = new Set();
+  for (const req of requests) {
+    const friendId = req.from === req.user.id ? req.to : req.from;
+    friendIds.add(friendId);
+  }
+  const friends = [];
+  for (const id of friendIds) {
+    const user = await User.findById(id);
+    if (user) {
+      friends.push({
+        id: user._id,
+        username: user.robloxUsername,
+        displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
+        avatarUrl: user.avatarUrl
+      });
+    }
+  }
+  res.json({ friends });
+});
+
+// Get pending incoming friend requests
+app.get('/api/friends/requests', authenticateToken, async (req, res) => {
+  const FriendRequest = mongoose.model('FriendRequest');
+  const User = mongoose.model('User');
+  const requests = await FriendRequest.find({ to: req.user.id, status: 'pending' });
+  const result = [];
+  for (const req of requests) {
+    const user = await User.findById(req.from);
+    if (user) {
+      result.push({
+        id: req._id,
+        fromUserId: user._id,
+        username: user.robloxUsername,
+        displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
+        avatarUrl: user.avatarUrl,
+        timestamp: req.timestamp
+      });
+    }
+  }
+  res.json({ requests: result });
+});
+
+// Send private message (with bad word filter)
+app.post('/api/friends/message', authenticateToken, async (req, res) => {
+  const { toUserId, message } = req.body;
+  if (!toUserId || !message) return res.status(400).json({ error: 'Missing fields' });
+  const filteredMsg = filterMessageServer(message);
+  const PrivateMessage = mongoose.model('PrivateMessage');
+  const msg = new PrivateMessage({
+    _id: crypto.randomBytes(8).toString('hex'),
+    from: req.user.id,
+    to: toUserId,
+    message: filteredMsg,
+    read: false
+  });
+  await msg.save();
+  const Notification = mongoose.model('Notification');
+  const notification = new Notification({
+    _id: crypto.randomBytes(8).toString('hex'),
+    userId: toUserId,
+    type: 'new_message',
+    fromUserId: req.user.id,
+    message: 'sent you a message',
+    read: false
+  });
+  await notification.save();
+  res.json({ success: true, message: filteredMsg });
+});
+
+// Get conversation between two users
+app.get('/api/friends/messages/:userId', authenticateToken, async (req, res) => {
+  const otherUserId = req.params.userId;
+  const PrivateMessage = mongoose.model('PrivateMessage');
+  const messages = await PrivateMessage.find({
+    $or: [
+      { from: req.user.id, to: otherUserId },
+      { from: otherUserId, to: req.user.id }
+    ]
+  }).sort({ timestamp: 1 });
+  await PrivateMessage.updateMany({ from: otherUserId, to: req.user.id, read: false }, { read: true });
+  res.json({ messages });
+});
+
+// Delete a private message (sender or recipient can delete)
+app.delete('/api/friends/messages/:messageId', authenticateToken, async (req, res) => {
+  const PrivateMessage = mongoose.model('PrivateMessage');
+  const msg = await PrivateMessage.findById(req.params.messageId);
+  if (!msg) return res.status(404).json({ error: 'Message not found' });
+  if (msg.from !== req.user.id && msg.to !== req.user.id) {
+    return res.status(403).json({ error: 'Not allowed' });
+  }
+  await msg.deleteOne();
+  res.json({ success: true });
+});
+
+// Get user's notifications
+app.get('/api/friends/notifications', authenticateToken, async (req, res) => {
+  const Notification = mongoose.model('Notification');
+  const notifications = await Notification.find({ userId: req.user.id, read: false }).sort({ timestamp: -1 });
+  const User = mongoose.model('User');
+  const enriched = [];
+  for (const notif of notifications) {
+    const sender = await User.findById(notif.fromUserId);
+    enriched.push({
+      id: notif._id,
+      type: notif.type,
+      fromUserId: notif.fromUserId,
+      fromName: sender ? (sender.customDisplayName || sender.robloxDisplayName || sender.robloxUsername) : 'Unknown',
+      message: notif.message,
+      timestamp: notif.timestamp,
+      read: notif.read
+    });
+  }
+  res.json({ notifications: enriched });
+});
+
+// Mark notification as read
+app.post('/api/friends/notifications/read', authenticateToken, async (req, res) => {
+  const { notificationId } = req.body;
+  const Notification = mongoose.model('Notification');
+  await Notification.findByIdAndUpdate(notificationId, { read: true });
+  res.json({ success: true });
+});
+
+// ========== FALLBACK – MUST BE LAST ==========
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
