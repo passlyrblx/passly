@@ -9,9 +9,40 @@
   <meta name="theme-color" content="#8b5cf6">
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; position: relative; }
-    body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: url('https://i.ibb.co/5gw888Dz/file-0000000063c871fdaec0cb4123ec147a.png'); background-size: cover; background-position: center; background-repeat: no-repeat; opacity: 0.15; z-index: -2; pointer-events: none; }
-    body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, rgba(139, 92, 246, 0.08), transparent 70%); z-index: -1; pointer-events: none; }
+    body {
+      font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+      background:#0a0a14;
+      color:white;
+      min-height:100vh;
+      position: relative;
+    }
+    /* Correct background image – low opacity */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url('https://i.ibb.co/j91bhy3q/file-000000006edc72089f2cb2bcc6865538.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      opacity: 0.15;
+      z-index: -2;
+      pointer-events: none;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at center, rgba(139, 92, 246, 0.08), transparent 70%);
+      z-index: -1;
+      pointer-events: none;
+    }
     .navbar { display:flex; justify-content:space-between; align-items:center; padding:15px 30px; background:rgba(15,15,30,0.95); border-bottom:1px solid rgba(139,92,246,0.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
     .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display:flex; gap:25px; }
@@ -122,7 +153,6 @@
           if (res.ok) {
             userData = await res.json();
             userData.isGuest = false;
-            // Show VIP badge in header if role is vip/admin/owner
             if (userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') {
               document.getElementById('vipBadgeHeader').style.display = 'inline';
             }
@@ -186,9 +216,33 @@
       } catch (e) { console.error(e); }
     }
 
-    function startAdDisplay() { /* unchanged from original */ }
-    function showAdCloud(ad) { /* unchanged */ }
-    async function loadAds() { /* unchanged */ }
+    function startAdDisplay() {
+      if (!userData.ad || !userData.ad.active || userData.ad.showsLeft <= 0) return;
+      showAdCloud(userData.ad);
+      userData.ad.showsLeft--;
+      if (userData.ad.showsLeft > 0) setTimeout(() => startAdDisplay(), 10000);
+      else { document.getElementById('adStatusText').textContent = 'No Ad'; userData.ad.active = false; }
+    }
+
+    function showAdCloud(ad) {
+      const cloud = document.createElement('div');
+      cloud.className = 'ad-cloud';
+      let adLink = `https://www.roblox.com/users/${ad.userId}/profile`;
+      if (ad.gamepassId) adLink = `https://www.roblox.com/game-pass/${ad.gamepassId}`;
+      cloud.innerHTML = `🎯 <strong>${ad.username || 'Player'}</strong>'s Board<br><span style="font-size:0.9rem; color:#a78bfa;">Click to donate!</span>${ad.message ? `<p style="color:#ffd700; font-style:italic;">"${ad.message}"</p>` : ''}`;
+      cloud.onclick = () => window.open(adLink, '_blank');
+      document.getElementById('adContainer').appendChild(cloud);
+      setTimeout(() => cloud.remove(), 12500);
+    }
+
+    async function loadAds() {
+      try {
+        const res = await fetch('/api/ads');
+        const ads = await res.json();
+        ads.forEach(ad => { if (ad.userId !== userData.id) showAdCloud(ad); });
+      } catch (e) {}
+    }
+
     async function logout() { localStorage.removeItem('passly_token'); localStorage.removeItem('passly_user'); window.location.href = '/'; }
 
     loadDashboard();
