@@ -488,8 +488,13 @@ function filterMessageServer(text) {
 const guestChatCooldown = new Map();
 const onlineUsers = new Set();
 
+// ========== SOCKET.IO WITH CHAT ISOLATION ==========
 io.on('connection', (socket) => {
-  let currentRoomId = null, userId = null, guestId = null, isGuest = false;
+  let currentRoomId = null;
+  let userId = null;
+  let guestId = null;
+  let isGuest = false;
+
   socket.on('authenticate', (token) => {
     if (!token) return;
     try {
@@ -503,6 +508,7 @@ io.on('connection', (socket) => {
       }
     } catch (e) {}
   });
+
   socket.on('guest-auth', (id) => {
     if (id) {
       guestId = id;
@@ -511,27 +517,50 @@ io.on('connection', (socket) => {
       onlineUsers.add(guestId);
     }
   });
+
   socket.on('join-room', (roomId) => {
     if (currentRoomId) socket.leave(currentRoomId);
     currentRoomId = roomId;
     socket.join(roomId);
+    console.log(`Socket ${socket.id} joined room ${roomId}`);
   });
+
   socket.on('disconnect', () => {
     if (userId) onlineUsers.delete(userId);
     if (guestId) onlineUsers.delete(guestId);
   });
+
   socket.on('chat-message', async (msg) => {
-    if (!currentRoomId) return;
+    // CRITICAL: Only process if the socket has joined a room
+    if (!currentRoomId) {
+      console.log('Chat message ignored – no room joined');
+      return;
+    }
+
     if (isGuest && guestId) {
       const last = guestChatCooldown.get(guestId);
       const now = Date.now();
-      if (last && now - last < 25000) { socket.emit('chat-error', 'Guest cooldown: 1 message per 25 sec.'); return; }
+      if (last && now - last < 25000) {
+        socket.emit('chat-error', 'Guest cooldown: 1 message per 25 sec.');
+        return;
+      }
       guestChatCooldown.set(guestId, now);
     }
-    let messageText = msg, senderName = '', senderAvatar = '', isAdmin = false, isOwner = false, senderId = userId || guestId;
+
+    let messageText = msg;
+    let senderName = '';
+    let senderAvatar = '';
+    let isAdmin = false;
+    let isOwner = false;
+    let senderId = userId || guestId;
+
     if (isGuest) {
-      if (typeof msg === 'object') { messageText = msg.text; senderName = msg.guestName || 'Guest'; }
-      else senderName = 'Guest';
+      if (typeof msg === 'object') {
+        messageText = msg.text;
+        senderName = msg.guestName || 'Guest';
+      } else {
+        senderName = 'Guest';
+      }
     } else if (userId) {
       const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
       const user = User ? await User.findById(userId) : null;
@@ -544,6 +573,8 @@ io.on('connection', (socket) => {
         senderName = 'User';
       }
     }
+
+    // Admin command: r.close
     if (!isGuest && (isAdmin || isOwner) && messageText.trim().toLowerCase() === 'r.close') {
       const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
       if (Room) {
@@ -551,7 +582,10 @@ io.on('connection', (socket) => {
         if (room) {
           io.to(currentRoomId).emit('room-closed', { message: 'Room closed by admin.' });
           const sockets = await io.in(currentRoomId).fetchSockets();
-          for (const sock of sockets) { sock.emit('force-leave', { reason: 'Room closed.' }); sock.leave(currentRoomId); }
+          for (const sock of sockets) {
+            sock.emit('force-leave', { reason: 'Room closed.' });
+            sock.leave(currentRoomId);
+          }
           await Room.deleteOne({ _id: currentRoomId });
           const UserModel = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
           if (UserModel) await UserModel.updateMany({ roomId: currentRoomId }, { $unset: { roomId: "", inQueue: "" } });
@@ -559,18 +593,43 @@ io.on('connection', (socket) => {
       }
       return;
     }
+
     const filteredMsg = filterMessageServer(messageText);
-    io.to(currentRoomId).emit('chat-message', { userId: senderId, username: senderName, message: filteredMsg, avatarUrl: senderAvatar, timestamp: Date.now(), isAdmin, isOwner });
+    // IMPORTANT: Emit only to the current room
+    io.to(currentRoomId).emit('chat-message', {
+      userId: senderId,
+      username: senderName,
+      message: filteredMsg,
+      avatarUrl: senderAvatar,
+      timestamp: Date.now(),
+      isAdmin,
+      isOwner
+    });
   });
+
   socket.on('chat-board', async (boardData) => {
     if (!userId || !currentRoomId) return;
     const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
     const user = User ? await User.findById(userId) : null;
     if (!user) return;
-    io.to(currentRoomId).emit('chat-board', { userId, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, board: boardData, avatarUrl: user.avatarUrl });
+    io.to(currentRoomId).emit('chat-board', {
+      userId,
+      username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
+      board: boardData,
+      avatarUrl: user.avatarUrl
+    });
   });
-  socket.on('voice-data', (audioBuffer) => { if ((!userId && !guestId) || !currentRoomId) return; socket.to(currentRoomId).emit('voice-data', { userId: userId || guestId, audio: audioBuffer }); });
-  socket.on('leave-room', () => { if (currentRoomId) socket.leave(currentRoomId); currentRoomId = null; });
+
+  socket.on('voice-data', (audioBuffer) => {
+    if ((!userId && !guestId) || !currentRoomId) return;
+    const senderId = userId || guestId;
+    socket.to(currentRoomId).emit('voice-data', { userId: senderId, audio: audioBuffer });
+  });
+
+  socket.on('leave-room', () => {
+    if (currentRoomId) socket.leave(currentRoomId);
+    currentRoomId = null;
+  });
 });
 
 // LEADERBOARD (needs DB)
