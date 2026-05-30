@@ -38,6 +38,7 @@ const FALLBACK_ROOMS = [
 
 mongoose.connect(MONGO_URI).then(async () => {
   console.log('MongoDB connected');
+
   const userSchema = new mongoose.Schema({
     _id: String, robloxUsername: String, robloxDisplayName: String,
     customDisplayName: String, avatarUrl: String,
@@ -77,7 +78,7 @@ mongoose.connect(MONGO_URI).then(async () => {
     timestamp: { type: Date, default: Date.now }
   });
 
-  // ========== NEW FRIEND & MESSAGE SCHEMAS ==========
+  // Friend & message schemas
   const friendRequestSchema = new mongoose.Schema({
     _id: String,
     from: String,
@@ -196,7 +197,7 @@ app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderb
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
-app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
+app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html'))); // new
 
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
@@ -932,9 +933,17 @@ app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
   res.json({ onlineUsers: users });
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
-// ========== FRIEND & MESSAGE ENDPOINTS ==========
+// ========== FRIEND & MESSAGE ENDPOINTS (guest‑disabled) ==========
+// Helper to check if user is a guest
+async function isGuestUser(userId) {
+  const User = mongoose.model('User');
+  const user = await User.findById(userId);
+  return user && (user.robloxUsername?.startsWith('Guest_') || user.isGuest === true);
+}
+
 // Send friend request
 app.post('/api/friends/request', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.status(403).json({ error: 'Guests cannot use friends features.' });
   const { toUserId } = req.body;
   if (!toUserId) return res.status(400).json({ error: 'User ID required' });
   if (toUserId === req.user.id) return res.status(400).json({ error: 'Cannot send request to yourself' });
@@ -961,8 +970,9 @@ app.post('/api/friends/request', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 
-// Respond to friend request (accept/reject)
+// Respond to friend request
 app.post('/api/friends/respond', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.status(403).json({ error: 'Guests cannot use friends features.' });
   const { requestId, accept } = req.body;
   const FriendRequest = mongoose.model('FriendRequest');
   const request = await FriendRequest.findById(requestId);
@@ -985,8 +995,9 @@ app.post('/api/friends/respond', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 
-// Get friends list (accepted requests where user is either side)
+// Get friends list
 app.get('/api/friends/list', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.json({ friends: [] });
   const FriendRequest = mongoose.model('FriendRequest');
   const User = mongoose.model('User');
   const requests = await FriendRequest.find({
@@ -1015,6 +1026,7 @@ app.get('/api/friends/list', authenticateToken, async (req, res) => {
 
 // Get pending incoming friend requests
 app.get('/api/friends/requests', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.json({ requests: [] });
   const FriendRequest = mongoose.model('FriendRequest');
   const User = mongoose.model('User');
   const requests = await FriendRequest.find({ to: req.user.id, status: 'pending' });
@@ -1035,8 +1047,9 @@ app.get('/api/friends/requests', authenticateToken, async (req, res) => {
   res.json({ requests: result });
 });
 
-// Send private message (with bad word filter)
+// Send private message
 app.post('/api/friends/message', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.status(403).json({ error: 'Guests cannot send messages.' });
   const { toUserId, message } = req.body;
   if (!toUserId || !message) return res.status(400).json({ error: 'Missing fields' });
   const filteredMsg = filterMessageServer(message);
@@ -1064,6 +1077,7 @@ app.post('/api/friends/message', authenticateToken, async (req, res) => {
 
 // Get conversation between two users
 app.get('/api/friends/messages/:userId', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.json({ messages: [] });
   const otherUserId = req.params.userId;
   const PrivateMessage = mongoose.model('PrivateMessage');
   const messages = await PrivateMessage.find({
@@ -1076,8 +1090,9 @@ app.get('/api/friends/messages/:userId', authenticateToken, async (req, res) => 
   res.json({ messages });
 });
 
-// Delete a private message (sender or recipient can delete)
+// Delete a private message
 app.delete('/api/friends/messages/:messageId', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.status(403).json({ error: 'Guests cannot delete messages.' });
   const PrivateMessage = mongoose.model('PrivateMessage');
   const msg = await PrivateMessage.findById(req.params.messageId);
   if (!msg) return res.status(404).json({ error: 'Message not found' });
@@ -1090,6 +1105,7 @@ app.delete('/api/friends/messages/:messageId', authenticateToken, async (req, re
 
 // Get user's notifications
 app.get('/api/friends/notifications', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.json({ notifications: [] });
   const Notification = mongoose.model('Notification');
   const notifications = await Notification.find({ userId: req.user.id, read: false }).sort({ timestamp: -1 });
   const User = mongoose.model('User');
@@ -1111,6 +1127,7 @@ app.get('/api/friends/notifications', authenticateToken, async (req, res) => {
 
 // Mark notification as read
 app.post('/api/friends/notifications/read', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.status(403).json({ error: 'Guests cannot manage notifications.' });
   const { notificationId } = req.body;
   const Notification = mongoose.model('Notification');
   await Notification.findByIdAndUpdate(notificationId, { read: true });
