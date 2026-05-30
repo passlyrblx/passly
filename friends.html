@@ -11,7 +11,6 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
-    /* Simple navbar (optional, but keep for consistency) */
     .top-bar {
       display: flex;
       align-items: center;
@@ -33,7 +32,6 @@
     }
     .back-btn:hover { background: #7c3aed; }
     .logo { font-size:1.5rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-    /* Friends page styles (same as previous) */
     .main-content { padding:30px; max-width:1200px; margin:0 auto; }
     h1 { margin-bottom:20px; }
     .tabs { display:flex; gap:15px; margin-bottom:30px; border-bottom:1px solid rgba(139,92,246,0.2); padding-bottom:10px; }
@@ -55,6 +53,8 @@
     .request-item { display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid rgba(139,92,246,0.1); }
     .notification-item { padding:12px; border-bottom:1px solid rgba(139,92,246,0.1); cursor:pointer; }
     .notification-item.unread { background:rgba(139,92,246,0.1); }
+    .guest-message { text-align:center; padding:40px; background:rgba(20,20,40,0.6); border-radius:16px; margin-top:20px; }
+    .guest-message a { color:#a78bfa; text-decoration:none; }
     @media (max-width:768px) {
       .friends-grid { grid-template-columns:1fr; }
       .main-content { padding:20px; }
@@ -65,7 +65,7 @@
 <div class="top-bar">
   <button class="back-btn" onclick="window.location.href='/profile'">⬅ Back to Profile</button>
   <div class="logo">Passly Friends</div>
-  <div style="width:80px;"></div> <!-- spacer for alignment -->
+  <div style="width:80px;"></div>
 </div>
 
 <div class="main-content">
@@ -106,182 +106,207 @@
     <div id="notificationsList">Loading...</div>
   </div>
 </div>
-<script>
-  let token = localStorage.getItem('passly_token');
-  let userData = null;
-  let currentChatFriendId = null;
+  <script>
+    let token = localStorage.getItem('passly_token');
+    let userData = null;
+    let isGuest = false;
+    let currentChatFriendId = null;
 
-  function authHeaders() {
-    return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
-  }
+    // Helper to escape HTML
+    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 
-  async function loadUser() {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) userData = await res.json();
-    } catch(e) {}
-  }
+    async function loadUser() {
+      if (!token) {
+        isGuest = true;
+        showGuestMessage();
+        return;
+      }
+      try {
+        const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          userData = await res.json();
+          isGuest = userData.isGuest === true;
+          if (isGuest) showGuestMessage();
+          else {
+            // Load normal content
+            loadFriendsList();
+            // Attach tab listeners
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+              btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.tab-content').forEach(div => div.style.display = 'none');
+                document.getElementById(`${tab}Tab`).style.display = 'block';
+                if (tab === 'friends') loadFriendsList();
+                else if (tab === 'requests') loadFriendRequests();
+                else if (tab === 'messages') loadFriendsForChat();
+                else if (tab === 'notifications') loadNotifications();
+              });
+            });
+          }
+        } else {
+          isGuest = true;
+          showGuestMessage();
+        }
+      } catch(e) {
+        isGuest = true;
+        showGuestMessage();
+      }
+    }
 
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.tab;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.tab-content').forEach(div => div.style.display = 'none');
-      document.getElementById(`${tab}Tab`).style.display = 'block';
-      if (tab === 'friends') loadFriendsList();
-      else if (tab === 'requests') loadFriendRequests();
-      else if (tab === 'messages') loadFriendsForChat();
-      else if (tab === 'notifications') loadNotifications();
-    });
-  });
+    function showGuestMessage() {
+      const container = document.getElementById('friendsList');
+      container.innerHTML = '<div class="guest-message">🔒 Friends and messaging are only available for logged‑in Roblox users.<br><a href="/auth/roblox">Login with Roblox</a> to use friends features.</div>';
+      // Hide tabs and other containers
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.style.display = 'none');
+      document.getElementById('requestsTab').style.display = 'none';
+      document.getElementById('messagesTab').style.display = 'none';
+      document.getElementById('notificationsTab').style.display = 'none';
+    }
 
-  async function loadFriendsList() {
-    const container = document.getElementById('friendsList');
-    try {
-      const res = await fetch('/api/friends/list', { headers: authHeaders() });
-      const data = await res.json();
-      if (!data.friends.length) { container.innerHTML = '<p>No friends yet. Send some requests!</p>'; return; }
-      container.innerHTML = data.friends.map(f => `
-        <div class="friend-card">
-          <div class="friend-avatar" style="background-image:url(${f.avatarUrl || ''}); background-size:cover;"></div>
-          <div class="friend-info">
-            <div class="friend-name">${escapeHtml(f.displayName)}</div>
-            <div style="font-size:0.8rem; color:#a0a0b0;">@${f.username}</div>
+    // ----- Normal functions (only called if not guest) -----
+    async function loadFriendsList() {
+      const container = document.getElementById('friendsList');
+      try {
+        const res = await fetch('/api/friends/list', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (!data.friends.length) { container.innerHTML = '<p>No friends yet. Send some requests!</p>'; return; }
+        container.innerHTML = data.friends.map(f => `
+          <div class="friend-card">
+            <div class="friend-avatar" style="background-image:url(${f.avatarUrl || ''}); background-size:cover;"></div>
+            <div class="friend-info">
+              <div class="friend-name">${escapeHtml(f.displayName)}</div>
+              <div style="font-size:0.8rem; color:#a0a0b0;">@${f.username}</div>
+            </div>
+            <button class="btn btn-sm" onclick="openChat('${f.id}', '${escapeHtml(f.displayName)}')">💬 Message</button>
           </div>
-          <button class="btn btn-sm" onclick="openChat('${f.id}', '${escapeHtml(f.displayName)}')">💬 Message</button>
-        </div>
-      `).join('');
-    } catch(e) { container.innerHTML = '<p>Error loading friends.</p>'; }
-  }
+        `).join('');
+      } catch(e) { container.innerHTML = '<p>Error loading friends.</p>'; }
+    }
 
-  async function loadFriendRequests() {
-    const container = document.getElementById('requestsList');
-    try {
-      const res = await fetch('/api/friends/requests', { headers: authHeaders() });
-      const data = await res.json();
-      if (!data.requests.length) { container.innerHTML = '<p>No pending requests.</p>'; return; }
-      container.innerHTML = data.requests.map(r => `
-        <div class="request-item">
-          <div style="display:flex; align-items:center; gap:15px;">
-            <div class="friend-avatar" style="width:40px; height:40px; background-image:url(${r.avatarUrl || ''}); background-size:cover;"></div>
-            <div><strong>${escapeHtml(r.displayName)}</strong><br><span style="font-size:0.8rem;">@${r.username}</span></div>
+    async function loadFriendRequests() {
+      const container = document.getElementById('requestsList');
+      try {
+        const res = await fetch('/api/friends/requests', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (!data.requests.length) { container.innerHTML = '<p>No pending requests.</p>'; return; }
+        container.innerHTML = data.requests.map(r => `
+          <div class="request-item">
+            <div style="display:flex; align-items:center; gap:15px;">
+              <div class="friend-avatar" style="width:40px; height:40px; background-image:url(${r.avatarUrl || ''}); background-size:cover;"></div>
+              <div><strong>${escapeHtml(r.displayName)}</strong><br><span style="font-size:0.8rem;">@${r.username}</span></div>
+            </div>
+            <div>
+              <button class="btn btn-sm" onclick="respondToRequest('${r.id}', true)">Accept</button>
+              <button class="btn btn-sm" style="background:#ef4444;" onclick="respondToRequest('${r.id}', false)">Reject</button>
+            </div>
           </div>
-          <div>
-            <button class="btn btn-sm" onclick="respondToRequest('${r.id}', true)">Accept</button>
-            <button class="btn btn-sm" style="background:#ef4444;" onclick="respondToRequest('${r.id}', false)">Reject</button>
-          </div>
-        </div>
-      `).join('');
-    } catch(e) { container.innerHTML = '<p>Error loading requests.</p>'; }
-  }
+        `).join('');
+      } catch(e) { container.innerHTML = '<p>Error loading requests.</p>'; }
+    }
 
-  async function respondToRequest(requestId, accept) {
-    const res = await fetch('/api/friends/respond', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ requestId, accept })
-    });
-    if (res.ok) {
-      alert(accept ? 'Friend added!' : 'Request rejected.');
-      loadFriendRequests();
-      if (accept) loadFriendsList();
-    } else alert('Failed');
-  }
-
-  async function loadFriendsForChat() {
-    const container = document.getElementById('friendsForChat');
-    try {
-      const res = await fetch('/api/friends/list', { headers: authHeaders() });
-      const data = await res.json();
-      if (!data.friends.length) { container.innerHTML = '<p>No friends to chat with.</p>'; return; }
-      container.innerHTML = data.friends.map(f => `
-        <div class="friend-card" style="cursor:pointer;" onclick="openChat('${f.id}', '${escapeHtml(f.displayName)}')">
-          <div class="friend-avatar" style="background-image:url(${f.avatarUrl || ''}); background-size:cover;"></div>
-          <div class="friend-info">
-            <div class="friend-name">${escapeHtml(f.displayName)}</div>
-            <div style="font-size:0.8rem;">@${f.username}</div>
-          </div>
-        </div>
-      `).join('');
-    } catch(e) { container.innerHTML = '<p>Error loading friends.</p>'; }
-  }
-
-  window.openChat = async function(friendId, friendName) {
-    currentChatFriendId = friendId;
-    document.getElementById('chatContainer').style.display = 'block';
-    document.getElementById('chatMessages').innerHTML = '<div class="message">Loading messages...</div>';
-    const res = await fetch(`/api/friends/messages/${friendId}`, { headers: authHeaders() });
-    const data = await res.json();
-    renderMessages(data.messages);
-    const msgsDiv = document.getElementById('chatMessages');
-    msgsDiv.scrollTop = msgsDiv.scrollHeight;
-  };
-
-  function renderMessages(messages) {
-    const container = document.getElementById('chatMessages');
-    if (!messages.length) { container.innerHTML = '<div class="message">No messages yet. Send a message!</div>'; return; }
-    container.innerHTML = messages.map(msg => `
-      <div class="message ${msg.from === userData?.id ? 'message-sent' : ''}">
-        <div class="message-bubble">
-          <div style="font-size:0.8rem; color:#a78bfa;">${msg.from === userData?.id ? 'You' : (msg.fromName || 'Friend')}</div>
-          <div>${escapeHtml(msg.message)}</div>
-          <div style="font-size:0.7rem; color:#a0a0b0;">${new Date(msg.timestamp).toLocaleString()}</div>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  document.getElementById('sendMessageBtn').addEventListener('click', async () => {
-    if (!currentChatFriendId) return;
-    const input = document.getElementById('messageInput');
-    const text = input.value.trim();
-    if (!text) return;
-    const res = await fetch('/api/friends/message', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ toUserId: currentChatFriendId, message: text })
-    });
-    if (res.ok) {
-      input.value = '';
-      const convRes = await fetch(`/api/friends/messages/${currentChatFriendId}`, { headers: authHeaders() });
-      const data = await convRes.json();
-      renderMessages(data.messages);
-    } else alert('Failed to send message');
-  });
-
-  async function loadNotifications() {
-    const container = document.getElementById('notificationsList');
-    try {
-      const res = await fetch('/api/friends/notifications', { headers: authHeaders() });
-      const data = await res.json();
-      if (!data.notifications.length) { container.innerHTML = '<p>No new notifications.</p>'; return; }
-      container.innerHTML = data.notifications.map(n => `
-        <div class="notification-item ${!n.read ? 'unread' : ''}" data-id="${n.id}">
-          <strong>${escapeHtml(n.fromName)}</strong> ${n.message}
-          <div style="font-size:0.8rem; color:#a0a0b0;">${new Date(n.timestamp).toLocaleString()}</div>
-        </div>
-      `).join('');
-      document.querySelectorAll('.notification-item').forEach(el => {
-        el.addEventListener('click', async () => {
-          const notifId = el.dataset.id;
-          await fetch('/api/friends/notifications/read', {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify({ notificationId: notifId })
-          });
-          el.classList.remove('unread');
-        });
+    async function respondToRequest(requestId, accept) {
+      const res = await fetch('/api/friends/respond', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, accept })
       });
-    } catch(e) { container.innerHTML = '<p>Error loading notifications.</p>'; }
-  }
+      if (res.ok) {
+        alert(accept ? 'Friend added!' : 'Request rejected.');
+        loadFriendRequests();
+        if (accept) loadFriendsList();
+      } else alert('Failed');
+    }
 
-  function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+    async function loadFriendsForChat() {
+      const container = document.getElementById('friendsForChat');
+      try {
+        const res = await fetch('/api/friends/list', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (!data.friends.length) { container.innerHTML = '<p>No friends to chat with.</p>'; return; }
+        container.innerHTML = data.friends.map(f => `
+          <div class="friend-card" style="cursor:pointer;" onclick="openChat('${f.id}', '${escapeHtml(f.displayName)}')">
+            <div class="friend-avatar" style="background-image:url(${f.avatarUrl || ''}); background-size:cover;"></div>
+            <div class="friend-info">
+              <div class="friend-name">${escapeHtml(f.displayName)}</div>
+              <div style="font-size:0.8rem;">@${f.username}</div>
+            </div>
+          </div>
+        `).join('');
+      } catch(e) { container.innerHTML = '<p>Error loading friends.</p>'; }
+    }
 
-  loadUser();
-  loadFriendsList(); // default
-</script>
+    window.openChat = async function(friendId, friendName) {
+      currentChatFriendId = friendId;
+      document.getElementById('chatContainer').style.display = 'block';
+      document.getElementById('chatMessages').innerHTML = '<div class="message">Loading messages...</div>';
+      const res = await fetch(`/api/friends/messages/${friendId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      renderMessages(data.messages);
+      const msgsDiv = document.getElementById('chatMessages');
+      msgsDiv.scrollTop = msgsDiv.scrollHeight;
+    };
+
+    function renderMessages(messages) {
+      const container = document.getElementById('chatMessages');
+      if (!messages.length) { container.innerHTML = '<div class="message">No messages yet. Send a message!</div>'; return; }
+      container.innerHTML = messages.map(msg => `
+        <div class="message ${msg.from === userData?.id ? 'message-sent' : ''}">
+          <div class="message-bubble">
+            <div style="font-size:0.8rem; color:#a78bfa;">${msg.from === userData?.id ? 'You' : (msg.fromName || 'Friend')}</div>
+            <div>${escapeHtml(msg.message)}</div>
+            <div style="font-size:0.7rem; color:#a0a0b0;">${new Date(msg.timestamp).toLocaleString()}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('sendMessageBtn').addEventListener('click', async () => {
+      if (!currentChatFriendId) return;
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text) return;
+      const res = await fetch('/api/friends/message', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toUserId: currentChatFriendId, message: text })
+      });
+      if (res.ok) {
+        input.value = '';
+        const convRes = await fetch(`/api/friends/messages/${currentChatFriendId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await convRes.json();
+        renderMessages(data.messages);
+      } else alert('Failed to send message');
+    });
+
+    async function loadNotifications() {
+      const container = document.getElementById('notificationsList');
+      try {
+        const res = await fetch('/api/friends/notifications', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (!data.notifications.length) { container.innerHTML = '<p>No new notifications.</p>'; return; }
+        container.innerHTML = data.notifications.map(n => `
+          <div class="notification-item ${!n.read ? 'unread' : ''}" data-id="${n.id}">
+            <strong>${escapeHtml(n.fromName)}</strong> ${n.message}
+            <div style="font-size:0.8rem; color:#a0a0b0;">${new Date(n.timestamp).toLocaleString()}</div>
+          </div>
+        `).join('');
+        document.querySelectorAll('.notification-item').forEach(el => {
+          el.addEventListener('click', async () => {
+            const notifId = el.dataset.id;
+            await fetch('/api/friends/notifications/read', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ notificationId: notifId })
+            });
+            el.classList.remove('unread');
+          });
+        });
+      } catch(e) { container.innerHTML = '<p>Error loading notifications.</p>'; }
+    }
+
+    loadUser();
+  </script>
 </body>
 </html>
