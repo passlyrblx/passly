@@ -91,7 +91,7 @@
       background: linear-gradient(135deg, #8b5cf6, #7c3aed);
       color: white;
     }
-    .btn-roblox:hover {
+    .btn-roblox:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3);
     }
@@ -100,11 +100,41 @@
       border: 1px solid rgba(139, 92, 246, 0.3);
       color: white;
     }
-    .btn-guest:hover {
+    .btn-guest:hover:not(:disabled) {
       background: rgba(139, 92, 246, 0.25);
       transform: translateY(-2px);
     }
-    /* NEW: small link buttons for privacy/terms */
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .checkbox-container {
+      margin: 20px 0;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(139, 92, 246, 0.05);
+      padding: 12px;
+      border-radius: 12px;
+    }
+    .checkbox-container input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .checkbox-container label {
+      color: #c0c0d0;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .checkbox-container a {
+      color: #a78bfa;
+      text-decoration: none;
+    }
+    .checkbox-container a:hover {
+      text-decoration: underline;
+    }
     .legal-buttons {
       display: flex;
       justify-content: center;
@@ -183,11 +213,20 @@
       <strong>Advertise</strong> - promote your board to everyone<br><br>
       Login now and keep your donations flowing!
     </div>
-    <button class="btn btn-roblox" id="robloxLoginBtn">Login with Roblox</button>
-    <button class="btn btn-guest" id="guestLoginBtn">Continue as Guest</button>
+
+    <!-- Checkbox for Terms & Privacy -->
+    <div class="checkbox-container">
+      <input type="checkbox" id="acceptCheckbox">
+      <label for="acceptCheckbox">
+        I have read and agree to the <a href="/privacy" target="_blank">Privacy Policy</a> and <a href="/terms" target="_blank">Terms of Service</a>.
+      </label>
+    </div>
+
+    <button class="btn btn-roblox" id="robloxLoginBtn" disabled>Login with Roblox</button>
+    <button class="btn btn-guest" id="guestLoginBtn" disabled>Continue as Guest</button>
     <div id="loginStatus" class="status-message"></div>
 
-    <!-- New legal buttons -->
+    <!-- Legal links (optional, already in checkbox text) -->
     <div class="legal-buttons">
       <a href="/privacy" class="legal-btn">📄 Privacy Policy</a>
       <a href="/terms" class="legal-btn">📜 Terms of Service</a>
@@ -204,6 +243,19 @@
   </div>
 
   <script>
+    const acceptCheckbox = document.getElementById('acceptCheckbox');
+    const robloxBtn = document.getElementById('robloxLoginBtn');
+    const guestBtn = document.getElementById('guestLoginBtn');
+
+    // Enable/disable buttons based on checkbox
+    function updateButtons() {
+      const isChecked = acceptCheckbox.checked;
+      robloxBtn.disabled = !isChecked;
+      guestBtn.disabled = !isChecked;
+    }
+    acceptCheckbox.addEventListener('change', updateButtons);
+    updateButtons(); // initial state
+
     // Token handling (from URL hash)
     (function() {
       const hash = window.location.hash;
@@ -228,11 +280,11 @@
     }
 
     // Login functions
-    document.getElementById('robloxLoginBtn').addEventListener('click', () => {
+    robloxBtn.addEventListener('click', () => {
       window.location.href = '/auth/roblox';
     });
 
-    document.getElementById('guestLoginBtn').addEventListener('click', async () => {
+    guestBtn.addEventListener('click', async () => {
       const statusDiv = document.getElementById('loginStatus');
       statusDiv.textContent = 'Logging in as guest...';
       try {
