@@ -803,6 +803,32 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   await User.findByIdAndUpdate(donorId, { $inc: { 'donations.given': amount } });
   await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': amount } });
   pendingDonations.delete(donorId);
+
+  // ========== SEND DONATION MESSAGES ==========
+  // Get donor's current room (if any)
+  const donorRoomId = donor.roomId;
+  const donorName = donor.customDisplayName || donor.robloxDisplayName || donor.robloxUsername;
+  const receiverName = receiver.customDisplayName || receiver.robloxDisplayName || receiver.robloxUsername;
+  if (donorRoomId) {
+    io.to(donorRoomId).emit('room-donation', {
+      donorName, receiverName, amount,
+      donorAvatar: donor.avatarUrl, receiverAvatar: receiver.avatarUrl
+    });
+  }
+  // If donation >= 10,000 Robux, send to all rooms (global message)
+  if (amount >= 10000) {
+    io.emit('global-donation', {
+      donorName, receiverName, amount,
+      donorAvatar: donor.avatarUrl, receiverAvatar: receiver.avatarUrl
+    });
+  }
+  // Also send to live donations page
+  io.emit('new-donation', {
+    donorName, receiverName, amount,
+    donorAvatar: donor.avatarUrl, receiverAvatar: receiver.avatarUrl,
+    timestamp: new Date()
+  });
+
   res.json({ success: true, message: 'Donation recorded! Thank you.' });
 });
 const OWNER_ROBLOX_ID = '3115362000';
@@ -1134,7 +1160,7 @@ app.post('/api/friends/notifications/read', authenticateToken, async (req, res) 
   res.json({ success: true });
 });
 
-// ========== NEW: FETCH USER'S GAMEPASSES FROM ROBLOX ==========
+// ========== FETCH USER'S GAMEPASSES FROM ROBLOX ==========
 app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1148,7 +1174,7 @@ app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
     res.json({ gamepasses });
   } catch (error) {
     console.error('Failed to fetch gamepasses:', error.message);
-    res.status(500).json({ error: 'Could not fetch gamepasses from Roblox.' });
+    res.status(500).json({ error: 'Could not fetch gamepasses from Roblox. ' + error.message });
   }
 });
 
