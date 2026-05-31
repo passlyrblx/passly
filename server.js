@@ -42,6 +42,7 @@ mongoose.connect(MONGO_URI).then(async () => {
   const userSchema = new mongoose.Schema({
     _id: String, robloxUsername: String, robloxDisplayName: String,
     customDisplayName: String, avatarUrl: String,
+    robloxAccessToken: String, // <-- ADDED: store OAuth token for API calls
     role: { type: String, default: 'user', enum: ['user', 'vip', 'admin', 'owner'] },
     profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true } },
     roomId: String, inQueue: Boolean,
@@ -197,6 +198,7 @@ app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.htm
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
 app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
+
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
@@ -217,7 +219,8 @@ app.get('/auth/roblox/callback', async (req, res) => {
       new URLSearchParams({ client_id: ROBLOX_CONFIG.clientId, client_secret: ROBLOX_CONFIG.clientSecret, grant_type: 'authorization_code', code }).toString(),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
-    const ui = await axios.get(ROBLOX_CONFIG.userInfoUrl, { headers: { Authorization: `Bearer ${tokenRes.data.access_token}` } });
+    const accessToken = tokenRes.data.access_token; // <-- SAVE THIS
+    const ui = await axios.get(ROBLOX_CONFIG.userInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
     const userId = ui.data.sub;
     const profile = (await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`)).data;
     const robloxUsername = profile.name || 'Player';
@@ -229,7 +232,11 @@ app.get('/auth/roblox/callback', async (req, res) => {
     } catch (e) {}
     if (!avatarUrl) avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
 
-    await mongoose.model('User').findOneAndUpdate({ _id: userId }, { $set: { robloxUsername, robloxDisplayName, avatarUrl } }, { upsert: true, setDefaultsOnInsert: true });
+    await mongoose.model('User').findOneAndUpdate(
+      { _id: userId },
+      { $set: { robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken } }, // <-- store token
+      { upsert: true, setDefaultsOnInsert: true }
+    );
     const user = await mongoose.model('User').findById(userId);
     const displayName = user.customDisplayName || robloxDisplayName;
     const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
@@ -515,6 +522,7 @@ function filterMessageServer(text) {
 
 const guestChatCooldown = new Map();
 const onlineUsers = new Set();
+
 // ========== SOCKET.IO WITH CHAT ISOLATION ==========
 io.on('connection', (socket) => {
   let currentRoomId = null;
@@ -1045,7 +1053,6 @@ app.get('/api/friends/list', authenticateToken, async (req, res) => {
   }
   res.json({ friends });
 });
-
 // Get pending incoming friend requests
 app.get('/api/friends/requests', authenticateToken, async (req, res) => {
   if (await isGuestUser(req.user.id)) return res.json({ requests: [] });
@@ -1155,14 +1162,24 @@ app.post('/api/friends/notifications/read', authenticateToken, async (req, res) 
   await Notification.findByIdAndUpdate(notificationId, { read: true });
   res.json({ success: true });
 });
-// ========== FETCH USER'S GAMEPASSES FROM ROBLOX (FIXED) ==========
+
+// ========== FETCH USER'S GAMEPASSES FROM ROBLOX (FIXED with OAuth) ==========
 app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    // Use the v2 inventory API (v1 is deprecated and returns 404)
+    const User = mongoose.model('User');
+    const user = await User.findById(userId);
+    if (!user || !user.robloxAccessToken) {
+      return res.status(401).json({ error: 'Missing Roblox access token. Please re-login.' });
+    }
+
+    const accessToken = user.robloxAccessToken;
+    // Use the v2 inventory API with Authorization header
     const url = `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=GamePass&limit=100`;
-    const response = await axios.get(url, { timeout: 10000 });
-    // v2 response format: { data: [ { id, name, created, ... } ] }
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: 10000
+    });
     const items = response.data?.data || [];
     const gamepasses = items.map(item => ({
       assetId: item.id,
@@ -1172,11 +1189,12 @@ app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
     res.json({ gamepasses });
   } catch (error) {
     console.error('Failed to fetch gamepasses:', error.message);
-    if (error.response && error.response.status === 404) {
-      return res.json({ gamepasses: [], error: 'No gamepasses found or inventory not accessible.' });
+    if (error.response && error.response.status === 401) {
+      return res.status(401).json({ error: 'Roblox token expired. Please re-login.' });
     }
     res.status(500).json({ error: 'Could not fetch gamepasses from Roblox. ' + error.message });
   }
 });
+
 // ========== FALLBACK – MUST BE LAST ==========
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
