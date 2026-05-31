@@ -10,7 +10,7 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
-    /* Navbar styles */
+    /* ========== NAVBAR ========== */
     .navbar {
       display: flex;
       align-items: center;
@@ -33,11 +33,53 @@
     .user-box { display: flex; align-items: center; gap: 12px; background: rgba(139,92,246,0.1); padding: 6px 14px; border-radius: 40px; }
     .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; }
     .user-name { font-weight:600; color:#c4b5fd; font-size:0.9rem; }
-    .mobile-menu { position: fixed; top:0; left:-100%; width:75%; max-width:300px; height:100%; background:rgba(10,10,20,0.98); backdrop-filter:blur(12px); border-right:1px solid rgba(139,92,246,0.3); z-index:200; transition:left 0.3s; padding-top:70px; display:flex; flex-direction:column; gap:20px; padding-left:25px; }
-    .mobile-menu a { color:#e0e0e0; text-decoration:none; font-size:1.2rem; padding:10px 0; border-bottom:1px solid rgba(139,92,246,0.2); }
-    .mobile-menu a:hover { color:#a78bfa; }
-    .close-menu { position:absolute; top:20px; right:20px; background:none; border:none; color:#c4b5fd; font-size:28px; cursor:pointer; }
-    .menu-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:150; display:none; }
+    /* Mobile slide-out menu */
+    .mobile-menu {
+      position: fixed;
+      top: 0;
+      left: -100%;
+      width: 75%;
+      max-width: 300px;
+      height: 100%;
+      background: rgba(10,10,20,0.98);
+      backdrop-filter: blur(12px);
+      border-right: 1px solid rgba(139,92,246,0.3);
+      z-index: 200;
+      transition: left 0.3s ease;
+      padding-top: 70px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding-left: 25px;
+    }
+    .mobile-menu a {
+      color: #e0e0e0;
+      text-decoration: none;
+      font-size: 1.2rem;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(139,92,246,0.2);
+    }
+    .mobile-menu a:hover { color: #a78bfa; }
+    .close-menu {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      color: #c4b5fd;
+      font-size: 28px;
+      cursor: pointer;
+    }
+    .menu-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 150;
+      display: none;
+    }
     /* Profile specific styles */
     .main-content { padding:30px; max-width:600px; margin:0 auto; }
     h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
@@ -163,6 +205,9 @@
   function authHeaders() { const h = {'Content-Type':'application/json'}; if(token) h['Authorization'] = `Bearer ${token}`; return h; }
   function requireLogin(cb) { if(!token) { alert('Please log in with Roblox first'); window.location.href='/auth/roblox'; return; } cb(); }
 
+  // Escape HTML to prevent XSS
+  function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+
   // Fetch gamepasses from Roblox
   async function fetchGamepasses() {
     if (!token) { alert('Login required'); return; }
@@ -172,7 +217,7 @@
     try {
       const res = await fetch('/api/user/gamepasses', { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       if (!data.gamepasses.length) {
         container.innerHTML = '<p>You don’t own any gamepasses.</p>';
         return;
@@ -188,7 +233,8 @@
         </div>
       `).join('');
     } catch(e) {
-      container.innerHTML = '<p style="color:#ff4444;">Failed to load gamepasses.</p>';
+      console.error(e);
+      container.innerHTML = `<p style="color:#ff4444;">Failed to load gamepasses: ${e.message}</p>`;
     }
   }
 
@@ -214,7 +260,6 @@
           <span class="board-gamepass-name">🆔 ${gp.id}</span>
         </div>
       `).join('');
-      // Optionally hide the gamepasses list
       document.getElementById('gamepassesList').style.display = 'none';
     }
   };
