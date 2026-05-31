@@ -112,7 +112,6 @@ mongoose.connect(MONGO_URI).then(async () => {
   mongoose.model('FriendRequest', friendRequestSchema);
   mongoose.model('PrivateMessage', privateMessageSchema);
   mongoose.model('Notification', notificationSchema);
-
   const Room = mongoose.model('Room');
   // Ensure default rooms exist
   await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
@@ -198,7 +197,6 @@ app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.htm
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
 app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
-
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
@@ -357,7 +355,6 @@ async function canCreateRoom(userId, roomType) {
   if (counts[key].count >= limit) return { allowed: false, error: `Daily limit of ${limit} ${key} rooms reached.` };
   return { allowed: true, counts, key };
 }
-
 // PUBLIC /api/rooms endpoint – always returns rooms (no auth required)
 app.get('/api/rooms', async (req, res) => {
   console.log('GET /api/rooms called');
@@ -518,7 +515,6 @@ function filterMessageServer(text) {
 
 const guestChatCooldown = new Map();
 const onlineUsers = new Set();
-
 // ========== SOCKET.IO WITH CHAT ISOLATION ==========
 io.on('connection', (socket) => {
   let currentRoomId = null;
@@ -1159,24 +1155,28 @@ app.post('/api/friends/notifications/read', authenticateToken, async (req, res) 
   await Notification.findByIdAndUpdate(notificationId, { read: true });
   res.json({ success: true });
 });
-
-// ========== FETCH USER'S GAMEPASSES FROM ROBLOX ==========
+// ========== FETCH USER'S GAMEPASSES FROM ROBLOX (FIXED) ==========
 app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const url = `https://inventory.roblox.com/v1/users/${userId}/items/GamePass?limit=100`;
+    // Use the v2 inventory API (v1 is deprecated and returns 404)
+    const url = `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=GamePass&limit=100`;
     const response = await axios.get(url, { timeout: 10000 });
-    const gamepasses = response.data.data.map(gp => ({
-      assetId: gp.item.id,
-      name: gp.item.name,
-      created: gp.created
+    // v2 response format: { data: [ { id, name, created, ... } ] }
+    const items = response.data?.data || [];
+    const gamepasses = items.map(item => ({
+      assetId: item.id,
+      name: item.name,
+      created: item.created
     }));
     res.json({ gamepasses });
   } catch (error) {
     console.error('Failed to fetch gamepasses:', error.message);
+    if (error.response && error.response.status === 404) {
+      return res.json({ gamepasses: [], error: 'No gamepasses found or inventory not accessible.' });
+    }
     res.status(500).json({ error: 'Could not fetch gamepasses from Roblox. ' + error.message });
   }
 });
-
 // ========== FALLBACK – MUST BE LAST ==========
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
