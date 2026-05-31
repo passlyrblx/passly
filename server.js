@@ -197,7 +197,7 @@ app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderb
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
-app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html'))); // new
+app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
 
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
@@ -1132,6 +1132,24 @@ app.post('/api/friends/notifications/read', authenticateToken, async (req, res) 
   const Notification = mongoose.model('Notification');
   await Notification.findByIdAndUpdate(notificationId, { read: true });
   res.json({ success: true });
+});
+
+// ========== NEW: FETCH USER'S GAMEPASSES FROM ROBLOX ==========
+app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const url = `https://inventory.roblox.com/v1/users/${userId}/items/GamePass?limit=100`;
+    const response = await axios.get(url, { timeout: 10000 });
+    const gamepasses = response.data.data.map(gp => ({
+      assetId: gp.item.id,
+      name: gp.item.name,
+      created: gp.created
+    }));
+    res.json({ gamepasses });
+  } catch (error) {
+    console.error('Failed to fetch gamepasses:', error.message);
+    res.status(500).json({ error: 'Could not fetch gamepasses from Roblox.' });
+  }
 });
 
 // ========== FALLBACK – MUST BE LAST ==========
