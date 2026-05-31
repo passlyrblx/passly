@@ -10,7 +10,7 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
-    /* Navbar styles (same as before) */
+    /* Navbar styles */
     .navbar {
       display: flex;
       align-items: center;
@@ -60,6 +60,8 @@
     .board-gamepass-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px; margin-top:10px; max-height:400px; overflow-y:auto; }
     .board-gamepass-btn { background:#22c55e; padding:12px; border-radius:14px; display:flex; flex-direction:column; align-items:center; position:relative; cursor:pointer; }
     .remove-gp-btn { position:absolute; top:5px; right:5px; background:rgba(239,68,68,0.8); border:none; color:white; border-radius:50%; width:24px; height:24px; cursor:pointer; }
+    .gamepass-list { margin-top:10px; max-height:200px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:8px; padding:10px; }
+    .gamepass-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid rgba(139,92,246,0.2); }
     @media (max-width:768px) {
       .hamburger { display: flex; }
       .nav-links { display: none; }
@@ -127,17 +129,28 @@
     <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
     <div class="save-message" id="saveMessage">✅ Profile saved!</div>
   </div>
+
+  <!-- My Board Section with Fetch Gamepasses button -->
   <div class="section-card">
-    <h3>🎁 My Board</h3>
-    <div class="add-board-section"><input type="text" id="newGamepassId" placeholder="Gamepass Asset ID"><input type="number" id="newGamepassPrice" placeholder="Robux" min="1"><button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())">Add</button></div>
+    <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
+    <div class="add-board-section" style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+      <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
+      <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
+      <button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())" style="width:auto; display:inline-block;">Add</button>
+      <button class="save-btn" id="fetchGamepassesBtn" style="background:#22c55e; width:auto; display:inline-block;">🔍 Fetch My Gamepasses</button>
+    </div>
+    <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
     <div class="board-gamepass-grid" id="boardGamepassGrid"><p>No gamepasses added yet.</p></div>
+    <div id="gamepassesList" class="gamepass-list" style="display:none;"></div>
   </div>
+
+  <!-- Admin Box (hidden by default) -->
   <div id="adminBox" class="admin-box">
     <h3>🔐 Admin Zone</h3>
     <a href="/admin.html" class="save-btn" style="display:inline-block; text-decoration:none;">Open Admin Dashboard</a>
   </div>
 
-  <!-- Friends button – hidden by default, shown only for non‑guests -->
+  <!-- Friends button (hidden for guests) -->
   <div id="friendsButtonContainer" class="section-card" style="text-align:center; display:none;">
     <h3>👥 Friends</h3>
     <button class="save-btn" onclick="window.location.href='/friends'" style="background:#22c55e;">Go to Friends</button>
@@ -149,6 +162,64 @@
   (function() { const hash = window.location.hash; if(hash && hash.includes('token=')) { const tokenPart = hash.split('token=')[1].split('&')[0]; localStorage.setItem('passly_token', tokenPart); token = tokenPart; history.replaceState(null,null,' '); } })();
   function authHeaders() { const h = {'Content-Type':'application/json'}; if(token) h['Authorization'] = `Bearer ${token}`; return h; }
   function requireLogin(cb) { if(!token) { alert('Please log in with Roblox first'); window.location.href='/auth/roblox'; return; } cb(); }
+
+  // Fetch gamepasses from Roblox
+  async function fetchGamepasses() {
+    if (!token) { alert('Login required'); return; }
+    const container = document.getElementById('gamepassesList');
+    container.innerHTML = '<p style="color:#fbbf24;">Loading your gamepasses...</p>';
+    container.style.display = 'block';
+    try {
+      const res = await fetch('/api/user/gamepasses', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (!data.gamepasses.length) {
+        container.innerHTML = '<p>You don’t own any gamepasses.</p>';
+        return;
+      }
+      container.innerHTML = data.gamepasses.map(gp => `
+        <div class="gamepass-item">
+          <div style="flex:1;">
+            <strong>${escapeHtml(gp.name)}</strong><br>
+            <span style="font-size:0.8rem;">ID: ${gp.assetId}</span>
+          </div>
+          <input type="number" id="price-${gp.assetId}" placeholder="Price" style="width:100px; margin-right:10px;" min="1">
+          <button class="save-btn" style="width:auto; padding:6px 12px;" onclick="addFetchedGamepass('${gp.assetId}', '${escapeHtml(gp.name)}')">Add</button>
+        </div>
+      `).join('');
+    } catch(e) {
+      container.innerHTML = '<p style="color:#ff4444;">Failed to load gamepasses.</p>';
+    }
+  }
+
+  window.addFetchedGamepass = async function(assetId, name) {
+    const priceInput = document.getElementById(`price-${assetId}`);
+    const price = parseInt(priceInput.value);
+    if (!price || price < 1) { alert('Enter a valid Robux amount'); return; }
+    const res = await fetch('/api/board/add', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ assetId, price })
+    });
+    const data = await res.json();
+    if (data.error) alert(data.error);
+    else {
+      userData.board = data.board;
+      // Refresh board display
+      const grid = document.getElementById('boardGamepassGrid');
+      grid.innerHTML = data.board.map(gp => `
+        <div class="board-gamepass-btn">
+          <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
+          <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
+          <span class="board-gamepass-name">🆔 ${gp.id}</span>
+        </div>
+      `).join('');
+      // Optionally hide the gamepasses list
+      document.getElementById('gamepassesList').style.display = 'none';
+    }
+  };
+
+  document.getElementById('fetchGamepassesBtn').addEventListener('click', fetchGamepasses);
 
   async function init() {
     if(token) { try { const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} }); if(res.ok) { userData = await res.json(); userData.isGuest = false; document.getElementById('loginPrompt').style.display = 'none'; } else { localStorage.removeItem('passly_token'); token = null; } } catch(e) {} }
@@ -164,7 +235,6 @@
     if(userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
     if(userData.board && userData.board.length) { const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = userData.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); }
     await checkAdminStatus();
-
     // Show friends button only if not a guest
     if (!userData.isGuest && userData.role) {
       const friendsBtnDiv = document.getElementById('friendsButtonContainer');
