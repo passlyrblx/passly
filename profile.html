@@ -171,19 +171,16 @@
     <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
     <div class="save-message" id="saveMessage">✅ Profile saved!</div>
   </div>
-
-  <!-- My Board Section with Fetch Gamepasses button -->
+  <!-- My Board Section with manual Add only -->
   <div class="section-card">
     <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
     <div class="add-board-section" style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
       <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
       <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
       <button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())" style="width:auto; display:inline-block;">Add</button>
-      <button class="save-btn" id="fetchGamepassesBtn" style="background:#22c55e; width:auto; display:inline-block;">🔍 Fetch My Gamepasses</button>
     </div>
     <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
     <div class="board-gamepass-grid" id="boardGamepassGrid"><p>No gamepasses added yet.</p></div>
-    <div id="gamepassesList" class="gamepass-list" style="display:none;"></div>
   </div>
 
   <!-- Admin Box (hidden by default) -->
@@ -208,64 +205,7 @@
   // Escape HTML to prevent XSS
   function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
 
-  // Fetch gamepasses from Roblox
-  async function fetchGamepasses() {
-    if (!token) { alert('Login required'); return; }
-    const container = document.getElementById('gamepassesList');
-    container.innerHTML = '<p style="color:#fbbf24;">Loading your gamepasses...</p>';
-    container.style.display = 'block';
-    try {
-      const res = await fetch('/api/user/gamepasses', { headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      if (!data.gamepasses.length) {
-        container.innerHTML = '<p>You don’t own any gamepasses.</p>';
-        return;
-      }
-      container.innerHTML = data.gamepasses.map(gp => `
-        <div class="gamepass-item">
-          <div style="flex:1;">
-            <strong>${escapeHtml(gp.name)}</strong><br>
-            <span style="font-size:0.8rem;">ID: ${gp.assetId}</span>
-          </div>
-          <input type="number" id="price-${gp.assetId}" placeholder="Price" style="width:100px; margin-right:10px;" min="1">
-          <button class="save-btn" style="width:auto; padding:6px 12px;" onclick="addFetchedGamepass('${gp.assetId}', '${escapeHtml(gp.name)}')">Add</button>
-        </div>
-      `).join('');
-    } catch(e) {
-      console.error(e);
-      container.innerHTML = `<p style="color:#ff4444;">Failed to load gamepasses: ${e.message}</p>`;
-    }
-  }
-
-  window.addFetchedGamepass = async function(assetId, name) {
-    const priceInput = document.getElementById(`price-${assetId}`);
-    const price = parseInt(priceInput.value);
-    if (!price || price < 1) { alert('Enter a valid Robux amount'); return; }
-    const res = await fetch('/api/board/add', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ assetId, price })
-    });
-    const data = await res.json();
-    if (data.error) alert(data.error);
-    else {
-      userData.board = data.board;
-      // Refresh board display
-      const grid = document.getElementById('boardGamepassGrid');
-      grid.innerHTML = data.board.map(gp => `
-        <div class="board-gamepass-btn">
-          <button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button>
-          <span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span>
-          <span class="board-gamepass-name">🆔 ${gp.id}</span>
-        </div>
-      `).join('');
-      document.getElementById('gamepassesList').style.display = 'none';
-    }
-  };
-
-  document.getElementById('fetchGamepassesBtn').addEventListener('click', fetchGamepasses);
-
+  // No automatic gamepass fetching – users must enter manually
   async function init() {
     if(token) { try { const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} }); if(res.ok) { userData = await res.json(); userData.isGuest = false; document.getElementById('loginPrompt').style.display = 'none'; } else { localStorage.removeItem('passly_token'); token = null; } } catch(e) {} }
     if(!userData) { const guest = JSON.parse(localStorage.getItem('passly_user') || 'null'); if(guest && guest.username) userData = { ...guest, isGuest: true }; else { const res = await fetch('/api/guest-login', { method:'POST' }); const data = await res.json(); userData = { ...data, isGuest: true }; localStorage.setItem('passly_user', JSON.stringify(userData)); } document.getElementById('loginPrompt').style.display = 'block'; }
