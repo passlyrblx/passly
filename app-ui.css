@@ -126,7 +126,15 @@ body::after {
   background: rgba(255,255,255,0.06) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
 }
-.user-avatar { flex: 0 0 auto; background: linear-gradient(135deg, var(--primary), var(--cyan)) !important; box-shadow: 0 0 0 3px rgba(139,92,246,0.14); }
+.user-avatar {
+  flex: 0 0 auto;
+  background-color: var(--primary);
+  background-image: linear-gradient(135deg, var(--primary), var(--cyan));
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.14);
+}
 .user-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #efeaff !important; }
 
 .mobile-menu {
@@ -274,7 +282,26 @@ tbody td:last-child { border-radius: 0 14px 14px 0; }
 .quick-actions { gap: 12px !important; }
 .ad-buttons { gap: 12px !important; }
 .chat-area, .messages, #messages { background: rgba(3, 5, 14, 0.45) !important; border: 1px solid rgba(255,255,255,0.08); }
-.vip-badge { background: linear-gradient(135deg,#ffd700,#f59e0b); color:#0a0a14; padding:2px 8px; border-radius:999px !important; font-size:0.7rem; font-weight:800; margin-left:6px; display:inline-block; }
+.vip-badge, .tag-badge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px !important;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: linear-gradient(135deg,#ffd700,#f59e0b);
+  color: #0a0a14;
+  -webkit-text-fill-color: currentColor;
+}
+
+.tag-owner { background: linear-gradient(135deg,#2563eb,#38bdf8); color: #eff6ff; }
+.tag-admin { background: linear-gradient(135deg,#ef4444,#8b5cf6); color: #fff; }
+.tag-vip { background: linear-gradient(135deg,#ffd700,#f59e0b); color: #0a0a14; }
 .guest-badge { border-radius: 999px !important; }
 
 @media (min-width: 1100px) {

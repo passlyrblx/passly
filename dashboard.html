@@ -79,7 +79,7 @@
     }
     .user-avatar { width: 35px; height: 35px; border-radius: 50%; background: #8b5cf6; background-size: cover; }
     .user-name { font-weight: 600; color: #c4b5fd; font-size: 0.9rem; }
-    .vip-badge { background: linear-gradient(135deg,#ffd700,#f59e0b); color:#0a0a14; padding:2px 8px; border-radius:8px; font-size:0.7rem; font-weight:bold; margin-left:8px; display:inline-block; }
+    .vip-badge, .tag-badge { padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:bold; margin-left:8px; display:inline-flex; align-items:center; vertical-align:middle; }
     /* Mobile slide-out menu */
     .mobile-menu {
       position: fixed;
@@ -196,7 +196,7 @@
 
 <div class="main-content">
   <div class="welcome-section">
-    <h1>Welcome, <span class="username-highlight" id="dashUsername">Player</span><span id="vipBadgeHeader" style="display:none;"><span class="vip-badge">VIP</span></span>! 👋</h1>
+    <h1>Welcome, <span class="username-highlight" id="dashUsername">Player</span>! 👋</h1>
     <span id="guestBadge" class="guest-badge">Guest</span>
     <p style="color:#a0a0b0; margin-top:5px;">Your donation hub is ready</p>
   </div>
@@ -250,6 +250,8 @@
     })();
 
     function authHeaders() { const h = { 'Content-Type':'application/json' }; if (token) h['Authorization'] = `Bearer ${token}`; return h; }
+    function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
+    function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(tag.key || '').toLowerCase()}">${escapeHtml(tag.label)}</span>` : ''; }
 
     async function loadDashboard() {
       try {
@@ -258,10 +260,6 @@
           if (res.ok) {
             userData = await res.json();
             userData.isGuest = false;
-            if (userData.displayTag) {
-              document.getElementById('vipBadgeHeader').style.display = 'inline';
-              document.getElementById('vipBadgeHeader').innerHTML = `<span class="vip-badge">${userData.displayTag.label}</span>`;
-            }
           } else {
             localStorage.removeItem('passly_token');
             token = null;
@@ -278,9 +276,9 @@
           }
         }
 
-        const displayTagHtml = userData.displayTag ? `<span class="vip-badge">${userData.displayTag.label}</span>` : '';
-        document.getElementById('dashUsername').innerHTML = (userData.displayName || userData.username) + displayTagHtml;
-        document.getElementById('userName').innerHTML = (userData.displayName || userData.username) + displayTagHtml;
+        const displayTagHtml = tagBadgeHtml(userData.displayTag);
+        document.getElementById('dashUsername').innerHTML = escapeHtml(userData.displayName || userData.username) + displayTagHtml;
+        document.getElementById('userName').innerHTML = escapeHtml(userData.displayName || userData.username) + displayTagHtml;
 
         if (userData.isGuest) {
           document.getElementById('guestBadge').style.display = 'inline-block';

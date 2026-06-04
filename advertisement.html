@@ -231,6 +231,26 @@
       menuOverlay.addEventListener('click', closeMenu);
     }
 
+    function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
+    function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
+    function setAvatarWithFallback(el, url, fallback) {
+      if (!el) return;
+      const primary = url || fallback;
+      if (!primary) { el.style.backgroundImage = ''; return; }
+      const apply = (src) => { el.style.backgroundImage = src ? `url(${src})` : ''; };
+      const img = new Image();
+      img.onload = () => apply(primary);
+      img.onerror = () => {
+        if (url && fallback) {
+          const fallbackImg = new Image();
+          fallbackImg.onload = () => apply(fallback);
+          fallbackImg.onerror = () => apply('');
+          fallbackImg.src = fallback;
+        } else apply('');
+      };
+      img.src = primary;
+    }
+
     function authHeaders() {
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -243,8 +263,8 @@
         const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
         if (res.ok) {
           userData = await res.json();
-          document.getElementById('userName').innerHTML = (userData.displayName || userData.username) + (userData.displayTag?.label ? ` <span class="vip-badge">${userData.displayTag.label}</span>` : '');
-          if (userData.avatarUrl || userData.avatarFallback) document.getElementById('userAvatar').style.backgroundImage = `url(${userData.avatarUrl || userData.avatarFallback})`;
+          document.getElementById('userName').innerHTML = escapeHtml(userData.displayName || userData.username) + tagBadgeHtml(userData.displayTag);
+          setAvatarWithFallback(document.getElementById('userAvatar'), userData.avatarUrl, userData.avatarFallback);
           updateAdUI();
         }
       } catch(e) {}

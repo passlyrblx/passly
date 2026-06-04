@@ -71,7 +71,7 @@ function getAvailableTags(user) {
 }
 function getPublicTag(user) {
   const availableTags = getAvailableTags(user);
-  const selectedTag = user?.profile?.displayTag;
+  const selectedTag = String(user?.profile?.displayTag || '').toLowerCase();
   return availableTags.includes(selectedTag) ? selectedTag : (availableTags[0] || null);
 }
 function serializeTag(tag) {
@@ -371,8 +371,8 @@ app.post('/api/profile/update', authenticateToken, async (req, res) => {
     if (requestedTag && !availableTags.includes(requestedTag)) return res.status(403).json({ error: 'You can only display tags available on your account.' });
     update['profile.displayTag'] = requestedTag || null;
   }
-  await User.findByIdAndUpdate(req.user.id, { $set: update });
-  res.json({ success: true, displayTag: serializeTag(displayTag ? String(displayTag).toLowerCase() : getPublicTag(user)) });
+  const updatedUser = await User.findByIdAndUpdate(req.user.id, { $set: update }, { new: true });
+  res.json({ success: true, displayTag: serializeTag(getPublicTag(updatedUser)) });
 });
 
 app.get('/api/search', async (req, res) => {

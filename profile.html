@@ -208,7 +208,7 @@
   function requireLogin(cb) { if(!token) { PasslyUI.toast('Please log in with Roblox to continue.'); window.location.href='/auth/roblox'; return; } cb(); }
   function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
   function getTagLabel(tag) { return tag?.label || ''; }
-  function tagBadgeHtml(tag) { const label = getTagLabel(tag); return label ? `<span class="vip-badge">${escapeHtml(label)}</span>` : ''; }
+  function tagBadgeHtml(tag) { const label = getTagLabel(tag); const key = String(tag?.key || '').toLowerCase(); return label ? `<span class="tag-badge tag-${escapeHtml(key)}">${escapeHtml(label)}</span>` : ''; }
   function renderDisplayName(el, user) { el.innerHTML = `${escapeHtml(user.displayName || user.username || 'Player')}${tagBadgeHtml(user.displayTag)}`; }
   function setAvatarWithFallback(el, url, fallback) {
     if(!el) return;
@@ -228,7 +228,7 @@
     img.src = primary;
   }
   function renderTagSettings() {
-    const tags = Array.isArray(userData.availableTags) ? userData.availableTags.filter(t => t?.key !== 'doubt') : [];
+    const tags = Array.isArray(userData.availableTags) ? userData.availableTags : [];
     const group = document.getElementById('tagSettingsGroup');
     const select = document.getElementById('displayTagSelect');
     const list = document.getElementById('availableTags');
@@ -236,7 +236,7 @@
     group.style.display = 'block';
     select.innerHTML = tags.map(tag => `<option value="${escapeHtml(tag.key)}">${escapeHtml(tag.label)}</option>`).join('');
     select.value = userData.displayTag?.key || tags[0].key;
-    list.innerHTML = tags.map(tag => `<span class="available-tag">${escapeHtml(tag.label)}</span>`).join('');
+    list.innerHTML = tags.map(tag => `<span class="available-tag tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>`).join('');
   }
   async function init() {
     if(token) { try { const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} }); if(res.ok) { userData = await res.json(); userData.isGuest = false; document.getElementById('loginPrompt').style.display = 'none'; } else { localStorage.removeItem('passly_token'); token = null; } } catch(e) { console.warn('Profile load failed.'); } }

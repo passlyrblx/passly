@@ -116,8 +116,17 @@
     let token = localStorage.getItem('passly_token');
     let socket = null;
     async function authFetch(url, opts = {}) { const headers = { 'Authorization': `Bearer ${token}`, ...opts.headers }; const res = await fetch(url, { ...opts, headers }); return res.json(); }
-    function setAvatar(el, url, fallback) { const src = url || fallback; if(src) el.style.backgroundImage = `url(${src})`; }
-    async function loadCurrentUser() { if(!token) return; try { const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } }); if(!res.ok) return; const data = await res.json(); const tag = data.displayTag?.label ? ` <span class="vip-badge">${data.displayTag.label}</span>` : ''; document.getElementById('userName').innerHTML = (data.displayName || data.robloxUsername || 'Admin') + tag; setAvatar(document.getElementById('userAvatar'), data.avatarUrl, data.avatarFallback); } catch(e) { document.getElementById('userName').textContent = 'Admin'; } }
+    function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
+    function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
+    function setAvatar(el, url, fallback) {
+      const src = url || fallback;
+      if(!el || !src) return;
+      const img = new Image();
+      img.onload = () => { el.style.backgroundImage = `url(${src})`; };
+      img.onerror = () => { if(url && fallback) el.style.backgroundImage = `url(${fallback})`; };
+      img.src = src;
+    }
+    async function loadCurrentUser() { if(!token) return; try { const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } }); if(!res.ok) return; const data = await res.json(); document.getElementById('userName').innerHTML = escapeHtml(data.displayName || data.robloxUsername || 'Admin') + tagBadgeHtml(data.displayTag); setAvatar(document.getElementById('userAvatar'), data.avatarUrl, data.avatarFallback); } catch(e) { document.getElementById('userName').textContent = 'Admin'; } }
     async function loadStats() { const data = await authFetch('/api/admin/stats'); if(data.error) { document.getElementById('statsContainer').innerHTML = '<p>Could not load stats right now.</p>'; return; } document.getElementById('statsContainer').innerHTML = `<div>Total Users: ${data.totalUsers}</div><div>Guests: ${data.totalGuests}</div><div>Donations: ${data.totalDonations}</div><div>Robux Donated: ${data.totalRobuxDonated.toLocaleString()}</div><div>Online Now: ${data.onlineNow}</div><div>Active Today: ${data.activeToday}</div>`; }
     async function loadOnlineUsers() { const data = await authFetch('/api/admin/online-users'); if(data.error) { document.getElementById('onlineUsersList').innerHTML = '<p>Could not load online users right now.</p>'; return; } const list = data.onlineUsers || []; if(!list.length) { document.getElementById('onlineUsersList').innerHTML = '<p>No users online.</p>'; return; } document.getElementById('onlineUsersList').innerHTML = list.map(u => `<div>${u.displayName} (${u.username}) <button onclick="window.open('/profile?userId=${u.id}','_blank')">View</button></div>`).join(''); }
     async function loadAdminData() { const data = await authFetch('/api/admin/data'); if(data.error) return; renderReports(data.reports); renderBanned(data.banned); }
