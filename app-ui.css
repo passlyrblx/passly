@@ -372,3 +372,125 @@ canvas { max-width: min(220px, 72vw); height: auto; }
   .back-btn { padding: 8px 10px !important; font-size: 0.86rem; }
   .tabs { margin-left: -2px; margin-right: -2px; }
 }
+
+/* Login-only hero background and premium auth card polish */
+body.login-page {
+  isolation: isolate;
+  background: #070712 !important;
+}
+body.login-page::before,
+body.login-page::after { z-index: 0; }
+body.login-page .bg-image {
+  background:
+    linear-gradient(135deg, rgba(7, 7, 18, 0.18), rgba(11, 9, 26, 0.44)),
+    url('https://i.ibb.co/whGL4zhg/1000039438.jpg') center/cover no-repeat !important;
+  opacity: 0.72 !important;
+  filter: saturate(1.08) contrast(1.04) blur(0.5px) !important;
+}
+body.login-page .bg-overlay {
+  background:
+    radial-gradient(circle at 28% 18%, rgba(139,92,246,0.28), transparent 22rem),
+    radial-gradient(circle at 78% 18%, rgba(34,211,238,0.16), transparent 20rem),
+    linear-gradient(180deg, rgba(5,6,16,0.18), rgba(5,6,16,0.72)) !important;
+}
+body:not(.login-page) .bg-image {
+  background:
+    radial-gradient(circle at 25% 18%, rgba(139, 92, 246, 0.42), transparent 17rem),
+    radial-gradient(circle at 85% 25%, rgba(34, 211, 238, 0.18), transparent 18rem),
+    linear-gradient(145deg, #070712, #11142a 60%, #0b091a) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+body.login-page .container {
+  width: min(92vw, 540px) !important;
+  padding: clamp(24px, 4vw, 42px) !important;
+  border-color: rgba(255,255,255,0.16) !important;
+  background: linear-gradient(180deg, rgba(14,16,35,0.78), rgba(10,12,26,0.62)) !important;
+  box-shadow: 0 30px 90px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+}
+body.login-page .description {
+  background: rgba(5,7,18,0.38) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 18px !important;
+  padding: 18px !important;
+}
+body.login-page .btn { margin-top: 10px; }
+
+.passly-toast-host {
+  position: fixed;
+  right: clamp(14px, 3vw, 28px);
+  bottom: clamp(14px, 3vw, 28px);
+  z-index: 10000;
+  display: grid;
+  gap: 10px;
+  width: min(420px, calc(100vw - 28px));
+  pointer-events: none;
+}
+.passly-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 14px 14px 16px;
+  color: #f8f7ff;
+  border: 1px solid rgba(255,255,255,0.13);
+  border-left: 4px solid var(--primary-2);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(18,22,42,0.96), rgba(10,12,26,0.94));
+  box-shadow: 0 18px 60px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.passly-toast-success { border-left-color: var(--green); }
+.passly-toast-error { border-left-color: var(--danger); }
+.passly-toast button {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+.passly-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(3, 4, 12, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.passly-dialog {
+  width: min(430px, 100%);
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(24,29,55,0.98), rgba(10,12,26,0.98));
+  box-shadow: var(--shadow);
+}
+.passly-dialog h2 { margin-bottom: 10px; }
+.passly-dialog p { margin-bottom: 18px; line-height: 1.55; }
+.passly-dialog-input {
+  width: 100%;
+  resize: vertical;
+  margin-bottom: 18px;
+}
+.passly-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.passly-dialog-cancel,
+.passly-dialog-confirm { padding: 10px 16px !important; }
+.passly-dialog-cancel { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
+@media (max-width: 560px) {
+  .passly-toast-host { left: 14px; right: 14px; bottom: 14px; width: auto; }
+  .passly-dialog-actions { flex-direction: column-reverse; }
+  .passly-dialog-actions button { width: 100%; }
+  body.login-page .container { margin: 14px auto !important; }
+}

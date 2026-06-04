@@ -28,6 +28,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
 const VIP_GAMEPASS_ID = '1859054633';
+mongoose.set('bufferCommands', false);
 
 // Fallback default rooms
 const FALLBACK_ROOMS = [
@@ -36,83 +37,82 @@ const FALLBACK_ROOMS = [
   { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
 ];
 
-mongoose.connect(MONGO_URI).then(async () => {
+const userSchema = new mongoose.Schema({
+  _id: String, robloxUsername: String, robloxDisplayName: String,
+  customDisplayName: String, avatarUrl: String,
+  robloxAccessToken: String,
+  role: { type: String, default: 'user', enum: ['user', 'vip', 'admin', 'owner'] },
+  profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true } },
+  roomId: String, inQueue: Boolean,
+  donations: { received: Number, given: Number },
+  board: [{ id: String, name: String, price: Number }],
+  acceptedTos: { type: Boolean, default: false },
+  acceptedTosAt: Date,
+  lastSeen: { type: Date, default: Date.now },
+  roomCreationCounts: {
+    public: { count: Number, date: String },
+    private: { count: Number, date: String }
+  },
+  createdAt: { type: Date, default: Date.now }
+});
+const roomSchema = new mongoose.Schema({
+  _id: String, name: String, desc: String, type: { type: String, enum: ['Public', 'Private', 'VIP'] },
+  players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
+  createdBy: String, createdAt: { type: Date, default: Date.now }
+});
+const donationSchema = new mongoose.Schema({
+  _id: String, donorId: String, donorName: String, receiverId: String,
+  receiverName: String, gamepassId: String, amount: Number,
+  roomId: String, verified: { type: Boolean, default: true },
+  timestamp: { type: Date, default: Date.now }
+});
+const adSchema = new mongoose.Schema({
+  _id: String, userId: String, username: String, tier: Number,
+  gamepassId: String, broadcastsLeft: Number, showsLeft: Number,
+  active: Boolean, message: String, purchasedAt: { type: Date, default: Date.now }
+});
+const adBroadcastSchema = new mongoose.Schema({
+  roomId: String, board: [mongoose.Schema.Types.Mixed],
+  advertiserName: String, advertiserId: String, message: String,
+  timestamp: { type: Date, default: Date.now }
+});
+const friendRequestSchema = new mongoose.Schema({
+  _id: String,
+  from: String,
+  to: String,
+  status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+  timestamp: { type: Date, default: Date.now }
+});
+const privateMessageSchema = new mongoose.Schema({
+  _id: String,
+  from: String,
+  to: String,
+  message: String,
+  timestamp: { type: Date, default: Date.now },
+  read: { type: Boolean, default: false }
+});
+const notificationSchema = new mongoose.Schema({
+  _id: String,
+  userId: String,
+  type: { type: String, enum: ['friend_request', 'friend_accepted', 'new_message'] },
+  fromUserId: String,
+  message: String,
+  timestamp: { type: Date, default: Date.now },
+  read: { type: Boolean, default: false }
+});
+
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+const RoomModel = mongoose.models.Room || mongoose.model('Room', roomSchema);
+const Donation = mongoose.models.Donation || mongoose.model('Donation', donationSchema);
+const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
+const AdBroadcast = mongoose.models.AdBroadcast || mongoose.model('AdBroadcast', adBroadcastSchema);
+const FriendRequest = mongoose.models.FriendRequest || mongoose.model('FriendRequest', friendRequestSchema);
+const PrivateMessage = mongoose.models.PrivateMessage || mongoose.model('PrivateMessage', privateMessageSchema);
+const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+
+mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 8000, socketTimeoutMS: 20000 }).then(async () => {
   console.log('MongoDB connected');
 
-  const userSchema = new mongoose.Schema({
-    _id: String, robloxUsername: String, robloxDisplayName: String,
-    customDisplayName: String, avatarUrl: String,
-    robloxAccessToken: String, // <-- ADDED: store OAuth token for API calls
-    role: { type: String, default: 'user', enum: ['user', 'vip', 'admin', 'owner'] },
-    profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true } },
-    roomId: String, inQueue: Boolean,
-    donations: { received: Number, given: Number },
-    board: [{ id: String, name: String, price: Number }],
-    acceptedTos: { type: Boolean, default: false },
-    acceptedTosAt: Date,
-    lastSeen: { type: Date, default: Date.now },
-    roomCreationCounts: {
-      public: { count: Number, date: String },
-      private: { count: Number, date: String }
-    },
-    createdAt: { type: Date, default: Date.now }
-  });
-  const roomSchema = new mongoose.Schema({
-    _id: String, name: String, desc: String, type: { type: String, enum: ['Public', 'Private', 'VIP'] },
-    players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
-    createdBy: String, createdAt: { type: Date, default: Date.now }
-  });
-  const donationSchema = new mongoose.Schema({
-    _id: String, donorId: String, donorName: String, receiverId: String,
-    receiverName: String, gamepassId: String, amount: Number,
-    roomId: String, verified: { type: Boolean, default: true },
-    timestamp: { type: Date, default: Date.now }
-  });
-  const adSchema = new mongoose.Schema({
-    _id: String, userId: String, username: String, tier: Number,
-    gamepassId: String, broadcastsLeft: Number, showsLeft: Number,
-    active: Boolean, message: String, purchasedAt: { type: Date, default: Date.now }
-  });
-  const adBroadcastSchema = new mongoose.Schema({
-    roomId: String, board: [mongoose.Schema.Types.Mixed],
-    advertiserName: String, advertiserId: String, message: String,
-    timestamp: { type: Date, default: Date.now }
-  });
-
-  // Friend & message schemas
-  const friendRequestSchema = new mongoose.Schema({
-    _id: String,
-    from: String,
-    to: String,
-    status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
-    timestamp: { type: Date, default: Date.now }
-  });
-  const privateMessageSchema = new mongoose.Schema({
-    _id: String,
-    from: String,
-    to: String,
-    message: String,
-    timestamp: { type: Date, default: Date.now },
-    read: { type: Boolean, default: false }
-  });
-  const notificationSchema = new mongoose.Schema({
-    _id: String,
-    userId: String,
-    type: { type: String, enum: ['friend_request', 'friend_accepted', 'new_message'] },
-    fromUserId: String,
-    message: String,
-    timestamp: { type: Date, default: Date.now },
-    read: { type: Boolean, default: false }
-  });
-
-  mongoose.model('User', userSchema);
-  mongoose.model('Room', roomSchema);
-  mongoose.model('Donation', donationSchema);
-  mongoose.model('Ad', adSchema);
-  mongoose.model('AdBroadcast', adBroadcastSchema);
-  mongoose.model('FriendRequest', friendRequestSchema);
-  mongoose.model('PrivateMessage', privateMessageSchema);
-  mongoose.model('Notification', notificationSchema);
   const Room = mongoose.model('Room');
   // Ensure default rooms exist
   await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
@@ -149,6 +149,30 @@ app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) }
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { error: 'Too many requests, try again later.' } });
 app.use('/api/', apiLimiter);
+
+function toClientError(err) {
+  if (!err) return 'Something went wrong. Please try again.';
+  if (err.name === 'MongooseServerSelectionError' || err.name === 'MongoNetworkError' || err.name === 'MongoTimeoutError' || /buffering timed out|connection|timeout/i.test(err.message || '')) {
+    return 'Passly is having trouble reaching the database. Please try again in a moment.';
+  }
+  return 'Something went wrong. Please try again.';
+}
+
+function wrapAsyncHandlers(method) {
+  const original = app[method].bind(app);
+  app[method] = (path, ...handlers) => original(path, ...handlers.map(handler => {
+    if (typeof handler !== 'function') return handler;
+    return function wrappedHandler(req, res, next) {
+      Promise.resolve(handler(req, res, next)).catch(err => {
+        logger.error('Request failed', { path: req.path, method: req.method, error: err.message });
+        if (res.headersSent) return next(err);
+        res.status(/database|mongo|timeout|connection|buffering/i.test(err.message || '') ? 503 : 500).json({ error: toClientError(err) });
+      });
+    };
+  }));
+}
+['get', 'post', 'put', 'delete', 'patch'].forEach(wrapAsyncHandlers);
+
 const chatLimiter = rateLimit({ windowMs: 10 * 1000, max: 5, message: { error: 'Slow down your messages.' } });
 const roomCreateLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'Too many room creations, wait a minute.' } });
 
@@ -161,13 +185,13 @@ const ROBLOX_CONFIG = {
 const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K, 'vip': VIP_GAMEPASS_ID };
 
 const oauthStateSchema = new mongoose.Schema({ state: { type: String, required: true, unique: true }, createdAt: { type: Date, default: Date.now, expires: 600 } });
-const OAuthState = mongoose.model('OAuthState', oauthStateSchema);
+const OAuthState = mongoose.models.OAuthState || mongoose.model('OAuthState', oauthStateSchema);
 
 function authenticateToken(req, res, next) {
   const token = req.headers['authorization']?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No token' });
+  if (!token) return res.status(401).json({ error: 'Guest accounts can’t use this feature. Please log in to continue.', guestRestricted: true });
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid token' });
+    if (err) return res.status(403).json({ error: 'Your login expired. Please log in again.', guestRestricted: true });
     req.user = user; next();
   });
 }
@@ -175,7 +199,7 @@ function authenticateToken(req, res, next) {
 // ========== PUBLIC API PATHS (no token required) ==========
 const publicApiPaths = ['/rooms', '/health', '/guest-login', '/search'];
 app.use('/api', (req, res, next) => {
-  if (publicApiPaths.some(path => req.path === path)) {
+  if (publicApiPaths.some(path => req.path === path || req.path.startsWith(`${path}/`))) {
     return next();
   }
   authenticateToken(req, res, next);
@@ -376,6 +400,8 @@ app.get('/api/rooms', async (req, res) => {
       return res.json(FALLBACK_ROOMS);
     }
     let rooms = await Room.find();
+    for (const room of rooms) await reconcileRoomPresence(room._id, false);
+    rooms = await Room.find();
     if (!rooms || rooms.length === 0) {
       console.log('No rooms in DB, inserting fallback');
       await Room.insertMany(FALLBACK_ROOMS, { ordered: false });
@@ -417,8 +443,9 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
   const User = getUserModel();
   if (!Room || !User) return res.status(503).json({ error: 'Database not ready' });
   const roomId = req.params.id;
-  const room = await Room.findById(roomId);
+  let room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
+  room = await reconcileRoomDocument(room) || room;
   const user = await User.findById(req.user.id);
   if (room.type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
     return res.status(403).json({ error: 'VIP room – need VIP role.' });
@@ -442,8 +469,9 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
   const roomId = req.params.id;
   const { guestId, guestName } = req.body;
   if (!guestId) return res.status(400).json({ error: 'Guest ID required' });
-  const room = await Room.findById(roomId);
+  let room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
+  room = await reconcileRoomDocument(room) || room;
   if (room.type === 'VIP') return res.status(403).json({ error: 'Guests cannot join VIP rooms.' });
   if (room.players.includes(guestId)) return res.json({ success: true, room, alreadyIn: true });
   if (room.players.length >= room.maxPlayers) {
@@ -527,6 +555,46 @@ function filterMessageServer(text) {
 const guestChatCooldown = new Map();
 const onlineUsers = new Set();
 
+function getSocketMemberId(sock) {
+  return sock.userId || sock.guestId || null;
+}
+
+async function reconcileRoomPresence(roomId, emitUpdate = true) {
+  if (!roomId || mongoose.connection.readyState !== 1) return [];
+  const Room = mongoose.model('Room');
+  const User = mongoose.model('User');
+  const sockets = await io.in(roomId).fetchSockets().catch(() => []);
+  const activeIds = [...new Set(sockets.map(getSocketMemberId).filter(Boolean))];
+  const room = await Room.findById(roomId).catch(() => null);
+  if (!room) return activeIds;
+
+  const priorPlayers = Array.isArray(room.players) ? room.players : [];
+  const removedPlayers = priorPlayers.filter(id => !activeIds.includes(id));
+  room.players = activeIds;
+
+  if (Array.isArray(room.queue) && room.queue.length) {
+    room.queue = room.queue.filter(id => !activeIds.includes(id));
+    while (room.queue.length && room.players.length < room.maxPlayers) {
+      const nextId = room.queue.shift();
+      if (!room.players.includes(nextId)) room.players.push(nextId);
+      await User.findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false }).catch(() => {});
+    }
+  }
+
+  await room.save().catch(err => logger.warn('Failed to save reconciled room presence', { roomId, error: err.message }));
+  if (removedPlayers.length) {
+    await User.updateMany({ _id: { $in: removedPlayers }, roomId }, { $unset: { roomId: "", inQueue: "" } }).catch(() => {});
+  }
+  if (emitUpdate) io.to(roomId).emit('room-members-updated', { roomId, players: room.players, queue: room.queue || [] });
+  return room.players;
+}
+
+async function reconcileRoomDocument(room) {
+  if (!room || mongoose.connection.readyState !== 1) return room;
+  await reconcileRoomPresence(room._id, false);
+  return mongoose.model('Room').findById(room._id);
+}
+
 // ========== SOCKET.IO WITH CHAT ISOLATION ==========
 io.on('connection', (socket) => {
   let currentRoomId = null;
@@ -557,16 +625,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join-room', (roomId) => {
-    if (currentRoomId) socket.leave(currentRoomId);
+  socket.on('join-room', async (roomId) => {
+    const previousRoomId = currentRoomId;
+    if (previousRoomId) {
+      socket.leave(previousRoomId);
+      await reconcileRoomPresence(previousRoomId);
+    }
     currentRoomId = roomId;
     socket.join(roomId);
+    await reconcileRoomPresence(roomId);
     console.log(`Socket ${socket.id} joined room ${roomId}`);
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
+    const roomToUpdate = currentRoomId;
     if (userId) onlineUsers.delete(userId);
     if (guestId) onlineUsers.delete(guestId);
+    currentRoomId = null;
+    if (roomToUpdate) await reconcileRoomPresence(roomToUpdate);
   });
 
   socket.on('chat-message', async (msg) => {
@@ -663,10 +739,12 @@ io.on('connection', (socket) => {
     socket.to(currentRoomId).emit('voice-data', { userId: senderId, audio: audioBuffer });
   });
 
-  socket.on('leave-room', () => {
+  socket.on('leave-room', async () => {
     if (currentRoomId) {
-      socket.leave(currentRoomId);
+      const roomToUpdate = currentRoomId;
+      socket.leave(roomToUpdate);
       currentRoomId = null;
+      await reconcileRoomPresence(roomToUpdate);
     }
   });
 });

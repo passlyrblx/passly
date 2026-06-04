@@ -214,10 +214,10 @@
         body: JSON.stringify({ requestId, accept })
       });
       if (res.ok) {
-        alert(accept ? 'Friend added!' : 'Request rejected.');
+        PasslyUI.toast(accept ? 'Friend added!' : 'Request rejected.');
         loadFriendRequests();
         if (accept) loadFriendsList();
-      } else alert('Failed');
+      } else PasslyUI.toast('Failed');
     }
 
     async function loadFriendsForChat() {
@@ -278,7 +278,7 @@
         const convRes = await fetch(`/api/friends/messages/${currentChatFriendId}`, { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await convRes.json();
         renderMessages(data.messages);
-      } else alert('Failed to send message');
+      } else PasslyUI.toast('Failed to send message');
     });
 
     async function loadNotifications() {
