@@ -453,10 +453,10 @@
     if(token) h['Authorization'] = `Bearer ${token}`;
     return h;
   }
-  function requireLoginThen(cb) {
+  async function requireLoginThen(cb) {
     if(!token && !isGuest) {
       document.getElementById('loginPrompt').style.display = 'block';
-      if(confirm('Log in with Roblox to do this.')) window.location.href='/auth/roblox';
+      if(await PasslyUI.confirm('Log in with Roblox to do this?', { confirmText: 'Log in' })) window.location.href='/auth/roblox';
       return;
     }
     cb();
@@ -465,7 +465,7 @@
   // User report modal
   let currentReportUserId = null;
   function openUserModal(userId, username, avatarUrl) {
-    if(userId === userData?.id || (isGuest && userId === guestData.id)) { alert('This is you!'); return; }
+    if(userId === userData?.id || (isGuest && userId === guestData.id)) { PasslyUI.toast('This is you!'); return; }
     currentReportUserId = userId;
     document.getElementById('modalUsername').innerText = username;
     if(avatarUrl) document.getElementById('modalAvatar').style.backgroundImage = `url(${avatarUrl})`;
@@ -476,10 +476,10 @@
   function closeUserModal() { document.getElementById('userModal').style.display = 'none'; currentReportUserId = null; }
   async function reportUser() {
     if(!currentReportUserId) return;
-    const reason = prompt('Reason for report:');
+    const reason = await PasslyUI.prompt('Reason for report:', { placeholder: 'Briefly describe what happened' });
     if(!reason) return;
     await fetch('/api/report', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`}, body:JSON.stringify({ reportedUserId:currentReportUserId, reason }) });
-    alert('Report sent.');
+    PasslyUI.toast('Report sent.');
     closeUserModal();
   }
 
@@ -529,10 +529,11 @@
 
   socket.on('chat-message', (data) => addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner));
   socket.on('chat-error', (errMsg) => showError(errMsg));
-  socket.on('room-closed', (data) => { alert(data.message); leaveRoom(); });
-  socket.on('force-leave', (data) => { alert(data.reason); leaveRoom(); });
+  socket.on('room-closed', (data) => { PasslyUI.toast(data.message); leaveRoom(); });
+  socket.on('force-leave', (data) => { PasslyUI.toast(data.reason); leaveRoom(); });
   socket.on('player-left', (data) => { if(currentRoom && currentRoom.players) { currentRoom.players = currentRoom.players.filter(pid => pid !== data.userId); fetchPlayerDetails(currentRoom.players); } });
   socket.on('player-joined', (data) => { if(currentRoom && !currentRoom.players.includes(data.userId)) { currentRoom.players.push(data.userId); fetchPlayerDetails(currentRoom.players); } });
+  socket.on('room-members-updated', (data) => { if(currentRoom && (currentRoom._id === data.roomId || currentRoom.id === data.roomId)) { currentRoom.players = data.players || []; fetchPlayerDetails(currentRoom.players); updateMutePopup(); } });
 
   // ========== DONATION MESSAGE LISTENERS ==========
   socket.on('room-donation', (data) => {
@@ -548,8 +549,8 @@
   // ============================================
 
   window.sendBoardToChat = async function() {
-    if(!currentRoom || !userData.board || !userData.board.length) { alert('No gamepasses on your board.'); return; }
-    if(boardCooldown) { alert('Please wait 30 seconds.'); return; }
+    if(!currentRoom || !userData || !userData.board || !userData.board.length) { PasslyUI.toast('No gamepasses on your board.'); return; }
+    if(boardCooldown) { PasslyUI.toast('Please wait 30 seconds.'); return; }
     socket.emit('chat-board', userData.board.map(gp => ({ id:gp.id, price:gp.price })));
     boardCooldown = true;
     setTimeout(() => boardCooldown = false, 30000);
@@ -579,7 +580,7 @@
       document.getElementById('memberGiven').innerText = data.given || 0;
       document.getElementById('memberProfileModal').style.display = 'block';
       document.getElementById('modalOverlay').style.display = 'block';
-    } catch(e) { alert('Could not load member stats.'); }
+    } catch(e) { PasslyUI.toast('Could not load member stats.'); }
   };
   function closeMemberProfileModal() {
     document.getElementById('memberProfileModal').style.display = 'none';
@@ -603,20 +604,20 @@
   document.getElementById('donationBuyBtn').onclick = async () => {
     if(!currentDonation) return;
     const { receiverId, gamepassId, amount } = currentDonation;
-    if(!token) { alert('Login required'); return; }
+    if(!token) { PasslyUI.toast('Login required'); return; }
     try {
       const res = await fetch('/api/donate/initiate', { method:'POST', headers:authHeaders(), body:JSON.stringify({ receiverId, gamepassId, amount }) });
       const data = await res.json();
-      if(data.error) { alert(data.error); return; }
+      if(data.error) { PasslyUI.toast(data.error); return; }
       sessionStorage.setItem('pendingDonation', JSON.stringify({ receiverId, gamepassId, amount, receiverName: currentDonation.receiverName, timestamp: Date.now() }));
       window.open(data.url, '_blank');
       document.getElementById('donationConfirmStatus').innerHTML = '<span style="color:#fbbf24;">Purchase opened. Click Verify after buying.</span>';
-    } catch(err) { alert('Error initiating donation.'); }
+    } catch(err) { PasslyUI.toast('Error initiating donation.'); }
   };
   document.getElementById('donationVerifyBtn').onclick = async () => {
     if(!currentDonation) return;
     const { receiverId, gamepassId, amount } = currentDonation;
-    if(!token) { alert('Login required'); return; }
+    if(!token) { PasslyUI.toast('Login required'); return; }
     const statusDiv = document.getElementById('donationConfirmStatus');
     statusDiv.innerHTML = '<span style="color:#fbbf24;">Verifying...</span>';
     try {
@@ -642,6 +643,7 @@ function setRoomFilter(filter) {
 }
 function renderRooms(rooms) {
   const grid = document.getElementById('roomsGrid');
+  rooms = (rooms || []).map(room => ({ ...room, players: [...new Set(room.players || [])] }));
   let filtered = rooms;
   if(currentRoomFilter !== 'all') filtered = rooms.filter(r => r.type === currentRoomFilter);
   if(!filtered.length) { grid.innerHTML = '<p>No rooms found.</p>'; return; }
@@ -651,7 +653,7 @@ function renderRooms(rooms) {
       <div class="room-type ${room.type === 'VIP' ? 'vip' : ''}">${room.type}</div>
       <div class="room-desc">${escapeHtml(room.desc || 'No description')}</div>
       <div class="room-stats">
-        <div class="room-players">👥 ${room.players.length} / ${room.maxPlayers}</div>
+        <div class="room-players">👥 ${(room.players || []).length} / ${room.maxPlayers}</div>
         <button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button>
       </div>
     </div>
@@ -716,7 +718,7 @@ window.setCreateRoomType = function(type) {
   else if(vipWarning) vipWarning.style.display = 'none';
 };
 window.openCreateModal = function() {
-  if(!token && !isGuest) { alert('Login required'); return; }
+  if(!token && !isGuest) { PasslyUI.toast('Login required'); return; }
   document.getElementById('modalOverlay').style.display = 'block';
   document.getElementById('createModal').style.display = 'block';
   setCreateRoomType('Public');
@@ -726,7 +728,7 @@ window.closeModal = function() {
   document.getElementById('createModal').style.display = 'none';
 };
 window.createRoom = async function() {
-  if(!token) { alert('Login required'); return; }
+  if(!token) { PasslyUI.toast('Login required'); return; }
   const name = document.getElementById('roomNameInput').value.trim();
   const desc = document.getElementById('roomDescInput').value.trim();
   if(!name) { showError('Enter room name.'); return; }
@@ -751,8 +753,9 @@ function showRoomView(room) {
   document.getElementById('viewRoomDesc').textContent = room.desc || '';
   document.getElementById('queueBox').style.display = 'none';
   document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong>`;
+  room.players = [...new Set(room.players || [])];
   updateMembersList(room.players.map(pid => ({ userId: pid, username: 'Loading...', avatarUrl: '' })));
-  fetchPlayerDetails(room.players);
+  fetchPlayerDetails([...new Set(room.players || [])]);
   socket.emit('join-room', room._id);
   if(adPollInterval) clearInterval(adPollInterval);
   lastAdCheck = Date.now();
@@ -799,6 +802,7 @@ async function toggleSpeak() {
   if(!currentRoom) return;
   if(!isSpeaking) {
     try {
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Microphone is unavailable in this browser.');
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const audioContext = new AudioContext();
       const source = audioContext.createMediaStreamSource(localStream);
@@ -814,7 +818,7 @@ async function toggleSpeak() {
       };
       window.currentAudioProcessor = processor;
       isSpeaking = true;
-    } catch(err) { alert('Microphone access denied.'); return; }
+    } catch(err) { PasslyUI.error('Microphone is unavailable or permission was denied. Check your browser permissions and try again.'); isSpeaking = false; updateSpeakButton(); return; }
   } else {
     if(localStream) localStream.getTracks().forEach(t => t.stop());
     if(window.currentAudioProcessor) window.currentAudioProcessor.disconnect();
@@ -881,10 +885,10 @@ window.closeBoardModal = function() {
 window.addGamepassToBoard = async function() {
   const assetId = document.getElementById('newGamepassId').value.trim();
   const price = parseInt(document.getElementById('newGamepassPrice').value);
-  if(!assetId || !price) { alert('Enter asset ID and price'); return; }
+  if(!assetId || !price) { PasslyUI.toast('Enter asset ID and price'); return; }
   const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) });
   const data = await res.json();
-  if(data.error) alert(data.error);
+  if(data.error) PasslyUI.toast(data.error);
   else {
     userData.board = data.board;
     showBoard();
@@ -893,7 +897,7 @@ window.addGamepassToBoard = async function() {
   }
 };
 window.removeGamepass = async function(assetId) {
-  if(!confirm('Remove this gamepass?')) return;
+  if(!await PasslyUI.confirm('Remove this gamepass?', { confirmText: 'Remove' })) return;
   const res = await fetch('/api/board/remove', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId }) });
   if(res.ok) {
     const data = await res.json();
@@ -903,7 +907,7 @@ window.removeGamepass = async function(assetId) {
 };
     // Donation modal (player board) – horizontal scroll, sorted by price
     window.openDonate = async function(receiverId) {
-      if(!token) { alert('Login to donate'); return; }
+      if(!token) { PasslyUI.toast('Login to donate'); return; }
       try {
         const res = await fetch(`/api/user/${receiverId}/board`, { headers: authHeaders() });
         const data = await res.json();
@@ -924,7 +928,7 @@ window.removeGamepass = async function(assetId) {
         }
         document.getElementById('playerBoardModal').style.display = 'block';
         document.getElementById('modalOverlay').style.display = 'block';
-      } catch(e) { alert('Could not load board.'); }
+      } catch(e) { PasslyUI.toast('Could not load board.'); }
     };
     window.closePlayerBoardModal = function() {
       document.getElementById('playerBoardModal').style.display = 'none';
