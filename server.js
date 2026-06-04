@@ -198,6 +198,10 @@ app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.htm
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
 app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
+app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
+app.get('/loading', (req, res) => res.sendFile(path.join(__dirname, 'loading.html')));
 
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
