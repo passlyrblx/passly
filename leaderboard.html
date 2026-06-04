@@ -213,14 +213,34 @@
       menuOverlay.addEventListener('click', closeMenu);
     }
 
+    function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
+    function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
+    function setAvatarWithFallback(el, url, fallback) {
+      if (!el) return;
+      const primary = url || fallback;
+      if (!primary) { el.style.backgroundImage = ''; return; }
+      const apply = (src) => { el.style.backgroundImage = src ? `url(${src})` : ''; };
+      const img = new Image();
+      img.onload = () => apply(primary);
+      img.onerror = () => {
+        if (url && fallback) {
+          const fallbackImg = new Image();
+          fallbackImg.onload = () => apply(fallback);
+          fallbackImg.onerror = () => apply('');
+          fallbackImg.src = fallback;
+        } else apply('');
+      };
+      img.src = primary;
+    }
+
     // Load user for avatar
     if (token) {
       fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data) {
-            document.getElementById('userName').innerHTML = (data.displayName || data.username) + (data.displayTag?.label ? ` <span class="vip-badge">${data.displayTag.label}</span>` : '');
-            if (data.avatarUrl || data.avatarFallback) document.getElementById('userAvatar').style.backgroundImage = `url(${data.avatarUrl || data.avatarFallback})`;
+            document.getElementById('userName').innerHTML = escapeHtml(data.displayName || data.username) + tagBadgeHtml(data.displayTag);
+            setAvatarWithFallback(document.getElementById('userAvatar'), data.avatarUrl, data.avatarFallback);
           }
         })
         .catch(() => {});

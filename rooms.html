@@ -498,11 +498,7 @@
     contentDiv.className = 'msg-content';
     const usernameSpan = document.createElement('span');
     usernameSpan.className = 'msg-username';
-    let badge = '';
-    if(displayTag?.label) badge = ` <span style="background:#f59e0b; color:#0a0a14; padding:2px 6px; border-radius:8px; font-size:0.7rem; font-weight:bold;">${displayTag.label}</span>`;
-    else if(isOwner) badge = ' <span style="background:#ef4444; padding:2px 6px; border-radius:8px; font-size:0.7rem;">OWNER</span>';
-    else if(isAdmin) badge = ' <span style="background:#10b981; padding:2px 6px; border-radius:8px; font-size:0.7rem;">ADMIN</span>';
-    usernameSpan.innerHTML = escapeHtml(username) + badge;
+    usernameSpan.innerHTML = escapeHtml(username) + tagBadgeHtml(displayTag);
     const messageDiv = document.createElement('div');
     messageDiv.innerHTML = filterMessage(message);
     contentDiv.appendChild(usernameSpan);
@@ -568,7 +564,7 @@
     container.innerHTML = players.map(p => `
       <div class="member-item" onclick="showMemberProfile('${p.userId}', '${escapeHtml(p.username)}', '${p.avatarUrl || ''}')">
         <div class="member-avatar" style="background-image:url('${p.avatarUrl || ''}'); background-size:cover;"></div>
-        <div class="member-name">${escapeHtml(p.username)}${p.displayTag?.label ? ` <span class="vip-badge">${escapeHtml(p.displayTag.label)}</span>` : ''}</div>
+        <div class="member-name">${escapeHtml(p.username)}${tagBadgeHtml(p.displayTag)}</div>
       </div>
     `).join('');
   }
@@ -972,7 +968,25 @@ window.removeGamepass = async function(assetId) {
         lastAdCheck = Date.now();
       } catch(e) {}
     }
-    function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
+    function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
+    function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
+    function setAvatarWithFallback(el, url, fallback) {
+      if(!el) return;
+      const primary = url || fallback;
+      if(!primary) { el.style.backgroundImage = ''; return; }
+      const apply = (src) => { el.style.backgroundImage = src ? `url(${src})` : ''; };
+      const img = new Image();
+      img.onload = () => apply(primary);
+      img.onerror = () => {
+        if(url && fallback) {
+          const fallbackImg = new Image();
+          fallbackImg.onload = () => apply(fallback);
+          fallbackImg.onerror = () => apply('');
+          fallbackImg.src = fallback;
+        } else apply('');
+      };
+      img.src = primary;
+    }
 
     // Initialisation
     async function init() {
@@ -1008,11 +1022,9 @@ window.removeGamepass = async function(assetId) {
         socket.emit('guest-auth', data.id);
       }
       const displayName = userData?.displayName || userData?.username || (isGuest ? guestData.displayName : 'Guest');
-      const tagHtml = userData?.displayTag?.label ? ` <span class="vip-badge">${userData.displayTag.label}</span>` : '';
-      document.getElementById('userName').innerHTML = displayName + tagHtml;
-      const avatarEl = document.getElementById('userAvatar');
-      const avatarUrl = userData?.avatarUrl || userData?.avatarFallback || '';
-      if(avatarUrl) avatarEl.style.backgroundImage = `url(${avatarUrl})`;
+      const tagHtml = tagBadgeHtml(userData?.displayTag);
+      document.getElementById('userName').innerHTML = escapeHtml(displayName) + tagHtml;
+      setAvatarWithFallback(document.getElementById('userAvatar'), userData?.avatarUrl, userData?.avatarFallback);
       loadRooms();
       document.getElementById('createRoomBtn').onclick = openCreateModal;
 
