@@ -274,7 +274,8 @@ tbody td:last-child { border-radius: 0 14px 14px 0; }
 .quick-actions { gap: 12px !important; }
 .ad-buttons { gap: 12px !important; }
 .chat-area, .messages, #messages { background: rgba(3, 5, 14, 0.45) !important; border: 1px solid rgba(255,255,255,0.08); }
-.vip-badge, .guest-badge { border-radius: 999px !important; }
+.vip-badge { background: linear-gradient(135deg,#ffd700,#f59e0b); color:#0a0a14; padding:2px 8px; border-radius:999px !important; font-size:0.7rem; font-weight:800; margin-left:6px; display:inline-block; }
+.guest-badge { border-radius: 999px !important; }
 
 @media (min-width: 1100px) {
   .hamburger { display: none !important; }

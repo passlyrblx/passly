@@ -258,8 +258,9 @@
           if (res.ok) {
             userData = await res.json();
             userData.isGuest = false;
-            if (userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') {
+            if (userData.displayTag) {
               document.getElementById('vipBadgeHeader').style.display = 'inline';
+              document.getElementById('vipBadgeHeader').innerHTML = `<span class="vip-badge">${userData.displayTag.label}</span>`;
             }
           } else {
             localStorage.removeItem('passly_token');
@@ -277,8 +278,9 @@
           }
         }
 
-        document.getElementById('dashUsername').innerHTML = (userData.displayName || userData.username) + ((userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') ? '<span class="vip-badge">' + (userData.role === 'vip' ? 'VIP' : userData.role.toUpperCase()) + '</span>' : '');
-        document.getElementById('userName').innerHTML = (userData.displayName || userData.username) + ((userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') ? '<span class="vip-badge">' + (userData.role === 'vip' ? 'VIP' : userData.role.toUpperCase()) + '</span>' : '');
+        const displayTagHtml = userData.displayTag ? `<span class="vip-badge">${userData.displayTag.label}</span>` : '';
+        document.getElementById('dashUsername').innerHTML = (userData.displayName || userData.username) + displayTagHtml;
+        document.getElementById('userName').innerHTML = (userData.displayName || userData.username) + displayTagHtml;
 
         if (userData.isGuest) {
           document.getElementById('guestBadge').style.display = 'inline-block';
@@ -291,12 +293,19 @@
         const avatarEl = document.getElementById('userAvatar');
         function setAvatar(el, url, fallback) {
           if (!url && !fallback) return;
-          const tryUrl = url || fallback;
-          el.style.backgroundImage = `url(${tryUrl})`;
-          el.onerror = function() {
-            if (url && fallback && tryUrl === url) el.style.backgroundImage = `url(${fallback})`;
-            else el.style.backgroundImage = '';
+          const primary = url || fallback;
+          const apply = (src) => { el.style.backgroundImage = src ? `url(${src})` : ''; };
+          const img = new Image();
+          img.onload = () => apply(primary);
+          img.onerror = () => {
+            if (url && fallback) {
+              const fallbackImg = new Image();
+              fallbackImg.onload = () => apply(fallback);
+              fallbackImg.onerror = () => apply('');
+              fallbackImg.src = fallback;
+            } else apply('');
           };
+          img.src = primary;
         }
         setAvatar(avatarEl, userData.avatarUrl, userData.avatarFallback);
 
