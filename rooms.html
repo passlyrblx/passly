@@ -163,6 +163,7 @@
     .chat-pfp { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; cursor:pointer; }
     .msg-content { background:rgba(30,30,50,0.6); padding:10px 14px; border-radius:12px; }
     .msg-username { font-weight:bold; color:#a78bfa; margin-bottom:4px; }
+    .vip-badge { background:linear-gradient(135deg,#ffd700,#f59e0b); color:#0a0a14; padding:2px 8px; border-radius:8px; font-size:0.7rem; font-weight:bold; margin-left:6px; display:inline-block; }
     .chat-input-area { display:flex; gap:10px; }
     .chat-input { flex:1; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; }
     .send-btn { padding:12px 24px; background:#8b5cf6; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600; }
@@ -484,7 +485,7 @@
   }
 
   // Chat display
-  function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false) {
+  function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false, displayTag = null) {
     const chatBox = document.getElementById('chatBox');
     const msgDiv = document.createElement('div');
     msgDiv.className = 'chat-msg';
@@ -498,9 +499,10 @@
     const usernameSpan = document.createElement('span');
     usernameSpan.className = 'msg-username';
     let badge = '';
-    if(isOwner) badge = ' <span style="background:#ef4444; padding:2px 6px; border-radius:8px; font-size:0.7rem;">OWNER</span>';
+    if(displayTag?.label) badge = ` <span style="background:#f59e0b; color:#0a0a14; padding:2px 6px; border-radius:8px; font-size:0.7rem; font-weight:bold;">${displayTag.label}</span>`;
+    else if(isOwner) badge = ' <span style="background:#ef4444; padding:2px 6px; border-radius:8px; font-size:0.7rem;">OWNER</span>';
     else if(isAdmin) badge = ' <span style="background:#10b981; padding:2px 6px; border-radius:8px; font-size:0.7rem;">ADMIN</span>';
-    usernameSpan.innerHTML = username + badge;
+    usernameSpan.innerHTML = escapeHtml(username) + badge;
     const messageDiv = document.createElement('div');
     messageDiv.innerHTML = filterMessage(message);
     contentDiv.appendChild(usernameSpan);
@@ -516,7 +518,7 @@
     const msg = input.value.trim();
     if(!msg) return;
     if(isGuest) {
-      if(guestChatCooldown) { showError('Guest cooldown: 1 per 25 sec.'); return; }
+      if(guestChatCooldown) { showError('Guests can send one message every 25 seconds.'); return; }
       guestChatCooldown = true;
       setTimeout(() => guestChatCooldown = false, 25000);
       socket.emit('chat-message', { text:msg, guestName: guestData.displayName || 'Guest' });
@@ -527,7 +529,7 @@
     input.value = '';
   };
 
-  socket.on('chat-message', (data) => addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner));
+  socket.on('chat-message', (data) => addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner, data.displayTag));
   socket.on('chat-error', (errMsg) => showError(errMsg));
   socket.on('room-closed', (data) => { PasslyUI.toast(data.message); leaveRoom(); });
   socket.on('force-leave', (data) => { PasslyUI.toast(data.reason); leaveRoom(); });
@@ -566,7 +568,7 @@
     container.innerHTML = players.map(p => `
       <div class="member-item" onclick="showMemberProfile('${p.userId}', '${escapeHtml(p.username)}', '${p.avatarUrl || ''}')">
         <div class="member-avatar" style="background-image:url('${p.avatarUrl || ''}'); background-size:cover;"></div>
-        <div class="member-name">${escapeHtml(p.username)}</div>
+        <div class="member-name">${escapeHtml(p.username)}${p.displayTag?.label ? ` <span class="vip-badge">${escapeHtml(p.displayTag.label)}</span>` : ''}</div>
       </div>
     `).join('');
   }
@@ -694,7 +696,7 @@ window.joinRoomById = async function(id) {
     if(token) options.headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(url, options);
     const data = await res.json();
-    if(!res.ok || data.error) { showError(data.error || 'Join failed'); return; }
+    if(!res.ok || data.error) { showError(data.error || 'Could not join this room. Please try again.'); return; }
     if(data.queued) {
       document.getElementById('roomsListPage').style.display = 'none';
       document.getElementById('roomViewContainer').style.display = 'block';
@@ -774,7 +776,7 @@ async function fetchPlayerDetails(playerIds) {
       const res = await fetch(`/api/user/${pid}/stats`, { headers: authHeaders() });
       if(res.ok) {
         const data = await res.json();
-        members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl });
+        members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl, displayTag: data.displayTag });
       } else members.push({ userId: pid, username: pid.startsWith('Guest_') ? 'Guest' : 'Player', avatarUrl: '' });
     } catch(e) { members.push({ userId: pid, username: 'Unknown', avatarUrl: '' }); }
   }
@@ -959,7 +961,7 @@ window.removeGamepass = async function(assetId) {
           statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Verified!</span>';
           setTimeout(() => { closeAdVerifyModal(); if(selectedAdTier === 'vip') window.location.reload(); }, 2000);
         } else statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
-      } catch(e) { statusDiv.innerHTML = '<span style="color:#f87171;">Error.</span>'; }
+      } catch(e) { statusDiv.innerHTML = '<span style="color:#f87171;">Could not verify this ad right now.</span>'; }
     };
     async function checkAdBroadcasts() {
       if(!currentRoom || !currentRoom.id) return;
@@ -1006,10 +1008,11 @@ window.removeGamepass = async function(assetId) {
         socket.emit('guest-auth', data.id);
       }
       const displayName = userData?.displayName || userData?.username || (isGuest ? guestData.displayName : 'Guest');
-      document.getElementById('userName').textContent = displayName;
+      const tagHtml = userData?.displayTag?.label ? ` <span class="vip-badge">${userData.displayTag.label}</span>` : '';
+      document.getElementById('userName').innerHTML = displayName + tagHtml;
       const avatarEl = document.getElementById('userAvatar');
-      if(userData?.avatarUrl) avatarEl.style.backgroundImage = `url(${userData.avatarUrl})`;
-      else if(userData?.avatarFallback) avatarEl.style.backgroundImage = `url(${userData.avatarFallback})`;
+      const avatarUrl = userData?.avatarUrl || userData?.avatarFallback || '';
+      if(avatarUrl) avatarEl.style.backgroundImage = `url(${avatarUrl})`;
       loadRooms();
       document.getElementById('createRoomBtn').onclick = openCreateModal;
 

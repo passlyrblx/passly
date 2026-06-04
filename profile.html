@@ -89,6 +89,9 @@
     .profile-info h2 { font-size:1.5rem; margin-bottom:5px; }
     .guest-badge { background:rgba(139,92,246,0.2); padding:4px 12px; border-radius:8px; font-size:0.8rem; color:#a78bfa; display:inline-block; margin-top:5px; }
     .vip-badge { background:linear-gradient(135deg,#ffd700,#f59e0b); color:#0a0a14; padding:2px 8px; border-radius:8px; font-size:0.7rem; font-weight:bold; margin-left:8px; display:inline-block; }
+    .available-tags { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .available-tag { background:rgba(139,92,246,0.18); border:1px solid rgba(139,92,246,0.35); color:#ddd6fe; border-radius:999px; padding:6px 10px; font-size:0.8rem; font-weight:700; }
+    .settings-help { color:#b0b0c0; font-size:0.85rem; margin-top:6px; }
     .settings-group { margin-bottom:20px; }
     .settings-label { display:block; color:#a78bfa; margin-bottom:8px; font-weight:600; }
     .settings-select, .custom-name-input { width:100%; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; }
@@ -169,6 +172,7 @@
     <div class="settings-group"><label class="settings-label">Show Booth (Gamepass Board)</label><select class="settings-select" id="showBooth"><option value="true">✅ Yes - Show my board</option><option value="false">❌ No - Hide my board</option></select></div>
     <div class="settings-group"><label class="settings-label">Online Status Display</label><select class="settings-select" id="statusDotSelect"><option value="online">🟢 Show when online</option><option value="offline">⚫ Always offline</option></select></div>
     <div class="settings-group"><label class="settings-label">Show Room ID on Profile</label><select class="settings-select" id="showRoomId"><option value="true">✅ Yes</option><option value="false">❌ No</option></select></div>
+    <div class="settings-group" id="tagSettingsGroup" style="display:none;"><label class="settings-label">Public Tag</label><select class="settings-select" id="displayTagSelect"></select><div class="settings-help">Choose which available badge appears next to your name across Passly.</div><div class="available-tags" id="availableTags"></div></div>
     <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
     <div class="save-message" id="saveMessage">✅ Profile saved!</div>
   </div>
@@ -201,39 +205,64 @@
   let userData = null;
   (function() { const hash = window.location.hash; if(hash && hash.includes('token=')) { const tokenPart = hash.split('token=')[1].split('&')[0]; localStorage.setItem('passly_token', tokenPart); token = tokenPart; history.replaceState(null,null,' '); } })();
   function authHeaders() { const h = {'Content-Type':'application/json'}; if(token) h['Authorization'] = `Bearer ${token}`; return h; }
-  function requireLogin(cb) { if(!token) { PasslyUI.toast('Please log in with Roblox first'); window.location.href='/auth/roblox'; return; } cb(); }
-
-  // Escape HTML to prevent XSS
-  function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
-
-  // No automatic gamepass fetching – users must enter manually
+  function requireLogin(cb) { if(!token) { PasslyUI.toast('Please log in with Roblox to continue.'); window.location.href='/auth/roblox'; return; } cb(); }
+  function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
+  function getTagLabel(tag) { return tag?.label || ''; }
+  function tagBadgeHtml(tag) { const label = getTagLabel(tag); return label ? `<span class="vip-badge">${escapeHtml(label)}</span>` : ''; }
+  function renderDisplayName(el, user) { el.innerHTML = `${escapeHtml(user.displayName || user.username || 'Player')}${tagBadgeHtml(user.displayTag)}`; }
+  function setAvatarWithFallback(el, url, fallback) {
+    if(!el) return;
+    const apply = (src) => { el.style.backgroundImage = src ? `url("${src}")` : ''; };
+    if(!url && !fallback) { apply(''); return; }
+    const primary = url || fallback;
+    const img = new Image();
+    img.onload = () => apply(primary);
+    img.onerror = () => {
+      if(url && fallback) {
+        const fallbackImg = new Image();
+        fallbackImg.onload = () => apply(fallback);
+        fallbackImg.onerror = () => apply('');
+        fallbackImg.src = fallback;
+      } else apply('');
+    };
+    img.src = primary;
+  }
+  function renderTagSettings() {
+    const tags = Array.isArray(userData.availableTags) ? userData.availableTags.filter(t => t?.key !== 'doubt') : [];
+    const group = document.getElementById('tagSettingsGroup');
+    const select = document.getElementById('displayTagSelect');
+    const list = document.getElementById('availableTags');
+    if(!tags.length || userData.isGuest) { group.style.display = 'none'; return; }
+    group.style.display = 'block';
+    select.innerHTML = tags.map(tag => `<option value="${escapeHtml(tag.key)}">${escapeHtml(tag.label)}</option>`).join('');
+    select.value = userData.displayTag?.key || tags[0].key;
+    list.innerHTML = tags.map(tag => `<span class="available-tag">${escapeHtml(tag.label)}</span>`).join('');
+  }
   async function init() {
-    if(token) { try { const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} }); if(res.ok) { userData = await res.json(); userData.isGuest = false; document.getElementById('loginPrompt').style.display = 'none'; } else { localStorage.removeItem('passly_token'); token = null; } } catch(e) {} }
+    if(token) { try { const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} }); if(res.ok) { userData = await res.json(); userData.isGuest = false; document.getElementById('loginPrompt').style.display = 'none'; } else { localStorage.removeItem('passly_token'); token = null; } } catch(e) { console.warn('Profile load failed.'); } }
     if(!userData) { const guest = JSON.parse(localStorage.getItem('passly_user') || 'null'); if(guest && guest.username) userData = { ...guest, isGuest: true }; else { const res = await fetch('/api/guest-login', { method:'POST' }); const data = await res.json(); userData = { ...data, isGuest: true }; localStorage.setItem('passly_user', JSON.stringify(userData)); } document.getElementById('loginPrompt').style.display = 'block'; }
-    document.getElementById('userName').textContent = userData.displayName || userData.username;
-    document.getElementById('profileName').innerHTML = (userData.displayName || userData.username) + ((userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') ? '<span class="vip-badge">' + (userData.role === 'vip' ? 'VIP' : userData.role.toUpperCase()) + '</span>' : '');
-    document.getElementById('robloxUsernameDisplay').innerHTML = userData.robloxUsername ? `Roblox: @${userData.robloxUsername}` : '';
+    renderDisplayName(document.getElementById('userName'), userData);
+    renderDisplayName(document.getElementById('profileName'), userData);
+    document.getElementById('robloxUsernameDisplay').textContent = userData.robloxUsername ? `Roblox: @${userData.robloxUsername}` : '';
     if(userData.isGuest) document.getElementById('guestBadge').style.display = 'inline-block';
-    const avatarUrl = userData.avatarUrl; const avatarFallback = userData.avatarFallback || `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png`;
-    const setAvatar = (el) => { if(avatarUrl) el.style.backgroundImage = `url(${avatarUrl})`; else if(avatarFallback) el.style.backgroundImage = `url(${avatarFallback})`; else el.style.backgroundImage = ''; };
-    setAvatar(document.getElementById('userAvatar')); setAvatar(document.getElementById('profileAvatar'));
+    const avatarUrl = userData.avatarUrl || '';
+    const avatarFallback = userData.avatarFallback || `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png`;
+    setAvatarWithFallback(document.getElementById('userAvatar'), avatarUrl, avatarFallback);
+    setAvatarWithFallback(document.getElementById('profileAvatar'), avatarUrl, avatarFallback);
     if(userData.profile) { document.getElementById('showBooth').value = userData.profile.showBooth ? 'true' : 'false'; document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online'; document.getElementById('showRoomId').value = userData.profile.showRoomId ? 'true' : 'false'; }
     if(userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
+    renderTagSettings();
     if(userData.board && userData.board.length) { const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = userData.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); }
     await checkAdminStatus();
-    // Show friends button only if not a guest
-    if (!userData.isGuest && userData.role) {
-      const friendsBtnDiv = document.getElementById('friendsButtonContainer');
-      if (friendsBtnDiv) friendsBtnDiv.style.display = 'block';
-    }
+    if (!userData.isGuest && userData.role) { const friendsBtnDiv = document.getElementById('friendsButtonContainer'); if (friendsBtnDiv) friendsBtnDiv.style.display = 'block'; }
   }
-  async function saveProfile() { if(!token) return; const showBooth = document.getElementById('showBooth').value === 'true'; const statusDot = document.getElementById('statusDotSelect').value; const showRoomId = document.getElementById('showRoomId').value === 'true'; const customDisplayName = document.getElementById('customDisplayName').value.trim(); try { const res = await fetch('/api/profile/update', { method:'POST', headers:authHeaders(), body:JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName }) }); if(res.ok) { const msg = document.getElementById('saveMessage'); msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); if(customDisplayName) userData.displayName = customDisplayName; document.getElementById('profileName').innerHTML = (userData.displayName || userData.username) + ((userData.role === 'vip' || userData.role === 'admin' || userData.role === 'owner') ? '<span class="vip-badge">' + (userData.role === 'vip' ? 'VIP' : userData.role.toUpperCase()) + '</span>' : ''); } else PasslyUI.toast('Save failed'); } catch(e) { PasslyUI.toast('Error saving'); } }
-  async function searchPlayer() { const username = document.getElementById('searchUsername').value.trim(); if(!username) return PasslyUI.toast('Enter a username'); const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`); const data = await res.json(); const container = document.getElementById('searchResult'); if(data.error) { container.innerHTML = `<p style="color:#ff4444;">${data.error}</p>`; return; } let boardHtml = ''; if(data.board && data.board.length) { boardHtml = `<div class="board-gamepass-grid">${data.board.map(gp => `<div class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span>💰 ${gp.price} R$</span><span>${gp.id}</span></div>`).join('')}</div>`; } else boardHtml = '<p>No gamepasses on board.</p>'; container.innerHTML = `<div style="display:flex; align-items:center; gap:10px;"><div style="width:40px; height:40px; border-radius:50%; background:url(${data.avatarUrl || ''}) center/cover;"></div><div><strong>${data.displayName || data.robloxUsername}</strong><br><small>@${data.robloxUsername}</small></div></div>${boardHtml}`; }
-  async function addGamepassToBoard() { const assetId = document.getElementById('newGamepassId').value.trim(); const price = parseInt(document.getElementById('newGamepassPrice').value); if(!assetId || !price) { PasslyUI.toast('Enter asset ID and Robux amount'); return; } const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) }); const data = await res.json(); if(data.error) PasslyUI.toast(data.error); else { userData.board = data.board; const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); document.getElementById('newGamepassId').value = ''; document.getElementById('newGamepassPrice').value = ''; } }
+  async function saveProfile() { if(!token) return; const showBooth = document.getElementById('showBooth').value === 'true'; const statusDot = document.getElementById('statusDotSelect').value; const showRoomId = document.getElementById('showRoomId').value === 'true'; const customDisplayName = document.getElementById('customDisplayName').value.trim(); const displayTag = document.getElementById('displayTagSelect')?.value || null; try { const res = await fetch('/api/profile/update', { method:'POST', headers:authHeaders(), body:JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName, displayTag }) }); const data = await res.json().catch(() => ({})); if(res.ok) { const msg = document.getElementById('saveMessage'); msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); userData.displayName = customDisplayName || userData.robloxDisplayName || userData.username; if(data.displayTag) userData.displayTag = data.displayTag; renderDisplayName(document.getElementById('profileName'), userData); renderDisplayName(document.getElementById('userName'), userData); } else PasslyUI.toast(data.error || 'We could not save your profile. Please try again.'); } catch(e) { PasslyUI.toast('We could not save your profile. Please try again.'); } }
+  async function searchPlayer() { const username = document.getElementById('searchUsername').value.trim(); if(!username) return PasslyUI.toast('Enter a Roblox username.'); const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`); const data = await res.json(); const container = document.getElementById('searchResult'); if(data.error) { container.innerHTML = `<p style="color:#ff4444;">${escapeHtml(data.error)}</p>`; return; } let boardHtml = ''; if(data.board && data.board.length) { boardHtml = `<div class="board-gamepass-grid">${data.board.map(gp => `<div class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span>💰 ${gp.price} R$</span><span>${escapeHtml(gp.id)}</span></div>`).join('')}</div>`; } else boardHtml = '<p>No gamepasses on board.</p>'; container.innerHTML = `<div style="display:flex; align-items:center; gap:10px;"><div style="width:40px; height:40px; border-radius:50%; background:url(${data.avatarUrl || ''}) center/cover;"></div><div><strong>${escapeHtml(data.displayName || data.robloxUsername)}${tagBadgeHtml(data.displayTag)}</strong><br><small>@${escapeHtml(data.robloxUsername)}</small></div></div>${boardHtml}`; }
+  async function addGamepassToBoard() { const assetId = document.getElementById('newGamepassId').value.trim(); const price = parseInt(document.getElementById('newGamepassPrice').value); if(!assetId || !price) { PasslyUI.toast('Enter a gamepass asset ID and Robux amount.'); return; } const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) }); const data = await res.json(); if(data.error) PasslyUI.toast(data.error); else { userData.board = data.board; const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); document.getElementById('newGamepassId').value = ''; document.getElementById('newGamepassPrice').value = ''; } }
   async function removeGamepass(assetId) { if(!await PasslyUI.confirm('Remove this gamepass?', { confirmText: 'Remove' })) return; const res = await fetch('/api/board/remove', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId }) }); const data = await res.json(); if(data.success) { userData.board = data.board; const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = data.board.length ? data.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('') : '<p>No gamepasses added yet.</p>'; } }
   async function checkAdminStatus() { if(!token) return; try { const res = await fetch('/api/admin/check', { headers:{'Authorization':`Bearer ${token}`} }); const data = await res.json(); if(data.isAdmin) document.getElementById('adminBox').style.display = 'block'; } catch(e) {} }
   init();
-</script>
+</script></script>
   <script>
     const hamburger = document.getElementById('hamburgerBtn');
     const mobileMenu = document.getElementById('mobileMenu');

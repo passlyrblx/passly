@@ -219,8 +219,8 @@
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data) {
-            document.getElementById('userName').textContent = data.displayName || data.username;
-            if (data.avatarUrl) document.getElementById('userAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
+            document.getElementById('userName').innerHTML = (data.displayName || data.username) + (data.displayTag?.label ? ` <span class="vip-badge">${data.displayTag.label}</span>` : '');
+            if (data.avatarUrl || data.avatarFallback) document.getElementById('userAvatar').style.backgroundImage = `url(${data.avatarUrl || data.avatarFallback})`;
           }
         })
         .catch(() => {});

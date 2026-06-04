@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema({
   customDisplayName: String, avatarUrl: String,
   robloxAccessToken: String,
   role: { type: String, default: 'user', enum: ['user', 'vip', 'admin', 'owner'] },
-  profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true } },
+  profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null } },
   roomId: String, inQueue: Boolean,
   donations: { received: Number, given: Number },
   board: [{ id: String, name: String, price: Number }],
@@ -55,6 +55,37 @@ const userSchema = new mongoose.Schema({
   },
   createdAt: { type: Date, default: Date.now }
 });
+
+const TAG_LABELS = { owner: 'Owner', admin: 'Admin', vip: 'VIP' };
+function effectiveRoleFor(user) {
+  if (!user) return 'user';
+  if (String(user._id) === OWNER_ROBLOX_ID || user.role === 'owner') return 'owner';
+  return user.role || 'user';
+}
+function getAvailableTags(user) {
+  const role = effectiveRoleFor(user);
+  if (role === 'owner') return ['owner', 'admin', 'vip'];
+  if (role === 'admin') return ['admin', 'vip'];
+  if (role === 'vip') return ['vip'];
+  return [];
+}
+function getPublicTag(user) {
+  const availableTags = getAvailableTags(user);
+  const selectedTag = user?.profile?.displayTag;
+  return availableTags.includes(selectedTag) ? selectedTag : (availableTags[0] || null);
+}
+function serializeTag(tag) {
+  return tag ? { key: tag, label: TAG_LABELS[tag] || tag.toUpperCase() } : null;
+}
+function serializeUserTags(user) {
+  const availableTags = getAvailableTags(user);
+  const publicTag = getPublicTag(user);
+  return {
+    availableTags: availableTags.map(serializeTag),
+    displayTag: serializeTag(publicTag)
+  };
+}
+
 const roomSchema = new mongoose.Schema({
   _id: String, name: String, desc: String, type: { type: String, enum: ['Public', 'Private', 'VIP'] },
   players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
@@ -291,7 +322,7 @@ app.get('/api/user', authenticateToken, async (req, res) => {
     displayName: user.customDisplayName || user.robloxDisplayName || '', avatarUrl, avatarFallback, profile: user.profile,
     roomId: user.roomId, inQueue: user.inQueue, donations: user.donations, ad: activeAd || null,
     customDisplayName: user.customDisplayName || null, board: user.board || [],
-    role: user.role, acceptedTos: user.acceptedTos
+    role: effectiveRoleFor(user), ...serializeUserTags(user), acceptedTos: user.acceptedTos
   });
 });
 
@@ -306,7 +337,8 @@ app.get('/api/user/:userId/stats', authenticateToken, async (req, res) => {
     given: user.donations?.given || 0,
     displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
     username: user.robloxUsername,
-    avatarUrl: user.avatarUrl
+    avatarUrl: user.avatarUrl,
+    displayTag: serializeTag(getPublicTag(user))
   });
 });
 
@@ -325,14 +357,22 @@ app.post('/api/accept-tos', authenticateToken, async (req, res) => {
 app.post('/api/profile/update', authenticateToken, async (req, res) => {
   const User = getUserModel();
   if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const { showBooth, statusDot, showRoomId, customDisplayName } = req.body;
+  const { showBooth, statusDot, showRoomId, customDisplayName, displayTag } = req.body;
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
   const update = {};
   if (showBooth !== undefined) update['profile.showBooth'] = showBooth;
   if (statusDot) update['profile.statusDot'] = statusDot;
   if (showRoomId !== undefined) update['profile.showRoomId'] = showRoomId;
   if (customDisplayName !== undefined) update.customDisplayName = customDisplayName.trim().substring(0,20) || null;
+  if (displayTag !== undefined) {
+    const requestedTag = String(displayTag || '').toLowerCase();
+    const availableTags = getAvailableTags(user);
+    if (requestedTag && !availableTags.includes(requestedTag)) return res.status(403).json({ error: 'You can only display tags available on your account.' });
+    update['profile.displayTag'] = requestedTag || null;
+  }
   await User.findByIdAndUpdate(req.user.id, { $set: update });
-  res.json({ success: true });
+  res.json({ success: true, displayTag: serializeTag(displayTag ? String(displayTag).toLowerCase() : getPublicTag(user)) });
 });
 
 app.get('/api/search', async (req, res) => {
@@ -342,7 +382,7 @@ app.get('/api/search', async (req, res) => {
   if (!q) return res.status(400).json({ error: 'Username required' });
   const found = await User.findOne({ robloxUsername: new RegExp(`^${q}$`, 'i') });
   if (!found) return res.json({ error: 'User not found' });
-  res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, board: found.profile?.showBooth !== false ? (found.board || []) : [] });
+  res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, displayTag: serializeTag(getPublicTag(found)), board: found.profile?.showBooth !== false ? (found.board || []) : [] });
 });
 
 app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
@@ -350,7 +390,7 @@ app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.params.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user._id, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl, board: user.profile?.showBooth !== false ? (user.board || []) : [] });
+  res.json({ id: user._id, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl, displayTag: serializeTag(getPublicTag(user)), board: user.profile?.showBooth !== false ? (user.board || []) : [] });
 });
 
 app.post('/api/board/add', authenticateToken, async (req, res) => {
@@ -655,7 +695,7 @@ io.on('connection', (socket) => {
       const last = guestChatCooldown.get(guestId);
       const now = Date.now();
       if (last && now - last < 25000) {
-        socket.emit('chat-error', 'Guest cooldown: 1 message per 25 sec.');
+        socket.emit('chat-error', 'Guests can send one message every 25 seconds.');
         return;
       }
       guestChatCooldown.set(guestId, now);
@@ -666,6 +706,7 @@ io.on('connection', (socket) => {
     let senderAvatar = '';
     let isAdmin = false;
     let isOwner = false;
+    let senderTag = null;
     let senderId = userId || guestId;
 
     if (isGuest) {
@@ -683,6 +724,7 @@ io.on('connection', (socket) => {
         senderAvatar = user.avatarUrl || '';
         isOwner = (userId === OWNER_ROBLOX_ID);
         isAdmin = ADMINS.has(userId) || isOwner;
+        senderTag = serializeTag(getPublicTag(user));
       } else {
         senderName = 'User';
       }
@@ -716,7 +758,8 @@ io.on('connection', (socket) => {
       avatarUrl: senderAvatar,
       timestamp: Date.now(),
       isAdmin,
-      isOwner
+      isOwner,
+      displayTag: senderTag
     });
   });
 

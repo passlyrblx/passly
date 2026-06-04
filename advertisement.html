@@ -243,8 +243,8 @@
         const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } });
         if (res.ok) {
           userData = await res.json();
-          document.getElementById('userName').textContent = userData.displayName || userData.username;
-          if (userData.avatarUrl) document.getElementById('userAvatar').style.backgroundImage = `url(${userData.avatarUrl})`;
+          document.getElementById('userName').innerHTML = (userData.displayName || userData.username) + (userData.displayTag?.label ? ` <span class="vip-badge">${userData.displayTag.label}</span>` : '');
+          if (userData.avatarUrl || userData.avatarFallback) document.getElementById('userAvatar').style.backgroundImage = `url(${userData.avatarUrl || userData.avatarFallback})`;
           updateAdUI();
         }
       } catch(e) {}
