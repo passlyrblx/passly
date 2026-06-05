@@ -118,20 +118,18 @@
     }
     const groups = [
       { label: '🏠 Home', href: '/dashboard' },
-      { label: '👤 Profile', href: '/profile', children: [
-        { label: 'My Profile', href: '/profile' },
-        { label: 'Booth', href: '/profile#booth' },
-        { label: 'Earn Passly', href: '/profile#earn-passly' },
-        { label: 'Redeem Coupon', href: '/redeem' }
-      ]},
-      { label: '🚪 Rooms', href: '/rooms', children: [
-        { label: 'Browse Rooms', href: '/rooms' },
+      { label: '🚪 Rooms', href: '/rooms' },
+      { label: '🌐 Community', href: '/leaderboard', children: [
         { label: 'Leaderboard', href: '/leaderboard' },
-        { label: 'Friends', href: '/friends' }
+        { label: 'Friends', href: '/friends' },
+        { label: 'Live donations', href: '/livedonations' }
       ]},
-      { label: '📢 More', href: '/advertisement', children: [
-        { label: 'Advertise', href: '/advertisement' },
-        { label: 'Live Donations', href: '/livedonations' }
+      { label: '📢 Advertise', href: '/advertisement' },
+      { label: '⚙️ Settings', href: '/profile', children: [
+        { label: 'Profile settings', href: '/profile' },
+        { label: 'Booth settings', href: '/profile#booth' },
+        { label: 'Passly rewards', href: '/profile#earn-passly' },
+        { label: 'Redeem coupon', href: '/redeem' }
       ]}
     ];
     if (isAdmin) groups.push({ label: '🔧 Admin', href: '/admin', children: [
@@ -142,12 +140,12 @@
     const desktopHtml = groups.map((group) => group.children ? `
       <div class="passly-nav-group">
         <a href="${group.href}" class="passly-nav-parent">${group.label}</a>
-        <button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} subtopics">›</button>
+        <button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button>
         <div class="passly-submenu">${group.children.map(child => `<a href="${child.href}">${child.label}</a>`).join('')}</div>
       </div>` : `<a href="${group.href}">${group.label}</a>`).join('');
     const mobileHtml = `<button class="close-menu" id="closeMenuBtn">&times;</button>` + groups.map((group) => group.children ? `
       <div class="passly-mobile-group">
-        <div class="passly-mobile-row"><a href="${group.href}">${group.label}</a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} subtopics">›</button></div>
+        <div class="passly-mobile-row"><a href="${group.href}">${group.label}</a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button></div>
         <div class="passly-submenu">${group.children.map(child => `<a href="${child.href}">${child.label}</a>`).join('')}</div>
       </div>` : `<a href="${group.href}">${group.label}</a>`).join('');
     if (desktopNav) desktopNav.innerHTML = desktopHtml;
@@ -191,6 +189,11 @@
       const href = new URL(link.getAttribute('href'), window.location.origin).pathname.replace(/\/$/, '') || '/';
       const isCurrent = (aliases.get(path) || [path]).includes(href);
       if (isCurrent) link.setAttribute('aria-current', 'page');
+    });
+    document.querySelectorAll('.passly-nav-group, .passly-mobile-group').forEach((group) => {
+      if (!group.querySelector('a[aria-current="page"]')) return;
+      group.classList.add('has-current-page');
+      group.querySelector('.passly-nav-parent')?.setAttribute('aria-current', 'page');
     });
     setupMobileMenu();
   });
