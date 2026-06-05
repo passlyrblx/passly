@@ -25,6 +25,7 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+*, *::before, *::after { box-sizing: border-box; }
 * { scrollbar-width: thin; scrollbar-color: rgba(167, 139, 250, 0.55) rgba(255, 255, 255, 0.06); }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
@@ -149,6 +150,10 @@ body::after {
   box-shadow: 24px 0 80px rgba(0,0,0,0.52);
   backdrop-filter: blur(28px) saturate(1.35) !important;
   -webkit-backdrop-filter: blur(28px) saturate(1.35) !important;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 .mobile-menu::before {
   content: "Passly Menu";
@@ -304,12 +309,12 @@ tbody td:last-child { border-radius: 0 14px 14px 0; }
 .tag-vip { background: linear-gradient(135deg,#ffd700,#f59e0b); color: #0a0a14; }
 .guest-badge { border-radius: 999px !important; }
 
-@media (min-width: 1100px) {
+@media (min-width: 1281px) {
   .hamburger { display: none !important; }
   .nav-links { display: flex !important; }
   .main-content { padding-top: 38px !important; }
 }
-@media (max-width: 1099px) {
+@media (max-width: 1280px) {
   :root { --nav-height: 66px; }
   .navbar { gap: 10px; }
   .hamburger { display: flex !important; flex: 0 0 44px; }
@@ -318,6 +323,10 @@ tbody td:last-child { border-radius: 0 14px 14px 0; }
   .user-box { padding: 5px 9px !important; gap: 8px !important; }
   .user-avatar { width: 32px !important; height: 32px !important; }
   .main-content, .container { padding-top: 22px !important; }
+}
+@media (min-width: 761px) and (max-width: 1280px) {
+  .mobile-menu { width: min(420px, 72vw) !important; max-width: 420px !important; }
+  .main-content, .container { max-width: 1040px !important; }
 }
 @media (max-width: 760px) {
   body { font-size: 15px; }
@@ -625,7 +634,7 @@ body.login-page .btn { margin-top: 10px; }
 .passly-nav-group.is-open > .passly-submenu { display: grid; gap: 8px; }
 .nav-links .passly-submenu a { padding: 10px 12px; border-radius: 12px; display: block; color:#e9d5ff; background: rgba(255,255,255,.035); border:1px solid transparent; }
 .nav-links .passly-submenu a:hover { background: rgba(139,92,246,.18); border-color: rgba(167,139,250,.22); transform: translateX(2px); }
-.passly-mobile-group { border: 1px solid rgba(139,92,246,.18); border-radius: 16px; padding: 4px 10px; margin-right: 18px; background: rgba(255,255,255,.03); }
+.passly-mobile-group { border: 1px solid rgba(139,92,246,.18); border-radius: 16px; padding: 4px 10px; margin-right: 18px; background: rgba(255,255,255,.03); flex: 0 0 auto; }
 .passly-mobile-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .mobile-menu .passly-mobile-row > a { border-bottom: 0; flex: 1; }
 .mobile-menu .passly-mobile-group > .passly-submenu {
