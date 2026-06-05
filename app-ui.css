@@ -227,7 +227,7 @@ a { color: #c4b5fd; }
 .stat-card:hover, .section-card:hover, .card:hover, .room-card:hover, .friend-card:hover, .leaderboard-card:hover { border-color: var(--line-strong) !important; transform: translateY(-3px); }
 .stat-value, .username-highlight { color: #fff !important; background: linear-gradient(135deg, #fff, var(--primary-2), var(--cyan)) !important; -webkit-background-clip: text !important; background-clip: text !important; -webkit-text-fill-color: transparent !important; }
 
-button, .btn, .action-btn, .ad-btn, .modal-btn, .create-room-btn, .join-btn, .gp-link-btn, .delete-ad-btn, input[type="submit"] {
+button, .btn, .action-btn, .modal-btn, .create-room-btn, .join-btn, .gp-link-btn, input[type="submit"] {
   border-radius: 14px !important;
   min-height: 44px;
   font-weight: 800 !important;
@@ -239,13 +239,13 @@ button:not(.hamburger):not(.close-menu), .btn-roblox, .modal-btn, .create-room-b
   color: #fff !important;
   box-shadow: 0 12px 30px rgba(139,92,246,0.25);
 }
-button:hover, .btn:hover, .action-btn:hover, .ad-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 38px rgba(139,92,246,0.25) !important; }
-.action-btn, .btn-guest, .ad-btn, .gp-link-btn {
+button:hover, .btn:hover, .action-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 38px rgba(139,92,246,0.25) !important; }
+.action-btn, .btn-guest, .gp-link-btn {
   background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(139,92,246,0.14)) !important;
   border: 1px solid var(--line) !important;
   color: #fff !important;
 }
-.logout-btn, .delete-ad-btn, .btn-ban { background: linear-gradient(135deg, rgba(244,63,94,0.28), rgba(190,18,60,0.2)) !important; color: #ffe4e6 !important; border-color: rgba(251,113,133,0.35) !important; }
+.logout-btn, .btn-ban { background: linear-gradient(135deg, rgba(244,63,94,0.28), rgba(190,18,60,0.2)) !important; color: #ffe4e6 !important; border-color: rgba(251,113,133,0.35) !important; }
 .btn-admin, .btn-vip { background: linear-gradient(135deg, rgba(52,211,153,0.34), rgba(34,197,94,0.2)) !important; color: #ecfdf5 !important; }
 input, textarea, select {
   background: rgba(7, 9, 22, 0.72) !important;
@@ -285,7 +285,6 @@ tbody td:last-child { border-radius: 0 14px 14px 0; }
 
 .stats-grid, .admin-grid, .rooms-grid, .friends-grid, .leaderboard-grid { gap: clamp(14px, 2vw, 22px) !important; }
 .quick-actions { gap: 12px !important; }
-.ad-buttons { gap: 12px !important; }
 .chat-area, .messages, #messages { background: rgba(3, 5, 14, 0.45) !important; border: 1px solid rgba(255,255,255,0.08); }
 .vip-badge, .tag-badge {
   display: inline-flex;
@@ -338,8 +337,8 @@ tbody td:last-child { border-radius: 0 14px 14px 0; }
   h2 { font-size: 1.35rem !important; }
   .stats-grid, .admin-grid, .rooms-grid, .friends-grid, .leaderboard-grid { grid-template-columns: 1fr !important; }
   .stat-card, .section-card, .card, .current-room, .profile-card, .board-section, .settings-section { padding: 18px !important; }
-  .quick-actions, .ad-buttons { flex-direction: column; }
-  .action-btn, .ad-btn, .btn { width: 100%; text-align: center; }
+  .quick-actions { flex-direction: column; }
+  .action-btn, .btn { width: 100%; text-align: center; }
   .container { border-radius: 20px !important; }
   .checkbox-container { align-items: flex-start !important; }
 }

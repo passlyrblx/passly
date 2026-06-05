@@ -84,7 +84,6 @@
     <a href="/rooms">🚪 Rooms</a>
     <a href="/leaderboard">🏆 Leaderboard</a>
     <a href="/profile">👤 Profile</a>
-    <a href="/advertisement">📢 Advertise</a>
     <a href="/livedonations">💸 Live Donations</a>
     <a href="/admin">🔧 Admin</a>
   </div>
@@ -93,19 +92,16 @@
     <span class="user-name" id="userName">Loading...</span>
   </div>
 </nav>
-
 <div class="mobile-menu" id="mobileMenu">
   <button class="close-menu" id="closeMenuBtn">&times;</button>
   <a href="/dashboard">🏠 Home</a>
   <a href="/rooms">🚪 Rooms</a>
   <a href="/leaderboard">🏆 Leaderboard</a>
   <a href="/profile">👤 Profile</a>
-  <a href="/advertisement">📢 Advertise</a>
   <a href="/livedonations">💸 Live Donations</a>
     <a href="/admin">🔧 Admin</a>
 </div>
 <div class="menu-overlay" id="menuOverlay"></div>
-
 <div class="container">
   <h1>🔧 Admin Dashboard</h1>
   <div class="admin-grid">
@@ -159,7 +155,6 @@
     window.sendAdminBroadcast = async function() { const msg = document.getElementById('adminChatInput').value.trim(); if(!msg) return; await authFetch('/api/admin/broadcast', { method:'POST', body:JSON.stringify({ message: msg }) }); document.getElementById('adminChatInput').value = ''; appendAdminChat(`<div>📢 You broadcasted: ${escapeHtml(msg)}</div>`); };
     if(token) { socket = io(); socket.emit('authenticate', token); socket.on('admin-message', (data) => appendAdminChat(`<div>📢 Broadcast: ${escapeHtml(data.message)}</div>`)); socket.on('admin-chat-message', (data) => appendAdminChat(`<div>🔐 <strong>${escapeHtml(data.username)}</strong>: ${escapeHtml(data.message)}</div>`)); socket.on('admin-chat-error', (msg) => PasslyUI.toast(msg)); }
     loadCurrentUser(); loadStats(); loadAdminData(); loadOnlineUsers(); loadRoomsAdmin();
-
     // Mobile menu toggle
     const hamburger = document.getElementById('hamburgerBtn');
     const mobileMenu = document.getElementById('mobileMenu');

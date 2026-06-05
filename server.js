@@ -27,7 +27,6 @@ const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } })
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
-const VIP_GAMEPASS_ID = '1859054633';
 mongoose.set('bufferCommands', false);
 
 // Fallback default rooms
@@ -52,15 +51,6 @@ const userSchema = new mongoose.Schema({
   lastClaimDate: { type: String, default: '' },
   streakDay: { type: Number, default: 0, min: 0 },
   dailyReward: { streak: { type: Number, default: 0 }, lastClaimDate: { type: String, default: '' }, totalClaims: { type: Number, default: 0 } },
-  adWatchCountToday: { type: Number, default: 0, min: 0 },
-  lastAdWatchTime: { type: Date, default: null },
-  adWatchDate: { type: String, default: '' },
-  adReward: {
-    pendingToken: { type: String, default: '' },
-    startedAt: { type: Date, default: null },
-    verifyAfter: { type: Date, default: null },
-    expiresAt: { type: Date, default: null }
-  },
   booth: { activeTheme: { type: String, default: 'default' }, ownedThemes: { type: [String], default: ['default'] } },
   board: [{ id: String, name: String, price: Number }],
   acceptedTos: { type: Boolean, default: false },
@@ -141,13 +131,6 @@ const couponSchema = new mongoose.Schema({
   redeemedAt: { type: Date, default: null }
 });
 
-const MONETAG_DIRECT_LINK = 'https://omg10.com/4/11105268';
-const AD_REWARD_COINS = 3;
-const AD_DAILY_LIMIT = 10;
-const AD_VERIFY_DELAY_MS = 18000;
-const AD_REWARD_COOLDOWN_MS = 30000;
-const AD_PENDING_EXPIRY_MS = 5 * 60 * 1000;
-
 const BOOTH_THEMES = [
   { id: 'neon', name: 'Neon', price: 100, tier: 'Starter', animated: false },
   { id: 'cyber', name: 'Cyber', price: 250, tier: 'Starter', animated: false },
@@ -186,30 +169,6 @@ function getRewardState(user) {
   const streak = Number(user?.streakDay || legacy.streak || 0);
   return { lastClaimDate, streak, totalClaims: Number(legacy.totalClaims || 0) };
 }
-function getAdRewardState(user, now = new Date()) {
-  const today = getTodayKey(now);
-  const count = user?.adWatchDate === today ? Number(user?.adWatchCountToday || 0) : 0;
-  const lastTime = user?.lastAdWatchTime ? new Date(user.lastAdWatchTime) : null;
-  const cooldownUntil = lastTime && now - lastTime < AD_REWARD_COOLDOWN_MS ? new Date(lastTime.getTime() + AD_REWARD_COOLDOWN_MS) : null;
-  const pending = user?.adReward || {};
-  const pendingActive = !!(pending.pendingToken && pending.expiresAt && new Date(pending.expiresAt) > now);
-  return {
-    rewardCoins: AD_REWARD_COINS,
-    dailyLimit: AD_DAILY_LIMIT,
-    watchedToday: count,
-    remainingToday: Math.max(0, AD_DAILY_LIMIT - count),
-    dailyLimitReached: count >= AD_DAILY_LIMIT,
-    cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
-    cooldownSeconds: cooldownUntil ? Math.max(0, Math.ceil((cooldownUntil - now) / 1000)) : 0,
-    canStart: count < AD_DAILY_LIMIT && !cooldownUntil && !pendingActive,
-    pending: pendingActive ? {
-      startedAt: pending.startedAt?.toISOString?.() || pending.startedAt,
-      verifyAfter: pending.verifyAfter?.toISOString?.() || pending.verifyAfter,
-      expiresAt: pending.expiresAt?.toISOString?.() || pending.expiresAt,
-      verifySeconds: pending.verifyAfter ? Math.max(0, Math.ceil((new Date(pending.verifyAfter) - now) / 1000)) : 0
-    } : null
-  };
-}
 function serializeEconomy(user) {
   const reward = getRewardState(user);
   const now = new Date();
@@ -231,20 +190,9 @@ function serializeEconomy(user) {
       nextReward: getDailyRewardAmount(nextStreak),
       nextStreak
     },
-    adRewards: getAdRewardState(user),
     booth: { activeTheme: user?.booth?.activeTheme || 'default', ownedThemes: user?.booth?.ownedThemes || ['default'] }
   };
 }
-const adSchema = new mongoose.Schema({
-  _id: String, userId: String, username: String, tier: Number,
-  gamepassId: String, broadcastsLeft: Number, showsLeft: Number,
-  active: Boolean, message: String, purchasedAt: { type: Date, default: Date.now }
-});
-const adBroadcastSchema = new mongoose.Schema({
-  roomId: String, board: [mongoose.Schema.Types.Mixed],
-  advertiserName: String, advertiserId: String, message: String,
-  timestamp: { type: Date, default: Date.now }
-});
 const friendRequestSchema = new mongoose.Schema({
   _id: String,
   from: String,
@@ -275,8 +223,6 @@ const RoomModel = mongoose.models.Room || mongoose.model('Room', roomSchema);
 const Donation = mongoose.models.Donation || mongoose.model('Donation', donationSchema);
 const ConsumedPurchase = mongoose.models.ConsumedPurchase || mongoose.model('ConsumedPurchase', consumedPurchaseSchema);
 const Coupon = mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);
-const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
-const AdBroadcast = mongoose.models.AdBroadcast || mongoose.model('AdBroadcast', adBroadcastSchema);
 const FriendRequest = mongoose.models.FriendRequest || mongoose.model('FriendRequest', friendRequestSchema);
 const PrivateMessage = mongoose.models.PrivateMessage || mongoose.model('PrivateMessage', privateMessageSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
@@ -353,7 +299,6 @@ const ROBLOX_CONFIG = {
   authUrl: 'https://apis.roblox.com/oauth/v1/authorize', tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
   userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo', usersApi: 'https://users.roblox.com/v1/users'
 };
-const GAMEPASSES = { '5k': process.env.GAMEPASS_5K, '10k': process.env.GAMEPASS_10K, 'vip': VIP_GAMEPASS_ID };
 
 const oauthStateSchema = new mongoose.Schema({ state: { type: String, required: true, unique: true }, createdAt: { type: Date, default: Date.now, expires: 600 } });
 const OAuthState = mongoose.models.OAuthState || mongoose.model('OAuthState', oauthStateSchema);
@@ -391,7 +336,6 @@ app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard
 app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
-app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
 app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
 app.get('/redeem', (req, res) => res.sendFile(path.join(__dirname, 'redeem.html')));
@@ -399,7 +343,6 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html'))
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
 app.get('/loading', (req, res) => res.sendFile(path.join(__dirname, 'loading.html')));
-app.get('/watch-ad', (req, res) => res.sendFile(path.join(__dirname, 'watchad.html')));
 
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
@@ -459,11 +402,10 @@ app.get('/api/user', authenticateToken, async (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
   const avatarUrl = user.avatarUrl || '';
   const avatarFallback = avatarUrl ? '' : `https://www.roblox.com/bust-thumbnail/image?userId=${user._id}&width=150&height=150&format=png`;
-  const activeAd = await mongoose.model('Ad').findOne({ userId: user._id, active: true });
   res.json({
     id: user._id, robloxUsername: user.robloxUsername || '', robloxDisplayName: user.robloxDisplayName || '',
     displayName: user.customDisplayName || user.robloxDisplayName || '', avatarUrl, avatarFallback, profile: user.profile,
-    roomId: user.roomId, inQueue: user.inQueue, donations: user.donations, ad: activeAd || null,
+    roomId: user.roomId, inQueue: user.inQueue, donations: user.donations,
     customDisplayName: user.customDisplayName || null, board: user.board || [],
     role: effectiveRoleFor(user), notificationPreferences: user.notificationPreferences || {}, ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
   });
@@ -549,102 +491,6 @@ app.post('/api/daily-reward/claim', authenticateToken, async (req, res) => {
   user.dailyReward = { streak, lastClaimDate: now.toISOString(), totalClaims: Number(reward.totalClaims || 0) + 1 };
   await user.save();
   res.json({ success: true, claimed: amount, ...serializeEconomy(user) });
-});
-
-app.get('/api/ad-rewards/status', authenticateToken, async (req, res) => {
-  const User = getUserModel();
-  if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const user = await User.findById(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (isGuestRecord(user)) return res.status(403).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to watch ads.', guestRestricted: true });
-  const today = getTodayKey();
-  if (user.adWatchDate && user.adWatchDate !== today) {
-    user.adWatchDate = today;
-    user.adWatchCountToday = 0;
-    await user.save();
-  }
-  res.json({ adLink: MONETAG_DIRECT_LINK, ...serializeEconomy(user) });
-});
-
-app.post('/api/ad-rewards/start', authenticateToken, async (req, res) => {
-  const User = getUserModel();
-  if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const user = await User.findById(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (isGuestRecord(user)) return res.status(403).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to watch ads.', guestRestricted: true });
-  const now = new Date();
-  const today = getTodayKey(now);
-  if (user.adWatchDate !== today) {
-    user.adWatchDate = today;
-    user.adWatchCountToday = 0;
-  }
-  const state = getAdRewardState(user, now);
-  if (state.dailyLimitReached) return res.status(400).json({ error: 'Daily ad limit reached.', adLink: MONETAG_DIRECT_LINK, ...serializeEconomy(user) });
-  if (state.cooldownUntil) return res.status(429).json({ error: 'Please wait for the cooldown before starting another ad.', adLink: MONETAG_DIRECT_LINK, ...serializeEconomy(user) });
-  if (state.pending) return res.status(400).json({ error: 'You already have an ad verification in progress.', adLink: MONETAG_DIRECT_LINK, ...serializeEconomy(user) });
-  const token = crypto.randomBytes(24).toString('hex');
-  const startedAt = now;
-  const verifyAfter = new Date(now.getTime() + AD_VERIFY_DELAY_MS);
-  const expiresAt = new Date(now.getTime() + AD_PENDING_EXPIRY_MS);
-  user.adReward = { pendingToken: token, startedAt, verifyAfter, expiresAt };
-  await user.save();
-  res.json({ success: true, adLink: MONETAG_DIRECT_LINK, verifyToken: token, verifyAfter: verifyAfter.toISOString(), expiresAt: expiresAt.toISOString(), ...serializeEconomy(user) });
-});
-
-app.post('/api/ad-rewards/cancel', authenticateToken, async (req, res) => {
-  const User = getUserModel();
-  if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const user = await User.findById(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  user.adReward = { pendingToken: '', startedAt: null, verifyAfter: null, expiresAt: null };
-  await user.save();
-  res.json({ success: true, ...serializeEconomy(user) });
-});
-
-app.post('/api/ad-rewards/verify', authenticateToken, async (req, res) => {
-  const User = getUserModel();
-  if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const verifyToken = String(req.body.verifyToken || '');
-  if (!verifyToken) return res.status(400).json({ error: 'Missing verification token.' });
-  const now = new Date();
-  const today = getTodayKey(now);
-  let user = await User.findById(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (isGuestRecord(user)) return res.status(403).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to watch ads.', guestRestricted: true });
-  if (user.adWatchDate !== today) {
-    user.adWatchDate = today;
-    user.adWatchCountToday = 0;
-    await user.save();
-  }
-  const currentBalance = getCoinBalance(user);
-  if (user.coins !== currentBalance || user.totalCoins !== currentBalance) {
-    user.coins = currentBalance;
-    user.totalCoins = currentBalance;
-    await user.save();
-  }
-  user = await User.findOneAndUpdate({
-    _id: req.user.id,
-    adWatchDate: today,
-    adWatchCountToday: { $lt: AD_DAILY_LIMIT },
-    'adReward.pendingToken': verifyToken,
-    'adReward.verifyAfter': { $lte: now },
-    'adReward.expiresAt': { $gt: now },
-    $or: [{ lastAdWatchTime: null }, { lastAdWatchTime: { $lte: new Date(now.getTime() - AD_REWARD_COOLDOWN_MS) } }]
-  }, {
-    $set: {
-      lastAdWatchTime: now,
-      adWatchDate: today,
-      adReward: { pendingToken: '', startedAt: null, verifyAfter: null, expiresAt: null }
-    },
-    $inc: { adWatchCountToday: 1, coins: AD_REWARD_COINS, totalCoins: AD_REWARD_COINS }
-  }, { new: true });
-  if (!user) {
-    const fresh = await User.findById(req.user.id);
-    const state = getAdRewardState(fresh, now);
-    const message = state.dailyLimitReached ? 'Daily ad limit reached.' : (state.cooldownUntil ? 'Please wait for the cooldown before verifying another ad.' : 'Ad is not ready to verify yet, expired, or was already verified.');
-    return res.status(400).json({ error: message, ...serializeEconomy(fresh) });
-  }
-  res.json({ success: true, awarded: AD_REWARD_COINS, ...serializeEconomy(user) });
 });
 
 app.get('/api/streak-leaderboard', async (req, res) => {
@@ -1232,72 +1078,6 @@ app.get('/api/leaderboard', async (req, res) => {
   const enrich = async (arr) => { const result = []; for (const item of arr) { const user = User ? await User.findById(item._id) : null; result.push({ username: user ? (user.customDisplayName || user.robloxDisplayName || user.robloxUsername) : 'Unknown', amount: item.total }); } return result; };
   const streaks = User ? await User.find({ 'dailyReward.streak': { $gt: 0 } }).sort({ 'dailyReward.streak': -1, coins: -1 }).limit(10).select('robloxUsername robloxDisplayName customDisplayName dailyReward') : [];
   res.json({ receivers: await enrich(receivers), donors: await enrich(donors), streaks: streaks.map(user => ({ username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player', streak: user.dailyReward?.streak || 0 })) });
-});
-
-// ADS
-app.get('/api/ads', async (req, res) => {
-  const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
-  if (!Ad) return res.json([]);
-  const ads = await Ad.find({ active: true, showsLeft: { $gt: 0 } }).limit(5);
-  res.json(ads.map(ad => ({ userId: ad.userId, username: ad.username, tier: ad.tier, message: ad.message, showsLeft: ad.showsLeft })));
-});
-app.post('/api/purchase-ad', authenticateToken, async (req, res) => {
-  const User = getUserModel();
-  const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
-  if (!User || !Ad) return res.status(503).json({ error: 'Database not ready' });
-  const { tier, message } = req.body;
-  if (!tier || !['5k','10k','vip'].includes(tier)) return res.status(400).json({ error: 'Invalid tier' });
-  const gamepassId = GAMEPASSES[tier];
-  if (!gamepassId) return res.status(400).json({ error: 'Gamepass not configured' });
-  const user = await User.findById(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (tier === 'vip') return res.json({ url: `https://www.roblox.com/game-pass/${gamepassId}`, pendingType: 'vip' });
-  const existing = await Ad.findOne({ userId: req.user.id, active: true });
-  if (existing) return res.status(400).json({ error: 'You already have an active ad. Delete it first.' });
-  const tierNum = tier === '5k' ? 5000 : 10000;
-  const shows = tier === '5k' ? 1 : 3;
-  const ad = new Ad({ _id: crypto.randomBytes(8).toString('hex'), userId: req.user.id, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, tier: tierNum, gamepassId, broadcastsLeft: 1, showsLeft: shows, active: true, message: message || null });
-  await ad.save();
-  res.json({ success: true, ad });
-});
-app.post('/api/verify-ad', authenticateToken, async (req, res) => {
-  const User = getUserModel();
-  const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
-  if (!User || !Ad) return res.status(503).json({ error: 'Database not ready' });
-  const { tier } = req.body;
-  const gamepassId = GAMEPASSES[tier];
-  if (!gamepassId) return res.status(400).json({ error: 'Invalid tier' });
-  try {
-    const inv = await axios.get(`https://inventory.roblox.com/v1/users/${req.user.id}/items/GamePass/${gamepassId}`, { timeout: 5000 });
-    if (!inv.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass.' });
-    if (tier === 'vip') {
-      await User.findByIdAndUpdate(req.user.id, { role: 'vip' });
-      return res.json({ success: true, message: 'VIP role granted!' });
-    }
-    const existingAd = await Ad.findOne({ userId: req.user.id, active: true });
-    if (!existingAd) {
-      const user = await User.findById(req.user.id);
-      const tierNum = tier === '5k' ? 5000 : 10000;
-      const shows = tier === '5k' ? 1 : 3;
-      const ad = new Ad({ _id: crypto.randomBytes(8).toString('hex'), userId: req.user.id, username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, tier: tierNum, gamepassId, broadcastsLeft: 1, showsLeft: shows, active: true, message: null });
-      await ad.save();
-    }
-    res.json({ success: true, message: 'Ad activated!' });
-  } catch (err) { res.status(500).json({ error: 'Verification failed' }); }
-});
-app.post('/api/delete-ad', authenticateToken, async (req, res) => {
-  const Ad = mongoose.connection.readyState === 1 ? mongoose.model('Ad') : null;
-  if (!Ad) return res.json({ success: true });
-  await Ad.findOneAndDelete({ userId: req.user.id, active: true });
-  res.json({ success: true });
-});
-app.get('/api/ads/broadcast', async (req, res) => {
-  const AdBroadcast = mongoose.connection.readyState === 1 ? mongoose.model('AdBroadcast') : null;
-  if (!AdBroadcast) return res.json([]);
-  const { roomId, since } = req.query;
-  const sinceDate = since ? new Date(parseInt(since)) : new Date(Date.now() - 60000);
-  const broadcasts = await AdBroadcast.find({ roomId, timestamp: { $gt: sinceDate } }).sort({ timestamp: -1 }).limit(10);
-  res.json(broadcasts);
 });
 
 app.post('/api/guest-login', async (req, res) => {

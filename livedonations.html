@@ -11,7 +11,7 @@
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
-    /* ========== NAVBAR (same as profile & advertise) ========== */
+    /* ========== NAVBAR ========== */
     .navbar {
       display: flex;
       align-items: center;
@@ -156,7 +156,6 @@
     <a href="/rooms">🚪 Rooms</a>
     <a href="/leaderboard">🏆 Leaderboard</a>
     <a href="/profile">👤 Profile</a>
-    <a href="/advertisement">📢 Advertise</a>
     <a href="/livedonations">💸 Live Donations</a>
   </div>
   <div class="user-box">
@@ -164,18 +163,15 @@
     <span class="user-name" id="userName">Loading...</span>
   </div>
 </nav>
-
 <div class="mobile-menu" id="mobileMenu">
   <button class="close-menu" id="closeMenuBtn">&times;</button>
   <a href="/dashboard">🏠 Home</a>
   <a href="/rooms">🚪 Rooms</a>
   <a href="/leaderboard">🏆 Leaderboard</a>
   <a href="/profile">👤 Profile</a>
-  <a href="/advertisement">📢 Advertise</a>
   <a href="/livedonations">💸 Live Donations</a>
 </div>
 <div class="menu-overlay" id="menuOverlay"></div>
-
 <div class="main-content">
   <h1>💸 Live Donations</h1>
   <div class="donation-list" id="donationList">
@@ -185,7 +181,6 @@
   <script>
     let token = localStorage.getItem('passly_token');
     let socket = io();
-
     // Mobile menu toggle
     const hamburger = document.getElementById('hamburgerBtn');
     const mobileMenu = document.getElementById('mobileMenu');
@@ -206,7 +201,6 @@
       closeMenuBtn.addEventListener('click', closeMenu);
       menuOverlay.addEventListener('click', closeMenu);
     }
-
     function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
     function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
     function setAvatarWithFallback(el, url, fallback) {
@@ -226,7 +220,6 @@
       };
       img.src = primary;
     }
-
     // Load user info for avatar
     if (token) {
       fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } })
@@ -241,10 +234,8 @@
     } else {
       document.getElementById('userName').textContent = 'Guest';
     }
-
     // Socket authentication
     if (token) socket.emit('authenticate', token);
-
     // Listen for new donations
     socket.on('new-donation', (donation) => {
       const container = document.getElementById('donationList');
@@ -272,7 +263,6 @@
       container.prepend(donationDiv);
       while (container.children.length > 20) container.removeChild(container.lastChild);
     });
-
     // Optional: load recent donations
     async function loadRecentDonations() {
       try {

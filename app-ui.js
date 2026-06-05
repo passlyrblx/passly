@@ -2,8 +2,8 @@
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const aliases = new Map([
     ['/', ['/']], ['/dashboard', ['/dashboard']], ['/rooms', ['/rooms']], ['/leaderboard', ['/leaderboard']],
-    ['/profile', ['/profile']], ['/friends', ['/friends']], ['/advertisement', ['/advertisement']],
-    ['/livedonations', ['/livedonations']], ['/watch-ad', ['/watch-ad']], ['/redeem', ['/redeem']], ['/admin', ['/admin']], ['/privacy', ['/privacy']], ['/terms', ['/terms']]
+    ['/profile', ['/profile']], ['/friends', ['/friends']],
+    ['/livedonations', ['/livedonations']], ['/redeem', ['/redeem']], ['/admin', ['/admin']], ['/privacy', ['/privacy']], ['/terms', ['/terms']]
   ]);
 
   const ensureToastHost = () => {
@@ -124,8 +124,6 @@
         { label: 'Friends', href: '/friends' },
         { label: 'Live donations', href: '/livedonations' }
       ]},
-      { label: '📢 Advertise', href: '/advertisement' },
-      { label: '🪙 Watch Ad', href: '/watch-ad' },
       { label: '⚙️ Settings', href: '/profile', children: [
         { label: 'Profile settings', href: '/profile' },
         { label: 'Booth settings', href: '/profile#booth' },
