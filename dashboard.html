@@ -357,11 +357,18 @@
       document.getElementById('dailyRewardText').innerHTML = reward.claimedToday
         ? `Claimed today. Come back tomorrow for ${window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(reward.nextReward || 0, 'small') : Number(reward.nextReward || 0).toLocaleString()}.`
         : `Next claim: ${window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(reward.nextReward || 0, 'small') : Number(reward.nextReward || 0).toLocaleString()} · Day ${reward.nextStreak || 1}`;
-      if (claimBtn) { claimBtn.disabled = !!reward.claimedToday || userData.isGuest; claimBtn.textContent = reward.claimedToday ? 'Claimed Today' : 'Claim Daily Reward'; }
+      if (userData.isGuest) {
+        document.getElementById('dailyRewardText').textContent = 'Guest users can’t earn Passly Coins. Log in with Roblox to claim daily rewards.';
+      }
+      if (claimBtn) {
+        claimBtn.disabled = !!reward.claimedToday;
+        claimBtn.textContent = userData.isGuest ? 'Login Required' : (reward.claimedToday ? 'Claimed Today' : 'Claim Daily Reward');
+      }
     }
 
     async function claimDailyReward() {
-      if (!token) return (window.PasslyUI?.toast || alert)('Log in with Roblox to claim daily rewards.');
+      if (userData?.isGuest) return (window.PasslyUI?.toast || alert)('Guest users can’t earn Passly Coins. Please log in with Roblox to claim daily rewards.');
+      if (!token) return (window.PasslyUI?.toast || alert)('Please log in with Roblox to claim daily rewards.');
       const btn = document.getElementById('claimDailyBtn');
       btn.disabled = true;
       try {

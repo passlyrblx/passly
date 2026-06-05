@@ -41,7 +41,8 @@ const userSchema = new mongoose.Schema({
   _id: String, robloxUsername: String, robloxDisplayName: String,
   customDisplayName: String, avatarUrl: String,
   robloxAccessToken: String,
-  role: { type: String, default: 'user', enum: ['user', 'vip', 'admin', 'owner'] },
+  role: { type: String, default: 'user', enum: ['guest', 'user', 'vip', 'admin', 'owner'] },
+  isGuest: { type: Boolean, default: false },
   profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null } },
   roomId: String, inQueue: Boolean,
   donations: { received: Number, given: Number },
@@ -79,6 +80,9 @@ function getPublicTag(user) {
 }
 function serializeTag(tag) {
   return tag ? { key: tag, label: TAG_LABELS[tag] || tag.toUpperCase() } : null;
+}
+function isGuestRecord(user) {
+  return !!(user?.isGuest || user?.role === 'guest' || /^Guest_/i.test(user?.robloxUsername || '') || /^Guest_/i.test(user?.customDisplayName || ''));
 }
 function serializeUserTags(user) {
   const availableTags = getAvailableTags(user);
@@ -279,6 +283,7 @@ const OAuthState = mongoose.models.OAuthState || mongoose.model('OAuthState', oa
 
 function authenticateToken(req, res, next) {
   const token = req.headers['authorization']?.split(' ')[1];
+  if (!token && req.path === '/daily-reward/claim') return res.status(401).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to claim daily rewards.', guestRestricted: true });
   if (!token) return res.status(401).json({ error: 'Guest accounts can’t use this feature. Please log in to continue.', guestRestricted: true });
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Your login expired. Please log in again.', guestRestricted: true });
@@ -287,7 +292,7 @@ function authenticateToken(req, res, next) {
 }
 
 // ========== PUBLIC API PATHS (no token required) ==========
-const publicApiPaths = ['/rooms', '/health', '/guest-login', '/search'];
+const publicApiPaths = ['/rooms', '/health', '/guest-login', '/search', '/leaderboard', '/streak-leaderboard'];
 app.use('/api', (req, res, next) => {
   if (publicApiPaths.some(path => req.path === path || req.path.startsWith(`${path}/`))) {
     return next();
@@ -427,6 +432,7 @@ app.post('/api/daily-reward/claim', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
+  if (isGuestRecord(user)) return res.status(403).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to claim daily rewards.', guestRestricted: true });
   const today = getTodayKey();
   const reward = user.dailyReward || {};
   if (reward.lastClaimDate === today) {
@@ -951,7 +957,7 @@ io.on('connection', (socket) => {
 // LEADERBOARD
 app.get('/api/leaderboard', async (req, res) => {
   const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
-  if (!Donation) return res.json({ receivers: [], donors: [] });
+  if (!Donation) return res.json({ receivers: [], donors: [], streaks: [] });
   const period = req.query.period || 'daily';
   let startDate = new Date();
   if (period === 'daily') startDate.setHours(0,0,0,0);
@@ -1037,7 +1043,7 @@ app.post('/api/guest-login', async (req, res) => {
   const guestId = crypto.randomBytes(8).toString('hex');
   const username = `Guest_${guestId.slice(0,6)}`;
   if (User) {
-    const user = new User({ _id: guestId, robloxUsername: username, robloxDisplayName: username, customDisplayName: username, avatarUrl: '', donations: { received: 0, given: 0 }, board: [], role: 'user', acceptedTos: false });
+    const user = new User({ _id: guestId, robloxUsername: username, robloxDisplayName: username, customDisplayName: username, avatarUrl: '', donations: { received: 0, given: 0 }, board: [], role: 'guest', isGuest: true, acceptedTos: false });
     await user.save();
   }
   res.json({ id: guestId, username, displayName: username, isGuest: true });
@@ -1263,7 +1269,7 @@ app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 async function isGuestUser(userId) {
   const User = mongoose.model('User');
   const user = await User.findById(userId);
-  return user && (user.robloxUsername?.startsWith('Guest_') || user.isGuest === true);
+  return isGuestRecord(user);
 }
 
 // Send friend request
