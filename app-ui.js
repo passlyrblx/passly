@@ -19,6 +19,7 @@
 
   const normalizeMessage = (message) => {
     const text = String(message || 'Something went wrong. Please try again.');
+    if (/guest users?.*earn.*passly coins/i.test(text)) return 'Guest users can’t earn Passly Coins. Please log in with Roblox to start earning.';
     if (/no token|missing .*token|login required|please log in|guests? cannot|guest accounts/i.test(text)) return 'Please log in with Roblox to continue.';
     if (/database not ready|mongo|mongoose|cast to|validation failed|internal server|stack|syntaxerror|typeerror|referenceerror/i.test(text)) return 'Something went wrong on our side. Please try again in a moment.';
     if (/microphone|permission|notallowed|notfound|notreadable|media/i.test(text)) return 'Microphone is unavailable or permission was denied. Check your browser permissions and try again.';
@@ -62,7 +63,38 @@
     inputEl?.focus();
   });
 
+
+  const PASSLY_COIN_ICON_URL = 'https://i.ibb.co/tMpcZCNh/file-00000000993871f8a74fdfa489ebf218-3.png';
+  const coinIcon = (size = 'small') => `<span class="passly-coin-frame passly-coin-${size}" aria-hidden="true"><img src="${PASSLY_COIN_ICON_URL}" alt="" referrerpolicy="no-referrer"></span>`;
+  const renderCoins = (amount = 0, size = 'small') => `<span class="passly-coin-balance" title="Coin balance">${coinIcon(size)}<span>${Number(amount || 0).toLocaleString()}</span></span>`;
+  const updateCoinDisplays = (amount = 0) => {
+    document.querySelectorAll('[data-passly-coins]').forEach((el) => { el.innerHTML = renderCoins(amount, el.dataset.coinSize || 'small'); });
+  };
+  const ensureNavbarCoins = async () => {
+    const box = document.querySelector('.user-box');
+    if (!box || box.querySelector('[data-passly-navbar-coins]')) return;
+    const balance = document.createElement('span');
+    balance.dataset.passlyCoins = 'true';
+    balance.dataset.passlyNavbarCoins = 'true';
+    balance.dataset.coinSize = 'small';
+    balance.innerHTML = renderCoins(0);
+    box.insertBefore(balance, box.firstChild);
+    const token = localStorage.getItem('passly_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/economy', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        updateCoinDisplays(data.coins || 0);
+        window.dispatchEvent(new CustomEvent('passly:economy', { detail: data }));
+      }
+    } catch (e) {}
+  };
+
   window.PasslyUI = {
+    coinIcon,
+    renderCoins,
+    updateCoinDisplays,
     toast,
     error: (message) => toast(message, 'error'),
     success: (message) => toast(message, 'success'),
@@ -70,6 +102,8 @@
     prompt: (message, options = {}) => modal({ title: options.title || 'Tell us more', message, confirmText: options.confirmText || 'Submit', cancelText: options.cancelText || 'Cancel', input: true, placeholder: options.placeholder || '' })
   };
   window.alert = (message) => window.PasslyUI.toast(message);
+
+  ensureNavbarCoins();
 
   document.querySelectorAll('.nav-links a, .mobile-menu a').forEach((link) => {
     const href = new URL(link.getAttribute('href'), window.location.origin).pathname.replace(/\/$/, '') || '/';

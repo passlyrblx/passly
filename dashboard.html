@@ -211,7 +211,25 @@
     <div class="stat-card"><div class="stat-value" id="totalReceived">0</div><div class="stat-label">💰 Total Robux Received</div></div>
     <div class="stat-card"><div class="stat-value" id="totalGiven">0</div><div class="stat-label">💸 Total Robux Given</div></div>
     <div class="stat-card"><div class="stat-value" id="adStatusText">No Ad</div><div class="stat-label">📢 Advertisement Status</div></div>
+    <div class="stat-card"><div class="stat-value" data-passly-coins data-coin-size="medium">0</div><div class="stat-label">Coin Balance</div></div>
   </div>
+
+  <section class="economy-grid" aria-label="Coin rewards">
+    <div class="economy-card">
+      <div data-passly-coins data-coin-size="large">0</div>
+      <p style="margin-top:10px;">Earn coins from daily rewards and verified donations.</p>
+    </div>
+    <div class="economy-card">
+      <h3>🎁 Daily Reward</h3>
+      <p id="dailyRewardText">Loading reward...</p>
+      <button class="reward-button" id="claimDailyBtn" onclick="claimDailyReward()">Claim</button>
+    </div>
+    <div class="economy-card">
+      <h3>🔥 Your Streak</h3>
+      <div class="stat-value" id="dailyStreakValue">0</div>
+      <p>Keep claiming once per UTC day. Rewards scale slowly.</p>
+    </div>
+  </section>
 
   <div class="quick-actions">
     <a href="/rooms" class="action-btn">🚪 Browse Rooms</a>
@@ -310,6 +328,8 @@
         document.getElementById('totalReceived').textContent = (userData.donations?.received || 0).toLocaleString();
         document.getElementById('totalGiven').textContent = (userData.donations?.given || 0).toLocaleString();
 
+        updateEconomyUi(userData);
+
         if (userData.ad && userData.ad.active) {
           document.getElementById('adStatusText').textContent = `${userData.ad.showsLeft} clouds left`;
           startAdDisplay();
@@ -327,6 +347,35 @@
         setInterval(loadAds, 30000);
       } catch (e) { console.error(e); }
     }
+
+    function updateEconomyUi(data) {
+      if (!data) return;
+      window.PasslyUI?.updateCoinDisplays?.(data.coins || 0);
+      const reward = data.dailyReward || {};
+      const claimBtn = document.getElementById('claimDailyBtn');
+      document.getElementById('dailyStreakValue').textContent = (reward.streak || 0).toLocaleString();
+      document.getElementById('dailyRewardText').innerHTML = reward.claimedToday
+        ? `Claimed today. Come back tomorrow for ${window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(reward.nextReward || 0, 'small') : Number(reward.nextReward || 0).toLocaleString()}.`
+        : `Next claim: ${window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(reward.nextReward || 0, 'small') : Number(reward.nextReward || 0).toLocaleString()} · Day ${reward.nextStreak || 1}`;
+      if (claimBtn) { claimBtn.disabled = !!reward.claimedToday; claimBtn.textContent = reward.claimedToday ? 'Claimed Today' : 'Claim Daily Reward'; }
+    }
+
+    async function claimDailyReward() {
+      if (!token && userData?.isGuest) return (window.PasslyUI?.error || alert)('Guest users can’t earn Passly Coins. Please log in with Roblox to start earning.');
+      if (!token) return (window.PasslyUI?.toast || alert)('Log in with Roblox to claim daily rewards.');
+      const btn = document.getElementById('claimDailyBtn');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/daily-reward/claim', { method:'POST', headers:authHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not claim reward.');
+        userData = { ...userData, ...data };
+        updateEconomyUi(userData);
+        (window.PasslyUI?.success || alert)(`Claimed ${data.claimed} coins!`);
+      } catch (e) { (window.PasslyUI?.error || alert)(e.message); btn.disabled = false; }
+    }
+
+    window.addEventListener('passly:economy', (event) => updateEconomyUi({ ...userData, ...event.detail }));
 
     function startAdDisplay() {
       if (!userData.ad || !userData.ad.active || userData.ad.showsLeft <= 0) return;

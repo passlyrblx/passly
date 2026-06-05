@@ -423,23 +423,22 @@
   let currentRoomFilter = 'all';
   let allRoomsCache = [];
 
-  // Bad words filter (shortened – add your full list)
-  const BAD_WORDS_LIST = [
-    'fuck','shit','ass','bitch','cunt','dick','pussy','twat','whore','slut','bastard','damn','hell','piss','cock',
-    'faggot','nigga','nigger','retard','fck','fcuk','phuk','fuk','sh1t','sht','b1tch','btch','c0ck','d1ck','dck',
-    'n1gga','f4ggot','fag','ret4rd'
-  ];
+  const BAD_WORDS_LIST = ['fuck','shit','bitch','cunt','dick','pussy','twat','whore','slut','bastard','piss','cock','faggot','nigga','nigger','retard','fck','fcuk','phuk','fuk','sh1t','sht','b1tch','btch','c0ck','d1ck','dck','n1gga','f4ggot','f4g','ret4rd'];
+  const BAD_WORD_PATTERNS = [/f+\W*[u*]\W*c+\W*k+/i, /s+\W*h+\W*[i1!*]+\W*t+/i, /b+\W*[i1!*]+\W*t+\W*c+\W*h+/i, /n+\W*[i1!*]+\W*g+\W*g+/i, /f+\W*a+\W*g+(?:\W*o+\W*t+)?/i, /r+\W*e+\W*t+\W*a+\W*r+\W*d+/i];
   function normalizeText(text) {
-    let n = text.toLowerCase();
-    n = n.replace(/0/g,'o').replace(/1/g,'i').replace(/3/g,'e').replace(/4/g,'a').replace(/5/g,'s').replace(/7/g,'t');
-    n = n.replace(/@/g,'a').replace(/\$/g,'s').replace(/\+/g,'t');
-    n = n.replace(/[\s\._\-*]/g,'');
-    return n;
+    return String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/[0º°]/g,'o').replace(/[1!|ìíîï]/g,'i').replace(/[3€]/g,'e').replace(/[4@]/g,'a')
+      .replace(/[5$]/g,'s').replace(/[7+]/g,'t').replace(/[8]/g,'b').replace(/[9]/g,'g')
+      .replace(/(.)\1{2,}/g,'$1$1').replace(/[^a-z0-9]/g,'');
   }
   function filterMessage(text) {
     if(!text) return text;
-    const norm = normalizeText(text);
-    for(const bad of BAD_WORDS_LIST) if(norm.includes(bad)) return '#'.repeat(text.length);
+    const raw = String(text);
+    const norm = normalizeText(raw);
+    const softened = raw.replace(/(.)\1{2,}/g,'$1$1');
+    if(/\b(?:kill\s*yourself|kys|discord\s*\.\s*gg|free\s*robux|password|token|cookie)\b/i.test(softened)) return '#'.repeat(raw.length);
+    if(BAD_WORD_PATTERNS.some(pattern => pattern.test(softened))) return '#'.repeat(raw.length);
+    for(const bad of BAD_WORDS_LIST) if(norm.includes(normalizeText(bad))) return '#'.repeat(raw.length);
     return text;
   }
 
@@ -622,7 +621,8 @@
       const res = await fetch('/api/donate/verify', { method:'POST', headers:authHeaders(), body:JSON.stringify({ receiverId, gamepassId, amount }) });
       const data = await res.json();
       if(data.success) {
-        statusDiv.innerHTML = '<span style="color:#4ade80;">✅ Donation recorded!</span>';
+        const reward = data.coinRewards?.donor ? ` Earned ${window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(data.coinRewards.donor, 'small') : data.coinRewards.donor + ' coins'}.` : '';
+        statusDiv.innerHTML = `<span style="color:#4ade80;">✅ Donation recorded!${reward}</span>`;
         setTimeout(() => { closeDonationConfirmModal(); closePlayerBoardModal(); }, 2000);
       } else statusDiv.innerHTML = `<span style="color:#f87171;">❌ ${data.error}</span>`;
     } catch(err) { statusDiv.innerHTML = '<span style="color:#f87171;">Error verifying.</span>'; }
