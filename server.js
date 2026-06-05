@@ -48,7 +48,19 @@ const userSchema = new mongoose.Schema({
   roomId: String, inQueue: Boolean,
   donations: { received: Number, given: Number },
   coins: { type: Number, default: 0, min: 0 },
+  totalCoins: { type: Number, default: 0, min: 0 },
+  lastClaimDate: { type: String, default: '' },
+  streakDay: { type: Number, default: 0, min: 0 },
   dailyReward: { streak: { type: Number, default: 0 }, lastClaimDate: { type: String, default: '' }, totalClaims: { type: Number, default: 0 } },
+  adWatchCountToday: { type: Number, default: 0, min: 0 },
+  lastAdWatchTime: { type: Date, default: null },
+  adWatchDate: { type: String, default: '' },
+  adReward: {
+    pendingToken: { type: String, default: '' },
+    startedAt: { type: Date, default: null },
+    verifyAfter: { type: Date, default: null },
+    expiresAt: { type: Date, default: null }
+  },
   booth: { activeTheme: { type: String, default: 'default' }, ownedThemes: { type: [String], default: ['default'] } },
   board: [{ id: String, name: String, price: Number }],
   acceptedTos: { type: Boolean, default: false },
@@ -129,6 +141,13 @@ const couponSchema = new mongoose.Schema({
   redeemedAt: { type: Date, default: null }
 });
 
+const MONETAG_DIRECT_LINK = 'https://omg10.com/4/11105268';
+const AD_REWARD_COINS = 3;
+const AD_DAILY_LIMIT = 10;
+const AD_VERIFY_DELAY_MS = 18000;
+const AD_REWARD_COOLDOWN_MS = 30000;
+const AD_PENDING_EXPIRY_MS = 5 * 60 * 1000;
+
 const BOOTH_THEMES = [
   { id: 'neon', name: 'Neon', price: 100, tier: 'Starter', animated: false },
   { id: 'cyber', name: 'Cyber', price: 250, tier: 'Starter', animated: false },
@@ -143,31 +162,76 @@ const BOOTH_THEMES = [
 ];
 function getTodayKey(date = new Date()) { return date.toISOString().slice(0, 10); }
 function getYesterdayKey() { const d = new Date(); d.setUTCDate(d.getUTCDate() - 1); return getTodayKey(d); }
+function parseStoredDate(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+function getCoinBalance(user) {
+  const storedTotal = Number(user?.totalCoins);
+  const legacyCoins = Number(user?.coins);
+  if (Number.isFinite(storedTotal) && storedTotal > 0) return Math.max(0, Math.floor(storedTotal));
+  return Math.max(0, Math.floor(Number.isFinite(legacyCoins) ? legacyCoins : 0));
+}
 function getDailyRewardAmount(streak) {
   const day = Math.max(1, Number(streak) || 1);
-  if (day <= 2) return 5;
-  if (day <= 4) return 6;
-  if (day <= 6) return 7;
-  if (day === 7) return 8;
-  if (day === 8) return 9;
-  if (day === 9) return 10;
-  if (day === 10) return 12;
-  return Math.min(250, 12 + Math.floor(Math.sqrt(day - 10) * 2) + Math.floor((day - 10) / 14));
+  if (day >= 20 && day % 10 === 0) return Math.min(20, 8 + Math.floor(day / 10));
+  if (day === 10) return 5;
+  if (day <= 9) return 2;
+  return 3;
+}
+function getRewardState(user) {
+  const legacy = user?.dailyReward || {};
+  const lastClaimDate = user?.lastClaimDate || legacy.lastClaimDate || '';
+  const streak = Number(user?.streakDay || legacy.streak || 0);
+  return { lastClaimDate, streak, totalClaims: Number(legacy.totalClaims || 0) };
+}
+function getAdRewardState(user, now = new Date()) {
+  const today = getTodayKey(now);
+  const count = user?.adWatchDate === today ? Number(user?.adWatchCountToday || 0) : 0;
+  const lastTime = user?.lastAdWatchTime ? new Date(user.lastAdWatchTime) : null;
+  const cooldownUntil = lastTime && now - lastTime < AD_REWARD_COOLDOWN_MS ? new Date(lastTime.getTime() + AD_REWARD_COOLDOWN_MS) : null;
+  const pending = user?.adReward || {};
+  const pendingActive = !!(pending.pendingToken && pending.expiresAt && new Date(pending.expiresAt) > now);
+  return {
+    rewardCoins: AD_REWARD_COINS,
+    dailyLimit: AD_DAILY_LIMIT,
+    watchedToday: count,
+    remainingToday: Math.max(0, AD_DAILY_LIMIT - count),
+    dailyLimitReached: count >= AD_DAILY_LIMIT,
+    cooldownUntil: cooldownUntil ? cooldownUntil.toISOString() : null,
+    cooldownSeconds: cooldownUntil ? Math.max(0, Math.ceil((cooldownUntil - now) / 1000)) : 0,
+    canStart: count < AD_DAILY_LIMIT && !cooldownUntil && !pendingActive,
+    pending: pendingActive ? {
+      startedAt: pending.startedAt?.toISOString?.() || pending.startedAt,
+      verifyAfter: pending.verifyAfter?.toISOString?.() || pending.verifyAfter,
+      expiresAt: pending.expiresAt?.toISOString?.() || pending.expiresAt,
+      verifySeconds: pending.verifyAfter ? Math.max(0, Math.ceil((new Date(pending.verifyAfter) - now) / 1000)) : 0
+    } : null
+  };
 }
 function serializeEconomy(user) {
-  const reward = user?.dailyReward || {};
-  const today = getTodayKey();
+  const reward = getRewardState(user);
+  const now = new Date();
+  const lastClaimAt = parseStoredDate(reward.lastClaimDate);
   const currentStreak = Number(reward.streak || 0);
-  const nextStreak = reward.lastClaimDate === today ? currentStreak : (reward.lastClaimDate === getYesterdayKey() ? currentStreak + 1 : 1);
+  const claimedToday = !!(lastClaimAt && now - lastClaimAt < 24 * 60 * 60 * 1000);
+  const keepsStreak = !!(lastClaimAt && now - lastClaimAt <= 48 * 60 * 60 * 1000);
+  const nextStreak = claimedToday ? currentStreak : (keepsStreak ? currentStreak + 1 : 1);
+  const balance = getCoinBalance(user);
   return {
-    coins: Math.max(0, Math.floor(user?.coins || 0)),
+    coins: balance,
+    totalCoins: balance,
     dailyReward: {
       streak: currentStreak,
+      streakDay: currentStreak,
       lastClaimDate: reward.lastClaimDate || '',
-      claimedToday: reward.lastClaimDate === today,
+      nextClaimAt: lastClaimAt ? new Date(lastClaimAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null,
+      claimedToday,
       nextReward: getDailyRewardAmount(nextStreak),
       nextStreak
     },
+    adRewards: getAdRewardState(user),
     booth: { activeTheme: user?.booth?.activeTheme || 'default', ownedThemes: user?.booth?.ownedThemes || ['default'] }
   };
 }
@@ -335,6 +399,7 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html'))
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
 app.get('/loading', (req, res) => res.sendFile(path.join(__dirname, 'loading.html')));
+app.get('/watch-ad', (req, res) => res.sendFile(path.join(__dirname, 'watchad.html')));
 
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
@@ -468,17 +533,118 @@ app.post('/api/daily-reward/claim', authenticateToken, async (req, res) => {
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (isGuestRecord(user)) return res.status(403).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to claim daily rewards.', guestRestricted: true });
-  const today = getTodayKey();
-  const reward = user.dailyReward || {};
-  if (reward.lastClaimDate === today) {
-    return res.status(400).json({ error: 'Daily reward already claimed today.', ...serializeEconomy(user) });
+  const now = new Date();
+  const reward = getRewardState(user);
+  const lastClaimAt = parseStoredDate(reward.lastClaimDate);
+  if (lastClaimAt && now - lastClaimAt < 24 * 60 * 60 * 1000) {
+    return res.status(400).json({ error: 'Daily reward already claimed. Please wait 24 hours between claims.', ...serializeEconomy(user) });
   }
-  const streak = reward.lastClaimDate === getYesterdayKey() ? Number(reward.streak || 0) + 1 : 1;
+  const streak = lastClaimAt && now - lastClaimAt <= 48 * 60 * 60 * 1000 ? Number(reward.streak || 0) + 1 : 1;
   const amount = getDailyRewardAmount(streak);
-  user.coins = Math.max(0, Math.floor(user.coins || 0)) + amount;
-  user.dailyReward = { streak, lastClaimDate: today, totalClaims: Number(reward.totalClaims || 0) + 1 };
+  const currentBalance = getCoinBalance(user);
+  user.coins = currentBalance + amount;
+  user.totalCoins = currentBalance + amount;
+  user.lastClaimDate = now.toISOString();
+  user.streakDay = streak;
+  user.dailyReward = { streak, lastClaimDate: now.toISOString(), totalClaims: Number(reward.totalClaims || 0) + 1 };
   await user.save();
   res.json({ success: true, claimed: amount, ...serializeEconomy(user) });
+});
+
+app.get('/api/ad-rewards/status', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (isGuestRecord(user)) return res.status(403).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to watch ads.', guestRestricted: true });
+  const today = getTodayKey();
+  if (user.adWatchDate && user.adWatchDate !== today) {
+    user.adWatchDate = today;
+    user.adWatchCountToday = 0;
+    await user.save();
+  }
+  res.json({ adLink: MONETAG_DIRECT_LINK, ...serializeEconomy(user) });
+});
+
+app.post('/api/ad-rewards/start', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (isGuestRecord(user)) return res.status(403).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to watch ads.', guestRestricted: true });
+  const now = new Date();
+  const today = getTodayKey(now);
+  if (user.adWatchDate !== today) {
+    user.adWatchDate = today;
+    user.adWatchCountToday = 0;
+  }
+  const state = getAdRewardState(user, now);
+  if (state.dailyLimitReached) return res.status(400).json({ error: 'Daily ad limit reached.', adLink: MONETAG_DIRECT_LINK, ...serializeEconomy(user) });
+  if (state.cooldownUntil) return res.status(429).json({ error: 'Please wait for the cooldown before starting another ad.', adLink: MONETAG_DIRECT_LINK, ...serializeEconomy(user) });
+  if (state.pending) return res.status(400).json({ error: 'You already have an ad verification in progress.', adLink: MONETAG_DIRECT_LINK, ...serializeEconomy(user) });
+  const token = crypto.randomBytes(24).toString('hex');
+  const startedAt = now;
+  const verifyAfter = new Date(now.getTime() + AD_VERIFY_DELAY_MS);
+  const expiresAt = new Date(now.getTime() + AD_PENDING_EXPIRY_MS);
+  user.adReward = { pendingToken: token, startedAt, verifyAfter, expiresAt };
+  await user.save();
+  res.json({ success: true, adLink: MONETAG_DIRECT_LINK, verifyToken: token, verifyAfter: verifyAfter.toISOString(), expiresAt: expiresAt.toISOString(), ...serializeEconomy(user) });
+});
+
+app.post('/api/ad-rewards/cancel', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.adReward = { pendingToken: '', startedAt: null, verifyAfter: null, expiresAt: null };
+  await user.save();
+  res.json({ success: true, ...serializeEconomy(user) });
+});
+
+app.post('/api/ad-rewards/verify', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const verifyToken = String(req.body.verifyToken || '');
+  if (!verifyToken) return res.status(400).json({ error: 'Missing verification token.' });
+  const now = new Date();
+  const today = getTodayKey(now);
+  let user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (isGuestRecord(user)) return res.status(403).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to watch ads.', guestRestricted: true });
+  if (user.adWatchDate !== today) {
+    user.adWatchDate = today;
+    user.adWatchCountToday = 0;
+    await user.save();
+  }
+  const currentBalance = getCoinBalance(user);
+  if (user.coins !== currentBalance || user.totalCoins !== currentBalance) {
+    user.coins = currentBalance;
+    user.totalCoins = currentBalance;
+    await user.save();
+  }
+  user = await User.findOneAndUpdate({
+    _id: req.user.id,
+    adWatchDate: today,
+    adWatchCountToday: { $lt: AD_DAILY_LIMIT },
+    'adReward.pendingToken': verifyToken,
+    'adReward.verifyAfter': { $lte: now },
+    'adReward.expiresAt': { $gt: now },
+    $or: [{ lastAdWatchTime: null }, { lastAdWatchTime: { $lte: new Date(now.getTime() - AD_REWARD_COOLDOWN_MS) } }]
+  }, {
+    $set: {
+      lastAdWatchTime: now,
+      adWatchDate: today,
+      adReward: { pendingToken: '', startedAt: null, verifyAfter: null, expiresAt: null }
+    },
+    $inc: { adWatchCountToday: 1, coins: AD_REWARD_COINS, totalCoins: AD_REWARD_COINS }
+  }, { new: true });
+  if (!user) {
+    const fresh = await User.findById(req.user.id);
+    const state = getAdRewardState(fresh, now);
+    const message = state.dailyLimitReached ? 'Daily ad limit reached.' : (state.cooldownUntil ? 'Please wait for the cooldown before verifying another ad.' : 'Ad is not ready to verify yet, expired, or was already verified.');
+    return res.status(400).json({ error: message, ...serializeEconomy(fresh) });
+  }
+  res.json({ success: true, awarded: AD_REWARD_COINS, ...serializeEconomy(user) });
 });
 
 app.get('/api/streak-leaderboard', async (req, res) => {
@@ -512,8 +678,10 @@ app.post('/api/booths/purchase', authenticateToken, async (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
   const owned = new Set(user.booth?.ownedThemes || ['default']);
   if (owned.has(theme.id)) return res.status(400).json({ error: 'You already own this booth theme.' });
-  if (Math.floor(user.coins || 0) < theme.price) return res.status(400).json({ error: 'Not enough coins for this booth theme.' });
-  user.coins = Math.floor(user.coins || 0) - theme.price;
+  const balance = getCoinBalance(user);
+  if (balance < theme.price) return res.status(400).json({ error: 'Not enough coins for this booth theme.' });
+  user.coins = balance - theme.price;
+  user.totalCoins = balance - theme.price;
   owned.add(theme.id);
   user.booth = { activeTheme: user.booth?.activeTheme || 'default', ownedThemes: [...owned] };
   await user.save();
@@ -1198,8 +1366,8 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   });
   await donation.save();
   await ConsumedPurchase.create({ _id: consumedKey, donorId, gamepassId, receiverId, amount: donationAmount, donationId: donation._id });
-  await User.findByIdAndUpdate(donorId, { $inc: { 'donations.given': donationAmount, coins: donorCoins } });
-  await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': donationAmount, coins: receiverCoins } });
+  await User.findByIdAndUpdate(donorId, { $inc: { 'donations.given': donationAmount, coins: donorCoins, totalCoins: donorCoins } });
+  await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': donationAmount, coins: receiverCoins, totalCoins: receiverCoins } });
   amount = donationAmount;
   pendingDonations.delete(donorId);
 
@@ -1309,9 +1477,11 @@ app.post('/api/coupons/redeem', authenticateToken, async (req, res) => {
     const existing = await Coupon.findOne({ code });
     return res.status(400).json({ error: existing ? 'This coupon has already been redeemed.' : 'Coupon not found.' });
   }
-  user.coins = (user.coins || 0) + coupon.passlyAmount;
+  const balance = getCoinBalance(user) + coupon.passlyAmount;
+  user.coins = balance;
+  user.totalCoins = balance;
   await user.save();
-  res.json({ success: true, passlyAmount: coupon.passlyAmount, coins: user.coins });
+  res.json({ success: true, passlyAmount: coupon.passlyAmount, coins: balance, totalCoins: balance });
 });
 app.post('/api/admin/grant', authenticateToken, async (req, res) => {
   if (req.user.id !== OWNER_ROBLOX_ID) return res.status(403).json({ error: 'Owner only' });
@@ -1436,9 +1606,13 @@ app.post('/api/admin/adjust-coins', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const amount = Math.floor(Number(req.body.amount || 0));
   if (!req.body.userId || !Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: 'User and non-zero amount required.' });
-  const user = await User.findByIdAndUpdate(req.body.userId, { $inc: { coins: amount } }, { new: true });
+  const user = await User.findById(req.body.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ success: true, coins: user.coins || 0 });
+  const balance = Math.max(0, getCoinBalance(user) + amount);
+  user.coins = balance;
+  user.totalCoins = balance;
+  await user.save();
+  res.json({ success: true, coins: balance, totalCoins: balance });
 });
 app.post('/api/admin/message-user', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });

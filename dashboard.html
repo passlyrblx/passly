@@ -173,6 +173,7 @@
     <a href="/leaderboard">🏆 Leaderboard</a>
     <a href="/profile">👤 Profile</a>
     <a href="/advertisement">📢 Advertise</a>
+    <a href="/watch-ad">🪙 Watch Ad</a>
     <a href="/livedonations">💸 Live Donations</a>
   </div>
   <div class="user-box">
@@ -188,6 +189,7 @@
   <a href="/leaderboard">🏆 Leaderboard</a>
   <a href="/profile">👤 Profile</a>
   <a href="/advertisement">📢 Advertise</a>
+  <a href="/watch-ad">🪙 Watch Ad</a>
   <a href="/livedonations">💸 Live Donations</a>
 </div>
 <div class="menu-overlay" id="menuOverlay"></div>
@@ -227,7 +229,12 @@
     <div class="economy-card">
       <h3>🔥 Your Streak</h3>
       <div class="stat-value" id="dailyStreakValue">0</div>
-      <p>Keep claiming once per UTC day. Rewards scale slowly.</p>
+      <p>Claim once every 24 hours. Miss a day and your streak resets.</p>
+    </div>
+    <div class="economy-card">
+      <h3>🪙 Watch Ad Rewards</h3>
+      <p id="adRewardSummary">Earn 3 coins per verified ad. Up to 10 ad rewards reset at midnight UTC.</p>
+      <a class="action-btn" href="/watch-ad" style="margin-top:12px; width:100%; text-align:center;">Watch Ad</a>
     </div>
   </section>
 
@@ -235,6 +242,7 @@
     <a href="/rooms" class="action-btn">🚪 Browse Rooms</a>
     <a href="/leaderboard" class="action-btn">🏆 View Leaderboard</a>
     <a href="/profile" class="action-btn">👤 Edit Profile</a>
+    <a href="/watch-ad" class="action-btn">🪙 Watch Ad</a>
     <button class="action-btn logout-btn" onclick="logout()">🚪 Logout</button>
   </div>
 
@@ -359,6 +367,13 @@
         : `Next claim: ${window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(reward.nextReward || 0, 'small') : Number(reward.nextReward || 0).toLocaleString()} · Day ${reward.nextStreak || 1}`;
       if (userData.isGuest) {
         document.getElementById('dailyRewardText').textContent = 'Guest users can’t earn Passly Coins. Log in with Roblox to claim daily rewards.';
+      }
+      const ad = data.adRewards || {};
+      const adSummary = document.getElementById('adRewardSummary');
+      if (adSummary) {
+        adSummary.textContent = ad.dailyLimitReached
+          ? 'Daily ad limit reached. Come back after midnight UTC.'
+          : `Ads watched today: ${ad.watchedToday || 0}/${ad.dailyLimit || 10}. Remaining ads today: ${ad.remainingToday ?? 10}.`;
       }
       if (claimBtn) {
         claimBtn.disabled = !!reward.claimedToday;
