@@ -395,6 +395,54 @@ app.get('/auth/roblox/callback', async (req, res) => {
 function getUserModel() {
   return mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
 }
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+async function getRobloxProfileForAdmin(robloxId) {
+  const profile = (await axios.get(`${ROBLOX_CONFIG.usersApi}/${robloxId}`, { timeout: 5000 })).data;
+  const robloxUsername = profile.name || `Roblox_${robloxId}`;
+  const robloxDisplayName = profile.displayName || robloxUsername;
+  let avatarUrl = '';
+  try {
+    const thumb = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${robloxId}&size=150x150&format=Png&isCircular=false`, { timeout: 5000 });
+    if (thumb.data?.data?.length) avatarUrl = thumb.data.data[0].imageUrl || '';
+  } catch (e) {}
+  if (!avatarUrl) avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${robloxId}&width=150&height=150&format=png`;
+  return { robloxUsername, robloxDisplayName, avatarUrl };
+}
+async function findAdminTargetUser(identifier, options = {}) {
+  const User = getUserModel();
+  if (!User) return { error: 'Database not ready' };
+  const raw = String(identifier || '').trim().replace(/^@/, '');
+  if (!raw) return { error: 'Roblox user ID or username required.' };
+  const isNumericRobloxId = /^\d+$/.test(raw);
+  let user = isNumericRobloxId ? await User.findById(raw) : null;
+  if (!user) user = await User.findOne({ robloxUsername: new RegExp(`^${escapeRegex(raw)}$`, 'i') });
+  if (!user && options.provisionRobloxId && isNumericRobloxId) {
+    try {
+      const profile = await getRobloxProfileForAdmin(raw);
+      user = await User.findOneAndUpdate(
+        { _id: raw },
+        { $setOnInsert: { ...profile, donations: { received: 0, given: 0 }, board: [], role: 'user', isGuest: false, acceptedTos: false } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (e) {
+      return { error: 'Roblox user not found. Enter a valid Roblox user ID or search by username first.' };
+    }
+  }
+  if (!user) return { error: 'User not found. Enter a Roblox user ID or exact Roblox username.' };
+  return { user };
+}
+function preferredDisplayTagForRole(role) {
+  return ['owner', 'admin', 'vip'].includes(role) ? role : null;
+}
+async function applyAdminRole(user, role) {
+  user.role = role;
+  const preferredTag = preferredDisplayTagForRole(role);
+  user.set('profile.displayTag', preferredTag);
+  await user.save();
+  return user;
+}
 
 // USER API
 app.get('/api/user', authenticateToken, async (req, res) => {
@@ -1300,12 +1348,13 @@ app.post('/api/coupons/redeem', authenticateToken, async (req, res) => {
   res.json({ success: true, passlyAmount: coupon.passlyAmount, coins: balance, totalCoins: balance });
 });
 app.post('/api/admin/grant', authenticateToken, async (req, res) => {
-  if (req.user.id !== OWNER_ROBLOX_ID) return res.status(403).json({ error: 'Owner only' });
-  const User = getUserModel();
-  if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const { userId, role } = req.body;
-  await User.findByIdAndUpdate(userId, { role });
-  res.json({ success: true });
+  if (!(await isOwnerRequest(req))) return res.status(403).json({ error: 'Owner only' });
+  const role = String(req.body.role || '').toLowerCase();
+  if (!['vip','admin'].includes(role)) return res.status(400).json({ error: 'Invalid grant role' });
+  const target = await findAdminTargetUser(req.body.userId, { provisionRobloxId: true });
+  if (target.error) return res.status(target.error === 'Database not ready' ? 503 : 404).json({ error: target.error });
+  const user = await applyAdminRole(target.user, role);
+  res.json({ success: true, id: user._id, username: user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)) });
 });
 app.post('/api/admin/ban', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
@@ -1330,13 +1379,11 @@ app.post('/api/admin/resolve-report', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 app.get('/api/admin/search-user', authenticateToken, async (req, res) => {
-  if (!(await isAdminOrOwner(req))) return res.status(403);
-  const User = getUserModel();
-  if (!User) return res.json({ error: 'Database not ready' });
-  const username = String(req.query.username || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const user = await User.findOne({ robloxUsername: new RegExp(`^${username}$`, 'i') });
-  if (!user) return res.json({ error: 'User not found' });
-  res.json({ id: user._id, username: user.robloxUsername, role: user.role });
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const target = await findAdminTargetUser(req.query.username, { provisionRobloxId: true });
+  if (target.error) return res.json({ error: target.error });
+  const user = target.user;
+  res.json({ id: user._id, username: user.robloxUsername, displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)), coins: getCoinBalance(user) });
 });
 app.post('/api/admin/broadcast', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403);
@@ -1418,17 +1465,16 @@ app.get('/api/admin/rooms', authenticateToken, async (req, res) => {
 });
 app.post('/api/admin/adjust-coins', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
-  const User = getUserModel();
-  if (!User) return res.status(503).json({ error: 'Database not ready' });
   const amount = Math.floor(Number(req.body.amount || 0));
-  if (!req.body.userId || !Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: 'User and non-zero amount required.' });
-  const user = await User.findById(req.body.userId);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: 'Enter a non-zero Passly amount.' });
+  const target = await findAdminTargetUser(req.body.userId, { provisionRobloxId: true });
+  if (target.error) return res.status(target.error === 'Database not ready' ? 503 : 404).json({ error: target.error });
+  const user = target.user;
   const balance = Math.max(0, getCoinBalance(user) + amount);
   user.coins = balance;
   user.totalCoins = balance;
   await user.save();
-  res.json({ success: true, coins: balance, totalCoins: balance });
+  res.json({ success: true, id: user._id, username: user.robloxUsername, coins: balance, totalCoins: balance });
 });
 app.post('/api/admin/message-user', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
@@ -1442,12 +1488,12 @@ app.post('/api/admin/message-user', authenticateToken, async (req, res) => {
 });
 app.post('/api/admin/set-role', authenticateToken, async (req, res) => {
   if (!(await isOwnerRequest(req))) return res.status(403).json({ error: 'Owner only' });
-  const User = getUserModel();
-  if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const role = String(req.body.role || 'user');
+  const role = String(req.body.role || 'user').toLowerCase();
   if (!['user','vip','admin','owner'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
-  await User.findByIdAndUpdate(req.body.userId, { role });
-  res.json({ success: true });
+  const target = await findAdminTargetUser(req.body.userId, { provisionRobloxId: true });
+  if (target.error) return res.status(target.error === 'Database not ready' ? 503 : 404).json({ error: target.error });
+  const user = await applyAdminRole(target.user, role);
+  res.json({ success: true, id: user._id, username: user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)) });
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 // ========== FRIEND & MESSAGE ENDPOINTS (guest‑disabled) ==========
