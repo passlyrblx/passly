@@ -164,6 +164,11 @@
     .chat-msg { display:flex; gap:10px; margin-bottom:15px; }
     .chat-pfp { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; cursor:pointer; }
     .msg-content { background:rgba(30,30,50,0.6); padding:10px 14px; border-radius:12px; }
+    .donation-chat-card { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .donation-chat-user { display:inline-flex; flex-direction:column; align-items:center; gap:5px; min-width:78px; padding:7px; border-radius:12px; background:rgba(255,255,255,0.055); border:1px solid rgba(255,255,255,0.08); }
+    .donation-chat-avatar { width:42px; height:42px; border-radius:999px; background:#8b5cf6 center/cover no-repeat; border:2px solid rgba(167,139,250,0.45); }
+    .donation-chat-name { font-weight:900; color:#ddd6fe; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .donation-chat-verb { color:#fef3c7; font-weight:900; text-align:center; }
     .msg-username { font-weight:bold; color:#a78bfa; margin-bottom:4px; }
     .vip-badge { background:linear-gradient(135deg,#ffd700,#f59e0b); color:#0a0a14; padding:2px 8px; border-radius:8px; font-size:0.7rem; font-weight:bold; margin-left:6px; display:inline-block; }
     .chat-input-area { display:flex; gap:10px; }
@@ -527,6 +532,20 @@
     input.value = '';
   };
 
+
+  function donationChatHtml(data) {
+    const donorName = escapeHtml(data.donorName || 'Donor');
+    const receiverName = escapeHtml(data.receiverName || 'Receiver');
+    const donorAvatar = escapeHtml(data.donorAvatar || '');
+    const receiverAvatar = escapeHtml(data.receiverAvatar || '');
+    const amount = Number(data.amount || 0).toLocaleString();
+    return `<div class="donation-chat-card">
+      <div class="donation-chat-user" title="${donorName}"><span class="donation-chat-name">${donorName}</span><span class="donation-chat-avatar" style="background-image:url('${donorAvatar}')"></span></div>
+      <div class="donation-chat-verb">donated<br>${amount} Robux<br>to</div>
+      <div class="donation-chat-user" title="${receiverName}"><span class="donation-chat-name">${receiverName}</span><span class="donation-chat-avatar" style="background-image:url('${receiverAvatar}')"></span></div>
+    </div>`;
+  }
+
   socket.on('chat-message', (data) => addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner, data.displayTag));
   socket.on('chat-error', (errMsg) => showError(errMsg));
   socket.on('room-closed', (data) => { PasslyUI.toast(data.message); leaveRoom(); });
@@ -538,13 +557,11 @@
   // ========== DONATION MESSAGE LISTENERS ==========
   socket.on('room-donation', (data) => {
     if(currentRoom) {
-      const message = `💸 ${data.donorName} donated ${data.amount} Robux to ${data.receiverName}`;
-      addChatMessage('📢 Passly', message, 'system', null);
+      addChatMessage('📢 Passly Donation', donationChatHtml(data), 'system', null);
     }
   });
   socket.on('global-donation', (data) => {
-    const message = `🌍 GLOBAL MESSAGE: ${data.donorName} donated ${data.amount} Robux to ${data.receiverName} – Amazing!`;
-    if(currentRoom) addChatMessage('📢 Passly', message, 'system', null);
+    if(currentRoom) addChatMessage('🌍 Global Donation', donationChatHtml(data), 'system', null);
   });
   // ============================================
 
