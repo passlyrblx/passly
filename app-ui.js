@@ -131,8 +131,7 @@
       ]},
       { label: '📢 More', href: '/advertisement', children: [
         { label: 'Advertise', href: '/advertisement' },
-        { label: 'Live Donations', href: '/livedonations' },
-        { label: 'Redeem Coupon', href: '/redeem' }
+        { label: 'Live Donations', href: '/livedonations' }
       ]}
     ];
     if (isAdmin) groups.push({ label: '🔧 Admin', href: '/admin', children: [

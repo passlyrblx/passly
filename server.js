@@ -44,6 +44,7 @@ const userSchema = new mongoose.Schema({
   role: { type: String, default: 'user', enum: ['guest', 'user', 'vip', 'admin', 'owner'] },
   isGuest: { type: Boolean, default: false },
   profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null } },
+  notificationPreferences: { offlineDonations: { type: Boolean, default: true }, friendRequests: { type: Boolean, default: true }, friendMessages: { type: Boolean, default: true }, friendAccepted: { type: Boolean, default: true } },
   roomId: String, inQueue: Boolean,
   donations: { received: Number, given: Number },
   coins: { type: Number, default: 0, min: 0 },
@@ -198,7 +199,7 @@ const privateMessageSchema = new mongoose.Schema({
 const notificationSchema = new mongoose.Schema({
   _id: String,
   userId: String,
-  type: { type: String, enum: ['friend_request', 'friend_accepted', 'new_message'] },
+  type: { type: String, enum: ['friend_request', 'friend_accepted', 'new_message', 'offline_donation', 'admin_message'] },
   fromUserId: String,
   message: String,
   timestamp: { type: Date, default: Date.now },
@@ -399,8 +400,29 @@ app.get('/api/user', authenticateToken, async (req, res) => {
     displayName: user.customDisplayName || user.robloxDisplayName || '', avatarUrl, avatarFallback, profile: user.profile,
     roomId: user.roomId, inQueue: user.inQueue, donations: user.donations, ad: activeAd || null,
     customDisplayName: user.customDisplayName || null, board: user.board || [],
-    role: effectiveRoleFor(user), ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
+    role: effectiveRoleFor(user), notificationPreferences: user.notificationPreferences || {}, ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
   });
+});
+
+app.get('/api/profile/notifications', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ preferences: user.notificationPreferences || {} });
+});
+app.post('/api/profile/notifications', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const incoming = req.body.preferences || {};
+  const preferences = {
+    offlineDonations: incoming.offlineDonations !== false,
+    friendRequests: incoming.friendRequests !== false,
+    friendMessages: incoming.friendMessages !== false,
+    friendAccepted: incoming.friendAccepted !== false
+  };
+  await User.findByIdAndUpdate(req.user.id, { notificationPreferences: preferences });
+  res.json({ success: true, preferences });
 });
 
 // Get user stats for member profile
@@ -857,6 +879,7 @@ io.on('connection', (socket) => {
       const decoded = jwt.verify(token, JWT_SECRET);
       userId = decoded.id;
       socket.userId = userId;
+      socket.join(userId);
       isGuest = false;
       onlineUsers.add(userId);
       if (mongoose.connection.readyState === 1) {
@@ -991,13 +1014,20 @@ io.on('connection', (socket) => {
 
   socket.on('chat-board', async (boardData) => {
     if (!userId || !currentRoomId) return;
+    const cooldownKey = `${currentRoomId}:${userId}`;
+    const lastSent = boardChatCooldowns.get(cooldownKey) || 0;
+    if (Date.now() - lastSent < 5 * 60 * 1000) {
+      socket.emit('chat-error', 'You can send your booth once every 5 minutes.');
+      return;
+    }
     const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
     const user = User ? await User.findById(userId) : null;
     if (!user) return;
+    boardChatCooldowns.set(cooldownKey, Date.now());
     io.to(currentRoomId).emit('chat-board', {
       userId,
       username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
-      board: boardData,
+      board: Array.isArray(boardData) ? boardData.slice(0, 50) : [],
       avatarUrl: user.avatarUrl
     });
   });
@@ -1197,12 +1227,24 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
     donorAvatar: donor.avatarUrl, receiverAvatar: receiver.avatarUrl,
     timestamp: new Date()
   });
+  if (!onlineUsers.has(receiverId) && receiver.notificationPreferences?.offlineDonations !== false) {
+    const Notification = mongoose.model('Notification');
+    await Notification.create({
+      _id: crypto.randomBytes(8).toString('hex'),
+      userId: receiverId,
+      type: 'offline_donation',
+      fromUserId: donorId,
+      message: `donated ${amount.toLocaleString()} Robux while you were offline`,
+      read: false
+    });
+  }
 
   res.json({ success: true, message: 'Donation recorded! Thank you.', coinRewards: { donor: Math.floor(amount / 10), receiver: Math.floor(amount / 20) } });
 });
 const OWNER_ROBLOX_ID = '3115362000';
 const ADMINS = new Set();
 const BANNED = new Set();
+const boardChatCooldowns = new Map();
 let REPORTS = [];
 
 async function isAdminOrOwner(req) {
@@ -1381,6 +1423,42 @@ app.get('/api/admin/online-users', authenticateToken, async (req, res) => {
   }
   res.json({ onlineUsers: users });
 });
+app.get('/api/admin/rooms', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room) return res.status(503).json({ error: 'Database not ready' });
+  const rooms = await Room.find().sort({ createdAt: -1 }).limit(100);
+  res.json({ rooms: rooms.map(room => ({ id: room._id, name: room.name, type: room.type, players: room.players?.length || 0, queue: room.queue?.length || 0, createdBy: room.createdBy })) });
+});
+app.post('/api/admin/adjust-coins', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const amount = Math.floor(Number(req.body.amount || 0));
+  if (!req.body.userId || !Number.isFinite(amount) || amount === 0) return res.status(400).json({ error: 'User and non-zero amount required.' });
+  const user = await User.findByIdAndUpdate(req.body.userId, { $inc: { coins: amount } }, { new: true });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ success: true, coins: user.coins || 0 });
+});
+app.post('/api/admin/message-user', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  const Notification = mongoose.connection.readyState === 1 ? mongoose.model('Notification') : null;
+  if (!Notification) return res.status(503).json({ error: 'Database not ready' });
+  const message = filterMessageServer(String(req.body.message || '').slice(0, 300).trim());
+  if (!req.body.userId || !message) return res.status(400).json({ error: 'User and message required.' });
+  await Notification.create({ _id: crypto.randomBytes(8).toString('hex'), userId: req.body.userId, type: 'admin_message', fromUserId: req.user.id, message, read: false });
+  io.to(req.body.userId).emit('admin-message', { roomId: 'DIRECT', message });
+  res.json({ success: true });
+});
+app.post('/api/admin/set-role', authenticateToken, async (req, res) => {
+  if (!(await isOwnerRequest(req))) return res.status(403).json({ error: 'Owner only' });
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const role = String(req.body.role || 'user');
+  if (!['user','vip','admin','owner'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  await User.findByIdAndUpdate(req.body.userId, { role });
+  res.json({ success: true });
+});
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 // ========== FRIEND & MESSAGE ENDPOINTS (guest‑disabled) ==========
 // Helper to check if user is a guest
@@ -1390,6 +1468,11 @@ async function isGuestUser(userId) {
   return isGuestRecord(user);
 }
 
+async function wantsNotification(userId, key) {
+  const User = getUserModel();
+  const user = User ? await User.findById(userId) : null;
+  return user?.notificationPreferences?.[key] !== false;
+}
 // Send friend request
 app.post('/api/friends/request', authenticateToken, async (req, res) => {
   if (await isGuestUser(req.user.id)) return res.status(403).json({ error: 'Guests cannot use friends features.' });
@@ -1511,15 +1594,17 @@ app.post('/api/friends/message', authenticateToken, async (req, res) => {
   });
   await msg.save();
   const Notification = mongoose.model('Notification');
-  const notification = new Notification({
-    _id: crypto.randomBytes(8).toString('hex'),
-    userId: toUserId,
-    type: 'new_message',
-    fromUserId: req.user.id,
-    message: 'sent you a message',
-    read: false
-  });
-  await notification.save();
+  if (await wantsNotification(toUserId, 'friendMessages')) {
+    const notification = new Notification({
+      _id: crypto.randomBytes(8).toString('hex'),
+      userId: toUserId,
+      type: 'new_message',
+      fromUserId: req.user.id,
+      message: 'sent you a message',
+      read: false
+    });
+    await notification.save();
+  }
   res.json({ success: true, message: filteredMsg });
 });
 
