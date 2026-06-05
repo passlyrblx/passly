@@ -3,7 +3,7 @@
   const aliases = new Map([
     ['/', ['/']], ['/dashboard', ['/dashboard']], ['/rooms', ['/rooms']], ['/leaderboard', ['/leaderboard']],
     ['/profile', ['/profile']], ['/friends', ['/friends']], ['/advertisement', ['/advertisement']],
-    ['/livedonations', ['/livedonations']], ['/admin', ['/admin']], ['/privacy', ['/privacy']], ['/terms', ['/terms']]
+    ['/livedonations', ['/livedonations']], ['/redeem', ['/redeem']], ['/admin', ['/admin']], ['/privacy', ['/privacy']], ['/terms', ['/terms']]
   ]);
 
   const ensureToastHost = () => {
@@ -103,32 +103,96 @@
   };
   window.alert = (message) => window.PasslyUI.toast(message);
 
-  ensureNavbarCoins();
 
-  document.querySelectorAll('.nav-links a, .mobile-menu a').forEach((link) => {
-    const href = new URL(link.getAttribute('href'), window.location.origin).pathname.replace(/\/$/, '') || '/';
-    const isCurrent = (aliases.get(path) || [path]).includes(href);
-    if (isCurrent) link.setAttribute('aria-current', 'page');
+  const buildPasslyMenu = async () => {
+    const desktopNav = document.querySelector('.nav-links');
+    const mobileNav = document.querySelector('.mobile-menu');
+    if (!desktopNav && !mobileNav) return;
+    const token = localStorage.getItem('passly_token');
+    let isAdmin = false;
+    if (token) {
+      try {
+        const res = await fetch('/api/admin/check', { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) isAdmin = !!(await res.json()).isAdmin;
+      } catch (e) {}
+    }
+    const groups = [
+      { label: '🏠 Home', href: '/dashboard' },
+      { label: '👤 Profile', href: '/profile', children: [
+        { label: 'My Profile', href: '/profile' },
+        { label: 'Booth', href: '/profile#booth' },
+        { label: 'Earn Passly', href: '/profile#earn-passly' },
+        { label: 'Redeem Coupon', href: '/redeem' }
+      ]},
+      { label: '🚪 Rooms', href: '/rooms', children: [
+        { label: 'Browse Rooms', href: '/rooms' },
+        { label: 'Leaderboard', href: '/leaderboard' },
+        { label: 'Friends', href: '/friends' }
+      ]},
+      { label: '📢 More', href: '/advertisement', children: [
+        { label: 'Advertise', href: '/advertisement' },
+        { label: 'Live Donations', href: '/livedonations' },
+        { label: 'Redeem Coupon', href: '/redeem' }
+      ]}
+    ];
+    if (isAdmin) groups.push({ label: '🔧 Admin', href: '/admin', children: [
+      { label: 'Dashboard', href: '/admin' },
+      { label: 'Admin Chat', href: '/admin#admin-chat-card' },
+      { label: 'Coupons', href: '/admin#coupon-card' }
+    ]});
+    const desktopHtml = groups.map((group) => group.children ? `
+      <div class="passly-nav-group">
+        <a href="${group.href}" class="passly-nav-parent">${group.label}</a>
+        <button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} subtopics">›</button>
+        <div class="passly-submenu">${group.children.map(child => `<a href="${child.href}">${child.label}</a>`).join('')}</div>
+      </div>` : `<a href="${group.href}">${group.label}</a>`).join('');
+    const mobileHtml = `<button class="close-menu" id="closeMenuBtn">&times;</button>` + groups.map((group) => group.children ? `
+      <div class="passly-mobile-group">
+        <div class="passly-mobile-row"><a href="${group.href}">${group.label}</a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} subtopics">›</button></div>
+        <div class="passly-submenu">${group.children.map(child => `<a href="${child.href}">${child.label}</a>`).join('')}</div>
+      </div>` : `<a href="${group.href}">${group.label}</a>`).join('');
+    if (desktopNav) desktopNav.innerHTML = desktopHtml;
+    if (mobileNav) mobileNav.innerHTML = mobileHtml;
+    document.querySelectorAll('.passly-submenu-toggle').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        const group = button.closest('.passly-nav-group, .passly-mobile-group');
+        const open = group?.classList.toggle('is-open');
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    });
+  };
+
+  const setupMobileMenu = () => {
+    const menu = document.getElementById('mobileMenu');
+    const overlay = document.getElementById('menuOverlay');
+    const hamburger = document.getElementById('hamburgerBtn');
+    const closeBtn = document.getElementById('closeMenuBtn');
+    if (!menu || !overlay || !hamburger) return;
+
+    hamburger.setAttribute('aria-expanded', 'false');
+    hamburger.setAttribute('aria-controls', menu.id);
+    menu.setAttribute('role', 'dialog');
+    menu.setAttribute('aria-modal', 'true');
+    menu.setAttribute('aria-label', 'Passly navigation');
+
+    const markOpen = () => { hamburger.setAttribute('aria-expanded', 'true'); menu.dataset.open = 'true'; overlay.dataset.open = 'true'; menu.style.left = '0'; overlay.style.display = 'block'; document.body.style.overflow = 'hidden'; };
+    const markClosed = () => { hamburger.setAttribute('aria-expanded', 'false'); delete menu.dataset.open; delete overlay.dataset.open; menu.style.left = '-100%'; overlay.style.display = 'none'; document.body.style.overflow = ''; };
+
+    hamburger.addEventListener('click', () => requestAnimationFrame(markOpen));
+    overlay.addEventListener('click', () => requestAnimationFrame(markClosed));
+    closeBtn?.addEventListener('click', () => requestAnimationFrame(markClosed));
+    menu.querySelectorAll('a').forEach((link) => link.addEventListener('click', markClosed));
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && menu.dataset.open === 'true') { closeBtn?.click(); markClosed(); } });
+  };
+
+  buildPasslyMenu().then(() => {
+    ensureNavbarCoins();
+    document.querySelectorAll('.nav-links a, .mobile-menu a').forEach((link) => {
+      const href = new URL(link.getAttribute('href'), window.location.origin).pathname.replace(/\/$/, '') || '/';
+      const isCurrent = (aliases.get(path) || [path]).includes(href);
+      if (isCurrent) link.setAttribute('aria-current', 'page');
+    });
+    setupMobileMenu();
   });
-
-  const menu = document.getElementById('mobileMenu');
-  const overlay = document.getElementById('menuOverlay');
-  const hamburger = document.getElementById('hamburgerBtn');
-  const closeBtn = document.getElementById('closeMenuBtn');
-  if (!menu || !overlay || !hamburger) return;
-
-  hamburger.setAttribute('aria-expanded', 'false');
-  hamburger.setAttribute('aria-controls', menu.id);
-  menu.setAttribute('role', 'dialog');
-  menu.setAttribute('aria-modal', 'true');
-  menu.setAttribute('aria-label', 'Passly navigation');
-
-  const markOpen = () => { hamburger.setAttribute('aria-expanded', 'true'); menu.dataset.open = 'true'; };
-  const markClosed = () => { hamburger.setAttribute('aria-expanded', 'false'); delete menu.dataset.open; };
-
-  hamburger.addEventListener('click', () => requestAnimationFrame(markOpen));
-  overlay.addEventListener('click', () => requestAnimationFrame(markClosed));
-  closeBtn?.addEventListener('click', () => requestAnimationFrame(markClosed));
-  menu.querySelectorAll('a').forEach((link) => link.addEventListener('click', markClosed));
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && menu.dataset.open === 'true') { closeBtn?.click(); markClosed(); } });
 })();

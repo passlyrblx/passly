@@ -117,6 +117,17 @@ const consumedPurchaseSchema = new mongoose.Schema({
   consumedAt: { type: Date, default: Date.now }
 });
 
+const couponSchema = new mongoose.Schema({
+  _id: String,
+  code: { type: String, required: true, unique: true, index: true },
+  passlyAmount: { type: Number, required: true, min: 1, max: 1000000 },
+  createdBy: String,
+  createdAt: { type: Date, default: Date.now },
+  redeemedBy: { type: String, default: null, index: true },
+  redeemedUsername: { type: String, default: null },
+  redeemedAt: { type: Date, default: null }
+});
+
 const BOOTH_THEMES = [
   { id: 'neon', name: 'Neon', price: 100, tier: 'Starter', animated: false },
   { id: 'cyber', name: 'Cyber', price: 250, tier: 'Starter', animated: false },
@@ -198,6 +209,7 @@ const User = mongoose.models.User || mongoose.model('User', userSchema);
 const RoomModel = mongoose.models.Room || mongoose.model('Room', roomSchema);
 const Donation = mongoose.models.Donation || mongoose.model('Donation', donationSchema);
 const ConsumedPurchase = mongoose.models.ConsumedPurchase || mongoose.model('ConsumedPurchase', consumedPurchaseSchema);
+const Coupon = mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const AdBroadcast = mongoose.models.AdBroadcast || mongoose.model('AdBroadcast', adBroadcastSchema);
 const FriendRequest = mongoose.models.FriendRequest || mongoose.model('FriendRequest', friendRequestSchema);
@@ -317,6 +329,7 @@ app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.htm
 app.get('/advertisement', (req, res) => res.sendFile(path.join(__dirname, 'advertisement.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
 app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
+app.get('/redeem', (req, res) => res.sendFile(path.join(__dirname, 'redeem.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
@@ -599,6 +612,30 @@ app.get('/api/rooms', async (req, res) => {
   }
 });
 
+async function leaveExistingRoomsForMember(memberId, emitUpdates = true) {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room || !memberId) return;
+  const rooms = await Room.find({ $or: [{ players: memberId }, { queue: memberId }] });
+  for (const room of rooms) {
+    const wasPlayer = room.players.includes(memberId);
+    room.players = room.players.filter(id => id !== memberId);
+    room.queue = (room.queue || []).filter(id => id !== memberId);
+    while (room.queue.length > 0 && room.players.length < room.maxPlayers) {
+      const nextId = room.queue.shift();
+      if (!room.players.includes(nextId)) room.players.push(nextId);
+      const User = getUserModel();
+      if (User) await User.findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false }).catch(() => {});
+      if (emitUpdates) io.to(room._id).emit('player-joined', { userId: nextId });
+    }
+    await room.save();
+    if (emitUpdates) {
+      if (wasPlayer) io.to(room._id).emit('player-left', { userId: memberId });
+      io.to(room._id).emit('queue-updated', { queue: room.queue || [] });
+      io.to(room._id).emit('room-members-updated', { roomId: room._id, players: room.players, queue: room.queue || [] });
+    }
+  }
+}
+
 app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, res) => {
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   const User = getUserModel();
@@ -613,6 +650,7 @@ app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, 
   }
   const limitCheck = await canCreateRoom(req.user.id, type);
   if (!limitCheck.allowed) return res.status(429).json({ error: limitCheck.error });
+  await leaveExistingRoomsForMember(req.user.id);
   const roomId = crypto.randomBytes(8).toString('hex');
   const room = new Room({ _id: roomId, name, desc, type, players: [req.user.id], queue: [], createdBy: req.user.id });
   await room.save();
@@ -636,8 +674,13 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'VIP room – need VIP role.' });
   }
   if (room.players.includes(req.user.id)) return res.json({ success: true, room, alreadyIn: true });
+  await leaveExistingRoomsForMember(req.user.id);
+  room = await Room.findById(roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(req.user.id)) { room.queue.push(req.user.id); await room.save(); }
+    await User.findByIdAndUpdate(req.user.id, { roomId: room._id, inQueue: true });
+    io.to(roomId).emit('queue-updated', { queue: room.queue });
     const position = room.queue.indexOf(req.user.id) + 1;
     return res.json({ queued: true, position });
   }
@@ -659,8 +702,12 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
   room = await reconcileRoomDocument(room) || room;
   if (room.type === 'VIP') return res.status(403).json({ error: 'Guests cannot join VIP rooms.' });
   if (room.players.includes(guestId)) return res.json({ success: true, room, alreadyIn: true });
+  await leaveExistingRoomsForMember(guestId);
+  room = await Room.findById(roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.players.length >= room.maxPlayers) {
     if (!room.queue.includes(guestId)) { room.queue.push(guestId); await room.save(); }
+    io.to(roomId).emit('queue-updated', { queue: room.queue });
     const position = room.queue.indexOf(guestId) + 1;
     return res.json({ queued: true, position });
   }
@@ -804,7 +851,7 @@ io.on('connection', (socket) => {
   let guestId = null;
   let isGuest = false;
 
-  socket.on('authenticate', (token) => {
+  socket.on('authenticate', async (token) => {
     if (!token) return;
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
@@ -813,7 +860,8 @@ io.on('connection', (socket) => {
       isGuest = false;
       onlineUsers.add(userId);
       if (mongoose.connection.readyState === 1) {
-        mongoose.model('User').findByIdAndUpdate(userId, { lastSeen: new Date() }).catch(()=>{});
+        const authUser = await mongoose.model('User').findByIdAndUpdate(userId, { lastSeen: new Date() }, { new: true }).catch(()=>null);
+        if (effectiveRoleFor(authUser) === 'owner' || effectiveRoleFor(authUser) === 'admin' || ADMINS.has(userId)) socket.join('passly-admins');
       }
     } catch (e) {}
   });
@@ -837,6 +885,22 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     await reconcileRoomPresence(roomId);
     console.log(`Socket ${socket.id} joined room ${roomId}`);
+  });
+
+  socket.on('admin-chat-message', async (message) => {
+    if (!userId || mongoose.connection.readyState !== 1) return;
+    const user = await mongoose.model('User').findById(userId).catch(() => null);
+    const role = effectiveRoleFor(user);
+    if (role !== 'owner' && role !== 'admin' && !ADMINS.has(userId)) return socket.emit('admin-chat-error', 'Admin only');
+    const cleanMessage = filterMessageServer(String(message || '').slice(0, 500).trim());
+    if (!cleanMessage) return;
+    io.to('passly-admins').emit('admin-chat-message', {
+      userId,
+      username: user?.customDisplayName || user?.robloxDisplayName || user?.robloxUsername || 'Admin',
+      message: cleanMessage,
+      timestamp: Date.now(),
+      displayTag: serializeTag(getPublicTag(user))
+    });
   });
 
   socket.on('disconnect', async () => {
@@ -1146,8 +1210,17 @@ async function isAdminOrOwner(req) {
   if (!User) return false;
   const user = await User.findById(req.user.id);
   if (!user) return false;
-  if (user._id === OWNER_ROBLOX_ID) return true;
-  return ADMINS.has(user._id);
+  const role = effectiveRoleFor(user);
+  return role === 'owner' || role === 'admin' || ADMINS.has(String(user._id));
+}
+async function isOwnerRequest(req) {
+  const User = getUserModel();
+  if (!User || !req.user?.id) return false;
+  const user = await User.findById(req.user.id);
+  return effectiveRoleFor(user) === 'owner';
+}
+function generateCouponCode() {
+  return `PASSLY-${crypto.randomBytes(3).toString('hex').toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 }
 app.use((req, res, next) => { if (req.user && BANNED.has(req.user.id)) return res.status(403).json({ error: 'Banned account.' }); next(); });
 app.get('/api/admin/check', authenticateToken, async (req, res) => { res.json({ isAdmin: await isAdminOrOwner(req) }); });
@@ -1158,6 +1231,45 @@ app.get('/api/admin/data', authenticateToken, async (req, res) => {
   const bannedUsersWithNames = await Promise.all(Array.from(BANNED).map(async (userId) => { const user = await User.findById(userId); return { userId, username: user?.robloxUsername || 'Unknown' }; }));
   const reportsWithNames = await Promise.all(REPORTS.map(async (report) => { const reportedUser = await User.findById(report.reportedId); const reporterUser = await User.findById(report.reporterId); return { ...report, reportedUsername: reportedUser?.robloxUsername || 'Unknown', reporterUsername: reporterUser?.robloxUsername || 'Unknown' }; }));
   res.json({ reports: reportsWithNames, banned: bannedUsersWithNames });
+});
+app.get('/api/admin/coupons', authenticateToken, async (req, res) => {
+  if (!(await isOwnerRequest(req))) return res.status(403).json({ error: 'Owner only' });
+  const Coupon = mongoose.connection.readyState === 1 ? mongoose.model('Coupon') : null;
+  if (!Coupon) return res.status(503).json({ error: 'Database not ready' });
+  const coupons = await Coupon.find().sort({ createdAt: -1 }).limit(100);
+  res.json({ coupons });
+});
+app.post('/api/admin/coupons/create', authenticateToken, async (req, res) => {
+  if (!(await isOwnerRequest(req))) return res.status(403).json({ error: 'Owner only' });
+  const Coupon = mongoose.connection.readyState === 1 ? mongoose.model('Coupon') : null;
+  if (!Coupon) return res.status(503).json({ error: 'Database not ready' });
+  const passlyAmount = Math.floor(Number(req.body.passlyAmount || 0));
+  if (!Number.isFinite(passlyAmount) || passlyAmount < 1 || passlyAmount > 1000000) return res.status(400).json({ error: 'Enter Passly amount from 1 to 1,000,000.' });
+  let code = generateCouponCode();
+  while (await Coupon.findOne({ code })) code = generateCouponCode();
+  const coupon = await Coupon.create({ _id: crypto.randomBytes(12).toString('hex'), code, passlyAmount, createdBy: req.user.id });
+  res.json({ success: true, coupon });
+});
+app.post('/api/coupons/redeem', authenticateToken, async (req, res) => {
+  const Coupon = mongoose.connection.readyState === 1 ? mongoose.model('Coupon') : null;
+  const User = getUserModel();
+  if (!Coupon || !User) return res.status(503).json({ error: 'Database not ready' });
+  const code = String(req.body.code || '').trim().toUpperCase();
+  if (!code) return res.status(400).json({ error: 'Coupon code required.' });
+  const user = await User.findById(req.user.id);
+  if (!user || isGuestRecord(user)) return res.status(403).json({ error: 'Guests cannot redeem coupons. Please log in with Roblox.' });
+  const coupon = await Coupon.findOneAndUpdate(
+    { code, redeemedBy: null },
+    { redeemedBy: user._id, redeemedUsername: user.robloxUsername, redeemedAt: new Date() },
+    { new: true }
+  );
+  if (!coupon) {
+    const existing = await Coupon.findOne({ code });
+    return res.status(400).json({ error: existing ? 'This coupon has already been redeemed.' : 'Coupon not found.' });
+  }
+  user.coins = (user.coins || 0) + coupon.passlyAmount;
+  await user.save();
+  res.json({ success: true, passlyAmount: coupon.passlyAmount, coins: user.coins });
 });
 app.post('/api/admin/grant', authenticateToken, async (req, res) => {
   if (req.user.id !== OWNER_ROBLOX_ID) return res.status(403).json({ error: 'Owner only' });
@@ -1193,7 +1305,8 @@ app.get('/api/admin/search-user', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403);
   const User = getUserModel();
   if (!User) return res.json({ error: 'Database not ready' });
-  const user = await User.findOne({ robloxUsername: new RegExp(`^${req.query.username}$`, 'i') });
+  const username = String(req.query.username || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const user = await User.findOne({ robloxUsername: new RegExp(`^${username}$`, 'i') });
   if (!user) return res.json({ error: 'User not found' });
   res.json({ id: user._id, username: user.robloxUsername, role: user.role });
 });
@@ -1223,19 +1336,24 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
   const User = getUserModel();
   const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   const totalUsers = User ? await User.countDocuments({ role: { $ne: 'guest' } }) : 0;
   const totalGuests = User ? await User.countDocuments({ robloxUsername: /^Guest_/ }) : 0;
   const totalDonations = Donation ? await Donation.countDocuments() : 0;
   const totalRobuxDonated = Donation ? (await Donation.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]).then(r => r[0]?.total || 0)) : 0;
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const activeToday = User ? await User.countDocuments({ lastSeen: { $gte: oneDayAgo } }) : 0;
+  const totalRooms = Room ? await Room.countDocuments() : 0;
+  const activeRoomPlayers = Room ? (await Room.aggregate([{ $project: { count: { $size: '$players' } } }, { $group: { _id: null, total: { $sum: '$count' } } }]).then(r => r[0]?.total || 0)) : 0;
   res.json({
     totalUsers,
     totalGuests,
     totalDonations,
     totalRobuxDonated,
     onlineNow: onlineUsers.size,
-    activeToday
+    activeToday,
+    totalRooms,
+    activeRoomPlayers
   });
 });
 // Get list of online users with usernames

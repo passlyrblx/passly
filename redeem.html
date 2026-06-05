@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passly - Redeem Coupon</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#8b5cf6">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:#0a0a14; color:white; min-height:100vh; }
+    .navbar { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:rgba(15,15,30,.95); border-bottom:1px solid rgba(139,92,246,.2); position:sticky; top:0; z-index:100; backdrop-filter:blur(10px); }
+    .navbar-left { display:flex; align-items:center; gap:15px; }
+    .hamburger { background:transparent; border:0; cursor:pointer; display:none; flex-direction:column; gap:5px; padding:8px; }
+    .hamburger span { width:28px; height:3px; background:#c4b5fd; border-radius:3px; }
+    .nav-logo { font-size:1.8rem; font-weight:bold; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .nav-links { display:flex; gap:25px; }
+    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; font-size:.95rem; }
+    .nav-links a:hover { color:#a78bfa; }
+    .user-box { display:flex; align-items:center; gap:12px; background:rgba(139,92,246,.1); padding:6px 14px; border-radius:40px; }
+    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; background-position:center; }
+    .user-name { font-weight:600; color:#c4b5fd; font-size:.9rem; }
+    .mobile-menu { position:fixed; top:0; left:-100%; width:75%; max-width:300px; height:100%; background:rgba(10,10,20,.98); backdrop-filter:blur(12px); border-right:1px solid rgba(139,92,246,.3); z-index:200; transition:left .3s ease; padding:70px 0 0 25px; display:flex; flex-direction:column; gap:18px; }
+    .mobile-menu a { color:#e0e0e0; text-decoration:none; font-size:1.1rem; padding:10px 0; border-bottom:1px solid rgba(139,92,246,.2); }
+    .close-menu { position:absolute; top:20px; right:20px; background:none; border:none; color:#c4b5fd; font-size:28px; cursor:pointer; }
+    .menu-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:150; display:none; }
+    .container { width:min(720px, calc(100% - 32px)); margin:0 auto; padding:42px 0; }
+    .card { background:rgba(20,20,40,.85); border:1px solid rgba(139,92,246,.3); border-radius:24px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+    h1 { color:#c4b5fd; margin-bottom:10px; }
+    p { color:#b0b0c0; line-height:1.6; margin-bottom:20px; }
+    label { display:block; color:#ddd6fe; margin-bottom:8px; font-weight:700; }
+    input { width:100%; padding:15px; border-radius:14px; border:1px solid rgba(139,92,246,.7); background:#111122; color:white; font-size:1rem; text-transform:uppercase; letter-spacing:.08em; margin-bottom:14px; }
+    button.redeem { width:100%; padding:15px; border:0; border-radius:14px; color:white; font-size:1rem; font-weight:800; cursor:pointer; background:linear-gradient(135deg,#8b5cf6,#7c3aed); }
+    .status { margin-top:16px; padding:14px; border-radius:14px; display:none; }
+    .status.success { display:block; background:rgba(16,185,129,.16); color:#86efac; border:1px solid rgba(16,185,129,.35); }
+    .status.error { display:block; background:rgba(239,68,68,.14); color:#fca5a5; border:1px solid rgba(239,68,68,.35); }
+    @media (max-width:768px) { .hamburger{display:flex;} .nav-links{display:none;} .user-name{max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;} }
+  </style>
+  <link rel="stylesheet" href="/app-ui.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-left"><button class="hamburger" id="hamburgerBtn"><span></span><span></span><span></span></button><div class="nav-logo">Passly</div></div>
+    <div class="nav-links"><a href="/dashboard">🏠 Home</a><a href="/rooms">🚪 Rooms</a><a href="/leaderboard">🏆 Leaderboard</a><a href="/profile">👤 Profile</a><a href="/advertisement">📢 Advertise</a><a href="/livedonations">💸 Live Donations</a></div>
+    <div class="user-box"><div class="user-avatar" id="userAvatar"></div><span class="user-name" id="userName">Loading...</span></div>
+  </nav>
+  <div class="mobile-menu" id="mobileMenu"><button class="close-menu" id="closeMenuBtn">&times;</button><a href="/dashboard">🏠 Home</a><a href="/rooms">🚪 Rooms</a><a href="/leaderboard">🏆 Leaderboard</a><a href="/profile">👤 Profile</a><a href="/advertisement">📢 Advertise</a><a href="/livedonations">💸 Live Donations</a></div>
+  <div class="menu-overlay" id="menuOverlay"></div>
+  <main class="container">
+    <section class="card">
+      <h1>🎁 Redeem Coupon</h1>
+      <p>Enter a Passly gift code created by the owner. If the coupon is active, the Passly amount is added to your balance immediately.</p>
+      <label for="couponCode">Coupon code</label>
+      <input id="couponCode" type="text" placeholder="PASSLY-ABC123-DEF456" autocomplete="off">
+      <button class="redeem" id="redeemBtn">Redeem Passly</button>
+      <div id="redeemStatus" class="status"></div>
+    </section>
+  </main>
+  <script>
+    const token = localStorage.getItem('passly_token');
+    const statusBox = document.getElementById('redeemStatus');
+    function setStatus(message, type) { statusBox.textContent = message; statusBox.className = `status ${type}`; }
+    function setAvatar(el, url, fallback) { const src = url || fallback; if (src) el.style.backgroundImage = `url(${src})`; }
+    async function loadUser() {
+      if (!token) { document.getElementById('userName').textContent = 'Guest'; return; }
+      const res = await fetch('/api/user', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const user = await res.json();
+      document.getElementById('userName').textContent = user.displayName || user.robloxUsername || 'Member';
+      setAvatar(document.getElementById('userAvatar'), user.avatarUrl, user.avatarFallback);
+    }
+    document.getElementById('redeemBtn').addEventListener('click', async () => {
+      if (!token) return setStatus('Please log in with Roblox before redeeming coupons.', 'error');
+      const code = document.getElementById('couponCode').value.trim();
+      if (!code) return setStatus('Enter your coupon code first.', 'error');
+      const res = await fetch('/api/coupons/redeem', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body:JSON.stringify({ code }) });
+      const data = await res.json();
+      if (!res.ok || data.error) return setStatus(data.error || 'Could not redeem coupon.', 'error');
+      setStatus(`Success! You received ${Number(data.passlyAmount).toLocaleString()} Passly. New balance: ${Number(data.coins).toLocaleString()}.`, 'success');
+      if (window.PasslyUI) window.PasslyUI.updateCoinDisplays(data.coins || 0);
+    });
+    loadUser();
+  </script>
+  <script src="/app-ui.js" defer></script>
+</body>
+</html>
