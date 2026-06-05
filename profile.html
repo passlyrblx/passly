@@ -115,6 +115,10 @@
     .remove-gp-btn { position:absolute; top:5px; right:5px; background:rgba(239,68,68,0.8); border:none; color:white; border-radius:50%; width:24px; height:24px; cursor:pointer; }
     .gamepass-list { margin-top:10px; max-height:200px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:8px; padding:10px; }
     .gamepass-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid rgba(139,92,246,0.2); }
+    .vip-upgrade-card { border-color:rgba(245,158,11,0.45); background:linear-gradient(135deg,rgba(245,158,11,0.18),rgba(20,20,40,0.72)); }
+    .vip-upgrade-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+    .vip-upgrade-actions .save-btn { width:auto; display:inline-block; }
+    .vip-upgrade-status { margin-top:10px; color:#fde68a; font-size:0.9rem; }
     @media (max-width:768px) {
       .hamburger { display: flex; }
       .nav-links { display: none; }
@@ -196,6 +200,17 @@
     <div id="searchResult"></div>
   </div>
   </div>
+
+  <div class="section-card vip-upgrade-card" id="vipUpgradeCard">
+    <h3 id="vipUpgradeTitle" style="color:#fbbf24; margin-bottom:12px;">⭐ Buy VIP</h3>
+    <p id="vipUpgradeDescription" style="color:#fef3c7; margin-bottom:8px;"><strong>VIP costs 1,000 Robux.</strong> Buy the VIP gamepass here on Profile, then return and verify ownership to unlock VIP.</p>
+    <p class="settings-help">VIP unlocks the VIP badge/tag and VIP room access. Gamepass ID: <strong id="vipGamepassId">Loading...</strong></p>
+    <div class="vip-upgrade-actions" id="vipUpgradeActions">
+      <button class="save-btn" onclick="requireLogin(() => buyVipGamepass())" style="background:linear-gradient(135deg,#f59e0b,#fbbf24); color:#0a0a14;">Buy 1K VIP Gamepass</button>
+      <button class="save-btn" onclick="requireLogin(() => verifyVipGamepass())" style="background:#22c55e;">Verify VIP</button>
+    </div>
+    <div class="vip-upgrade-status" id="vipUpgradeStatus">You can buy VIP here in Profile.</div>
+  </div>
   <!-- My Board Section with manual Add only -->
   <div class="section-card" id="booth">
     <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
@@ -266,6 +281,61 @@
     select.value = userData.displayTag?.key || tags[0].key;
     list.innerHTML = tags.map(tag => `<span class="available-tag tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>`).join('');
   }
+
+  function isVipRole(role) { return ['vip','admin','owner'].includes(String(role || '').toLowerCase()); }
+  function renderVipUpgrade() {
+    const card = document.getElementById('vipUpgradeCard');
+    const idEl = document.getElementById('vipGamepassId');
+    const title = document.getElementById('vipUpgradeTitle');
+    const description = document.getElementById('vipUpgradeDescription');
+    const actions = document.getElementById('vipUpgradeActions');
+    const status = document.getElementById('vipUpgradeStatus');
+    if(!card) return;
+    const vipGamepass = userData?.vipGamepass || { id: '1859054633', price: 1000 };
+    if(idEl) idEl.textContent = vipGamepass.id;
+    card.style.display = 'block';
+    if(isVipRole(userData?.role)) {
+      if(title) title.textContent = '⭐ VIP Active';
+      if(description) description.innerHTML = '<strong>You already have VIP.</strong> Your VIP badge/tag and VIP room access are active.';
+      if(actions) actions.style.display = 'none';
+      if(status) status.textContent = 'VIP is already verified on this account.';
+    } else {
+      if(title) title.textContent = '⭐ Buy VIP';
+      if(description) description.innerHTML = '<strong>VIP costs 1,000 Robux.</strong> Buy the VIP gamepass here on Profile, then return and verify ownership to unlock VIP.';
+      if(actions) actions.style.display = 'flex';
+      if(status) status.textContent = userData?.isGuest ? 'Log in with Roblox first, then buy VIP here in Profile.' : 'You can buy VIP here in Profile.';
+    }
+  }
+  async function buyVipGamepass() {
+    const status = document.getElementById('vipUpgradeStatus');
+    status.textContent = 'Opening Roblox VIP gamepass...';
+    try {
+      const res = await fetch('/api/vip/purchase', { method:'POST', headers:authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || 'Could not start VIP purchase.');
+      if(data.alreadyVip) { status.textContent = 'VIP is already active on your account.'; return; }
+      window.open(data.url, '_blank');
+      status.textContent = 'Purchase opened. After buying, come back and click Verify VIP.';
+    } catch(e) { status.textContent = e.message; PasslyUI.error(e.message); }
+  }
+  async function verifyVipGamepass() {
+    const status = document.getElementById('vipUpgradeStatus');
+    status.textContent = 'Checking your Roblox inventory for the VIP gamepass...';
+    try {
+      const res = await fetch('/api/vip/verify', { method:'POST', headers:authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || 'Could not verify VIP.');
+      userData.role = data.role || 'vip';
+      if(data.availableTags) userData.availableTags = data.availableTags;
+      if(data.displayTag) userData.displayTag = data.displayTag;
+      renderDisplayName(document.getElementById('profileName'), userData);
+      renderDisplayName(document.getElementById('userName'), userData);
+      renderTagSettings();
+      renderVipUpgrade();
+      PasslyUI.success(data.message || 'VIP role granted!');
+      status.textContent = data.message || 'VIP role granted!';
+    } catch(e) { status.textContent = e.message; PasslyUI.error(e.message); }
+  }
   async function init() {
     if(token) { try { const res = await fetch('/api/user', { headers:{'Authorization':`Bearer ${token}`} }); if(res.ok) { userData = await res.json(); userData.isGuest = false; document.getElementById('loginPrompt').style.display = 'none'; } else { localStorage.removeItem('passly_token'); token = null; } } catch(e) { console.warn('Profile load failed.'); } }
     if(!userData) { const guest = JSON.parse(localStorage.getItem('passly_user') || 'null'); if(guest && guest.username) userData = { ...guest, isGuest: true }; else { const res = await fetch('/api/guest-login', { method:'POST' }); const data = await res.json(); userData = { ...data, isGuest: true }; localStorage.setItem('passly_user', JSON.stringify(userData)); } document.getElementById('loginPrompt').style.display = 'block'; }
@@ -280,6 +350,7 @@
     if(userData.profile) { document.getElementById('showBooth').value = userData.profile.showBooth ? 'true' : 'false'; document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online'; document.getElementById('showRoomId').value = userData.profile.showRoomId ? 'true' : 'false'; }
     if(userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
     renderTagSettings();
+    renderVipUpgrade();
     applyNotificationPrefs(userData.notificationPreferences || {});
     if(token) loadNotifications();
     if(userData.board && userData.board.length) { const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = userData.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); }

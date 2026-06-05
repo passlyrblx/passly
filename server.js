@@ -27,6 +27,7 @@ const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } })
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
+const VIP_GAMEPASS_ID = process.env.VIP_GAMEPASS_ID || '1859054633';
 mongoose.set('bufferCommands', false);
 
 // Fallback default rooms
@@ -299,6 +300,7 @@ const ROBLOX_CONFIG = {
   authUrl: 'https://apis.roblox.com/oauth/v1/authorize', tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
   userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo', usersApi: 'https://users.roblox.com/v1/users'
 };
+const VIP_GAMEPASS = { id: VIP_GAMEPASS_ID, price: 1000, url: `https://www.roblox.com/game-pass/${VIP_GAMEPASS_ID}` };
 
 const oauthStateSchema = new mongoose.Schema({ state: { type: String, required: true, unique: true }, createdAt: { type: Date, default: Date.now, expires: 600 } });
 const OAuthState = mongoose.models.OAuthState || mongoose.model('OAuthState', oauthStateSchema);
@@ -314,7 +316,7 @@ function authenticateToken(req, res, next) {
 }
 
 // ========== PUBLIC API PATHS (no token required) ==========
-const publicApiPaths = ['/rooms', '/health', '/guest-login', '/search', '/leaderboard', '/streak-leaderboard'];
+const publicApiPaths = ['/rooms', '/health', '/guest-login', '/search', '/leaderboard', '/streak-leaderboard', '/vip/gamepass'];
 app.use('/api', (req, res, next) => {
   if (publicApiPaths.some(path => req.path === path || req.path.startsWith(`${path}/`))) {
     return next();
@@ -407,7 +409,7 @@ app.get('/api/user', authenticateToken, async (req, res) => {
     displayName: user.customDisplayName || user.robloxDisplayName || '', avatarUrl, avatarFallback, profile: user.profile,
     roomId: user.roomId, inQueue: user.inQueue, donations: user.donations,
     customDisplayName: user.customDisplayName || null, board: user.board || [],
-    role: effectiveRoleFor(user), notificationPreferences: user.notificationPreferences || {}, ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
+    role: effectiveRoleFor(user), notificationPreferences: user.notificationPreferences || {}, vipGamepass: VIP_GAMEPASS, ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
   });
 });
 
@@ -546,6 +548,40 @@ app.post('/api/booths/equip', authenticateToken, async (req, res) => {
   user.booth = { activeTheme: themeId, ownedThemes: owned };
   await user.save();
   res.json({ success: true, ...serializeEconomy(user) });
+});
+
+
+app.get('/api/vip/gamepass', async (req, res) => {
+  res.json(VIP_GAMEPASS);
+});
+
+app.post('/api/vip/purchase', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const role = effectiveRoleFor(user);
+  if (['vip', 'admin', 'owner'].includes(role)) return res.json({ success: true, alreadyVip: true, role, url: VIP_GAMEPASS.url });
+  res.json({ success: true, url: VIP_GAMEPASS.url, gamepassId: VIP_GAMEPASS.id, price: VIP_GAMEPASS.price });
+});
+
+app.post('/api/vip/verify', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const currentRole = effectiveRoleFor(user);
+  if (['vip', 'admin', 'owner'].includes(currentRole)) return res.json({ success: true, message: 'VIP is already active on your account.', role: currentRole, ...serializeUserTags(user) });
+  try {
+    const inv = await axios.get(`https://inventory.roblox.com/v1/users/${req.user.id}/items/GamePass/${VIP_GAMEPASS.id}`, { timeout: 5000 });
+    if (!inv.data?.data?.length) return res.status(400).json({ error: 'VIP gamepass not found in your inventory yet. Buy the 1,000 Robux VIP gamepass, then try Verify again.' });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to verify VIP gamepass ownership. Please try again.' });
+  }
+  user.role = 'vip';
+  if (!user.profile?.displayTag) user.set('profile.displayTag', 'vip');
+  await user.save();
+  res.json({ success: true, message: 'VIP role granted!', role: 'vip', ...serializeUserTags(user) });
 });
 
 app.post('/api/profile/update', authenticateToken, async (req, res) => {
