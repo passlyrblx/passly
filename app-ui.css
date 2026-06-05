@@ -103,7 +103,7 @@ body::after {
   transition: 160ms ease;
   white-space: nowrap;
 }
-.nav-links a:hover, .nav-links a[aria-current="page"] {
+.nav-links a:hover, .nav-links a[aria-current="page"], .passly-nav-group.has-current-page > .passly-nav-parent {
   color: #fff !important;
   background: linear-gradient(135deg, rgba(139,92,246,0.24), rgba(34,211,238,0.12));
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 10px 25px rgba(139,92,246,0.16);
@@ -151,7 +151,7 @@ body::after {
   -webkit-backdrop-filter: blur(28px) saturate(1.35) !important;
 }
 .mobile-menu::before {
-  content: "Navigate Passly";
+  content: "Passly Menu";
   position: absolute;
   left: 20px;
   top: 24px;
@@ -585,10 +585,10 @@ body.login-page .btn { margin-top: 10px; }
 .board-gamepass-btn { width:100% !important; min-height:74px; align-items:flex-start !important; justify-content:center; text-align:left; gap:6px; }
 @media (max-width: 560px) { .economy-grid, .booth-shop-grid { grid-template-columns: 1fr; } .board-gamepass-btn { min-height:66px; } }
 
-/* Shared Passly topic/subtopic navigation */
+/* Shared Passly section navigation */
 .nav-logo { cursor: default; }
 .passly-nav-group { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 999px; }
-.passly-nav-group:hover { background: rgba(139,92,246,.08); }
+.passly-nav-group:hover, .passly-nav-group.has-current-page { background: rgba(139,92,246,.08); }
 .passly-nav-parent { white-space: nowrap; }
 .passly-submenu-toggle {
   width: 28px;
