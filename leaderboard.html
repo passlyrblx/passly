@@ -160,7 +160,6 @@
     <a href="/rooms">🚪 Rooms</a>
     <a href="/leaderboard">🏆 Leaderboard</a>
     <a href="/profile">👤 Profile</a>
-    <a href="/advertisement">📢 Advertise</a>
     <a href="/livedonations">💸 Live Donations</a>
   </div>
   <div class="user-box">
@@ -168,18 +167,15 @@
     <span class="user-name" id="userName">Loading...</span>
   </div>
 </nav>
-
 <div class="mobile-menu" id="mobileMenu">
   <button class="close-menu" id="closeMenuBtn">&times;</button>
   <a href="/dashboard">🏠 Home</a>
   <a href="/rooms">🚪 Rooms</a>
   <a href="/leaderboard">🏆 Leaderboard</a>
   <a href="/profile">👤 Profile</a>
-  <a href="/advertisement">📢 Advertise</a>
   <a href="/livedonations">💸 Live Donations</a>
 </div>
 <div class="menu-overlay" id="menuOverlay"></div>
-
 <div class="main-content">
   <h1>🏆 Leaderboard</h1>
   <div class="tabs">
@@ -203,7 +199,6 @@
   <script>
     let token = localStorage.getItem('passly_token');
     let userData = null;
-
     // Mobile menu toggle
     const hamburger = document.getElementById('hamburgerBtn');
     const mobileMenu = document.getElementById('mobileMenu');
@@ -216,7 +211,6 @@
       closeMenuBtn.addEventListener('click', closeMenu);
       menuOverlay.addEventListener('click', closeMenu);
     }
-
     function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
     function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
     function setAvatarWithFallback(el, url, fallback) {
@@ -236,7 +230,6 @@
       };
       img.src = primary;
     }
-
     // Load user for avatar
     if (token) {
       fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } })
@@ -251,14 +244,12 @@
     } else {
       document.getElementById('userName').textContent = 'Guest';
     }
-
     let currentPeriod = 'daily';
     function switchTab(period) {
       currentPeriod = period;
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.period === period));
       loadLeaderboard();
     }
-
     async function loadLeaderboard() {
       document.getElementById('receiversTable').innerHTML = '<tr><td colspan="3" class="empty-state">Loading...</td></tr>';
       document.getElementById('donorsTable').innerHTML = '<tr><td colspan="3" class="empty-state">Loading...</td></tr>';
@@ -276,13 +267,11 @@
         document.getElementById('streakList').innerHTML = '<div class="empty-state">Error loading streaks</div>';
       }
     }
-
     function renderStreaks(players) {
       const list = document.getElementById('streakList');
       if (!players.length) { list.innerHTML = '<div class="empty-state">No streaks yet</div>'; return; }
       list.innerHTML = players.map((player, index) => `<div class="streak-leader-row"><span class="streak-leader-name">${index + 1}. ${escapeHtml(player.username)}</span><span class="streak-pill">🔥 ${Number(player.streak || 0).toLocaleString()}</span></div>`).join('');
     }
-
     function renderTable(tableId, players) {
       const table = document.getElementById(tableId);
       if (!players || players.length === 0) {
@@ -297,7 +286,6 @@
         return `<tr><td><span class="rank ${rankClass}">${rankEmoji || index+1}</span></td><td>${escapeHtml(player.username)}</td><td>${player.amount.toLocaleString()} Robux</td></tr>`;
       }).join('');
     }
-
     loadLeaderboard();
   </script>
   <script src="/app-ui.js" defer></script>
