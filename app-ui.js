@@ -136,16 +136,27 @@
       { label: 'Admin Chat', href: '/admin#admin-chat-card' },
       { label: 'Coupons', href: '/admin#coupon-card' }
     ]});
+    groups.push({ label: '🛟 Support', href: '/terms', children: [
+      { label: 'Terms of Service', href: '/terms' },
+      { label: 'Privacy Policy', href: '/privacy' },
+      {
+        label: 'Discord Support',
+        href: 'https://discord.gg/9qNpCGztun',
+        description: 'Open a support ticket and tell us what you need help with.',
+        external: true
+      }
+    ]});
+    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
     const desktopHtml = groups.map((group) => group.children ? `
       <div class="passly-nav-group">
         <a href="${group.href}" class="passly-nav-parent">${group.label}</a>
         <button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button>
-        <div class="passly-submenu">${group.children.map(child => `<a href="${child.href}">${child.label}</a>`).join('')}</div>
+        <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
       </div>` : `<a href="${group.href}">${group.label}</a>`).join('');
     const mobileHtml = `<button class="close-menu" id="closeMenuBtn">&times;</button>` + groups.map((group) => group.children ? `
       <div class="passly-mobile-group">
         <div class="passly-mobile-row"><a href="${group.href}">${group.label}</a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button></div>
-        <div class="passly-submenu">${group.children.map(child => `<a href="${child.href}">${child.label}</a>`).join('')}</div>
+        <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
       </div>` : `<a href="${group.href}">${group.label}</a>`).join('');
     if (desktopNav) desktopNav.innerHTML = desktopHtml;
     if (mobileNav) mobileNav.innerHTML = mobileHtml;
