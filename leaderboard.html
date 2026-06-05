@@ -191,6 +191,10 @@
     <div class="section-title">💰 Top Receivers</div>
     <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Received</th></tr></thead><tbody id="receiversTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table>
   </div>
+  <div class="leaderboard-section streak-card">
+    <div class="section-title">🔥 Top Streaks</div>
+    <div class="streak-leader-list" id="streakList"><div class="empty-state">Loading...</div></div>
+  </div>
   <div class="leaderboard-section">
     <div class="section-title">💸 Top Donors</div>
     <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Donated</th></tr></thead><tbody id="donorsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table>
@@ -258,16 +262,25 @@
     async function loadLeaderboard() {
       document.getElementById('receiversTable').innerHTML = '<tr><td colspan="3" class="empty-state">Loading...</td></tr>';
       document.getElementById('donorsTable').innerHTML = '<tr><td colspan="3" class="empty-state">Loading...</td></tr>';
+      document.getElementById('streakList').innerHTML = '<div class="empty-state">Loading...</div>';
       try {
         const res = await fetch(`/api/leaderboard?period=${currentPeriod}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         renderTable('receiversTable', data.receivers);
         renderTable('donorsTable', data.donors);
+        renderStreaks(data.streaks || []);
       } catch (e) {
         document.getElementById('receiversTable').innerHTML = '<tr><td colspan="3" class="empty-state">Error loading data</td></tr>';
         document.getElementById('donorsTable').innerHTML = '<tr><td colspan="3" class="empty-state">Error loading data</td></tr>';
+        document.getElementById('streakList').innerHTML = '<div class="empty-state">Error loading streaks</div>';
       }
+    }
+
+    function renderStreaks(players) {
+      const list = document.getElementById('streakList');
+      if (!players.length) { list.innerHTML = '<div class="empty-state">No streaks yet</div>'; return; }
+      list.innerHTML = players.map((player, index) => `<div class="streak-leader-row"><span class="streak-leader-name">${index + 1}. ${escapeHtml(player.username)}</span><span class="streak-pill">🔥 ${Number(player.streak || 0).toLocaleString()}</span></div>`).join('');
     }
 
     function renderTable(tableId, players) {
@@ -281,7 +294,7 @@
         if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
         else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
         else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
-        return `<tr><td><span class="rank ${rankClass}">${rankEmoji || index+1}</span></td><td>${player.username}</td><td>${player.amount.toLocaleString()} Robux</td></tr>`;
+        return `<tr><td><span class="rank ${rankClass}">${rankEmoji || index+1}</span></td><td>${escapeHtml(player.username)}</td><td>${player.amount.toLocaleString()} Robux</td></tr>`;
       }).join('');
     }
 

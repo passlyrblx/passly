@@ -45,6 +45,9 @@ const userSchema = new mongoose.Schema({
   profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null } },
   roomId: String, inQueue: Boolean,
   donations: { received: Number, given: Number },
+  coins: { type: Number, default: 0, min: 0 },
+  dailyReward: { streak: { type: Number, default: 0 }, lastClaimDate: { type: String, default: '' }, totalClaims: { type: Number, default: 0 } },
+  booth: { activeTheme: { type: String, default: 'default' }, ownedThemes: { type: [String], default: ['default'] } },
   board: [{ id: String, name: String, price: Number }],
   acceptedTos: { type: Boolean, default: false },
   acceptedTosAt: Date,
@@ -95,8 +98,63 @@ const donationSchema = new mongoose.Schema({
   _id: String, donorId: String, donorName: String, receiverId: String,
   receiverName: String, gamepassId: String, amount: Number,
   roomId: String, verified: { type: Boolean, default: true },
+  coinRewards: { donor: { type: Number, default: 0 }, receiver: { type: Number, default: 0 } },
+  consumedPurchaseKey: String,
   timestamp: { type: Date, default: Date.now }
 });
+
+const consumedPurchaseSchema = new mongoose.Schema({
+  _id: String,
+  donorId: { type: String, index: true },
+  gamepassId: { type: String, index: true },
+  receiverId: String,
+  amount: Number,
+  donationId: String,
+  consumedAt: { type: Date, default: Date.now }
+});
+
+const BOOTH_THEMES = [
+  { id: 'neon', name: 'Neon', price: 100, tier: 'Starter', animated: false },
+  { id: 'cyber', name: 'Cyber', price: 250, tier: 'Starter', animated: false },
+  { id: 'galaxy', name: 'Galaxy', price: 500, tier: 'Rare', animated: false },
+  { id: 'crystal', name: 'Crystal', price: 1000, tier: 'Rare', animated: true },
+  { id: 'gold', name: 'Gold', price: 2500, tier: 'Epic', animated: true },
+  { id: 'shadow', name: 'Shadow', price: 5000, tier: 'Epic', animated: true },
+  { id: 'royal', name: 'Royal', price: 10000, tier: 'Legendary', animated: true },
+  { id: 'energy', name: 'Energy', price: 25000, tier: 'Legendary', animated: true },
+  { id: 'futuristic', name: 'Futuristic', price: 50000, tier: 'Mythic', animated: true },
+  { id: 'mythic', name: 'Mythic', price: 100000, tier: 'Mythic', animated: true }
+];
+function getTodayKey(date = new Date()) { return date.toISOString().slice(0, 10); }
+function getYesterdayKey() { const d = new Date(); d.setUTCDate(d.getUTCDate() - 1); return getTodayKey(d); }
+function getDailyRewardAmount(streak) {
+  const day = Math.max(1, Number(streak) || 1);
+  if (day <= 2) return 5;
+  if (day <= 4) return 6;
+  if (day <= 6) return 7;
+  if (day === 7) return 8;
+  if (day === 8) return 9;
+  if (day === 9) return 10;
+  if (day === 10) return 12;
+  return Math.min(250, 12 + Math.floor(Math.sqrt(day - 10) * 2) + Math.floor((day - 10) / 14));
+}
+function serializeEconomy(user) {
+  const reward = user?.dailyReward || {};
+  const today = getTodayKey();
+  const currentStreak = Number(reward.streak || 0);
+  const nextStreak = reward.lastClaimDate === today ? currentStreak : (reward.lastClaimDate === getYesterdayKey() ? currentStreak + 1 : 1);
+  return {
+    coins: Math.max(0, Math.floor(user?.coins || 0)),
+    dailyReward: {
+      streak: currentStreak,
+      lastClaimDate: reward.lastClaimDate || '',
+      claimedToday: reward.lastClaimDate === today,
+      nextReward: getDailyRewardAmount(nextStreak),
+      nextStreak
+    },
+    booth: { activeTheme: user?.booth?.activeTheme || 'default', ownedThemes: user?.booth?.ownedThemes || ['default'] }
+  };
+}
 const adSchema = new mongoose.Schema({
   _id: String, userId: String, username: String, tier: Number,
   gamepassId: String, broadcastsLeft: Number, showsLeft: Number,
@@ -135,6 +193,7 @@ const notificationSchema = new mongoose.Schema({
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const RoomModel = mongoose.models.Room || mongoose.model('Room', roomSchema);
 const Donation = mongoose.models.Donation || mongoose.model('Donation', donationSchema);
+const ConsumedPurchase = mongoose.models.ConsumedPurchase || mongoose.model('ConsumedPurchase', consumedPurchaseSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const AdBroadcast = mongoose.models.AdBroadcast || mongoose.model('AdBroadcast', adBroadcastSchema);
 const FriendRequest = mongoose.models.FriendRequest || mongoose.model('FriendRequest', friendRequestSchema);
@@ -322,7 +381,7 @@ app.get('/api/user', authenticateToken, async (req, res) => {
     displayName: user.customDisplayName || user.robloxDisplayName || '', avatarUrl, avatarFallback, profile: user.profile,
     roomId: user.roomId, inQueue: user.inQueue, donations: user.donations, ad: activeAd || null,
     customDisplayName: user.customDisplayName || null, board: user.board || [],
-    role: effectiveRoleFor(user), ...serializeUserTags(user), acceptedTos: user.acceptedTos
+    role: effectiveRoleFor(user), ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
   });
 });
 
@@ -354,6 +413,86 @@ app.post('/api/accept-tos', authenticateToken, async (req, res) => {
   res.json({ success: true });
 });
 
+
+app.get('/api/economy', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ ...serializeEconomy(user), boothThemes: BOOTH_THEMES });
+});
+
+app.post('/api/daily-reward/claim', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const today = getTodayKey();
+  const reward = user.dailyReward || {};
+  if (reward.lastClaimDate === today) {
+    return res.status(400).json({ error: 'Daily reward already claimed today.', ...serializeEconomy(user) });
+  }
+  const streak = reward.lastClaimDate === getYesterdayKey() ? Number(reward.streak || 0) + 1 : 1;
+  const amount = getDailyRewardAmount(streak);
+  user.coins = Math.max(0, Math.floor(user.coins || 0)) + amount;
+  user.dailyReward = { streak, lastClaimDate: today, totalClaims: Number(reward.totalClaims || 0) + 1 };
+  await user.save();
+  res.json({ success: true, claimed: amount, ...serializeEconomy(user) });
+});
+
+app.get('/api/streak-leaderboard', async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.json([]);
+  const users = await User.find({ 'dailyReward.streak': { $gt: 0 } })
+    .sort({ 'dailyReward.streak': -1, coins: -1 })
+    .limit(10)
+    .select('robloxUsername robloxDisplayName customDisplayName avatarUrl dailyReward');
+  res.json(users.map(user => ({
+    username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player',
+    streak: user.dailyReward?.streak || 0,
+    avatarUrl: user.avatarUrl || ''
+  })));
+});
+
+app.get('/api/booths', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ themes: BOOTH_THEMES, ...serializeEconomy(user) });
+});
+
+app.post('/api/booths/purchase', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const theme = BOOTH_THEMES.find(item => item.id === String(req.body.themeId || '').toLowerCase());
+  if (!theme) return res.status(400).json({ error: 'Unknown booth theme.' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const owned = new Set(user.booth?.ownedThemes || ['default']);
+  if (owned.has(theme.id)) return res.status(400).json({ error: 'You already own this booth theme.' });
+  if (Math.floor(user.coins || 0) < theme.price) return res.status(400).json({ error: 'Not enough coins for this booth theme.' });
+  user.coins = Math.floor(user.coins || 0) - theme.price;
+  owned.add(theme.id);
+  user.booth = { activeTheme: user.booth?.activeTheme || 'default', ownedThemes: [...owned] };
+  await user.save();
+  res.json({ success: true, purchased: theme, ...serializeEconomy(user) });
+});
+
+app.post('/api/booths/equip', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const themeId = String(req.body.themeId || '').toLowerCase();
+  if (themeId !== 'default' && !BOOTH_THEMES.some(item => item.id === themeId)) return res.status(400).json({ error: 'Unknown booth theme.' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const owned = user.booth?.ownedThemes || ['default'];
+  if (!owned.includes(themeId)) return res.status(403).json({ error: 'You do not own this booth theme.' });
+  user.booth = { activeTheme: themeId, ownedThemes: owned };
+  await user.save();
+  res.json({ success: true, ...serializeEconomy(user) });
+});
+
 app.post('/api/profile/update', authenticateToken, async (req, res) => {
   const User = getUserModel();
   if (!User) return res.status(503).json({ error: 'Database not ready' });
@@ -382,7 +521,7 @@ app.get('/api/search', async (req, res) => {
   if (!q) return res.status(400).json({ error: 'Username required' });
   const found = await User.findOne({ robloxUsername: new RegExp(`^${q}$`, 'i') });
   if (!found) return res.json({ error: 'User not found' });
-  res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, displayTag: serializeTag(getPublicTag(found)), board: found.profile?.showBooth !== false ? (found.board || []) : [] });
+  res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, displayTag: serializeTag(getPublicTag(found)), booth: found.booth || { activeTheme: 'default', ownedThemes: ['default'] }, board: found.profile?.showBooth !== false ? (found.board || []) : [] });
 });
 
 app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
@@ -390,7 +529,7 @@ app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.params.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user._id, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl, displayTag: serializeTag(getPublicTag(user)), board: user.profile?.showBooth !== false ? (user.board || []) : [] });
+  res.json({ id: user._id, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl, displayTag: serializeTag(getPublicTag(user)), booth: user.booth || { activeTheme: 'default', ownedThemes: ['default'] }, board: user.profile?.showBooth !== false ? (user.board || []) : [] });
 });
 
 app.post('/api/board/add', authenticateToken, async (req, res) => {
@@ -570,24 +709,41 @@ app.post('/api/rooms/guest/leave', async (req, res) => {
   res.json({ success: true });
 });
 const BAD_WORDS_LIST_SERVER = [
-  'fuck', 'shit', 'ass', 'bitch', 'cunt', 'dick', 'pussy', 'twat', 'whore', 'slut', 'bastard', 'damn', 'hell', 'piss', 'cock',
+  'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'twat', 'whore', 'slut', 'bastard', 'piss', 'cock',
   'faggot', 'nigga', 'nigger', 'retard', 'fck', 'fcuk', 'phuk', 'fuk', 'sh1t', 'sht', 'b1tch', 'btch', 'c0ck', 'd1ck', 'dck',
-  'pussy', 'cunt', 'cnt', 'n1gga', 'n1gger', 'ngga', 'f4ggot', 'fag', 'f4g', 'ret4rd', 'rtrd', 'b8stard', 'bstrd', 'wh0re',
-  'whre', 'slut', 'b!tch', 'c0k', 'dik', 'dikhed', 'clit', 'cl1t', 'tw4t', 'wanker', 'w4nker', 'bollocks', 'arse', 'arsehole',
-  '5hit', '5h1t', 'phoque', 'kunt', 'kuk', 'kak'
+  'n1gga', 'n1gger', 'ngga', 'f4ggot', 'f4g', 'ret4rd', 'rtrd', 'b8stard', 'bstrd', 'wh0re',
+  'whre', 'b!tch', 'c0k', 'dik', 'dikhed', 'clit', 'cl1t', 'tw4t', 'wanker', 'w4nker', 'bollocks', 'arsehole',
+  '5hit', '5h1t', 'phoque', 'kunt'
+];
+const BAD_WORD_PATTERNS_SERVER = [
+  /f+\W*[u*]\W*c+\W*k+/i,
+  /s+\W*h+\W*[i1!*]+\W*t+/i,
+  /b+\W*[i1!*]+\W*t+\W*c+\W*h+/i,
+  /n+\W*[i1!*]+\W*g+\W*g+\W*(?:a|e|er)?/i,
+  /f+\W*a+\W*g+(?:\W*o+\W*t+)?/i,
+  /r+\W*e+\W*t+\W*a+\W*r+\W*d+/i
 ];
 function normalizeTextServer(text) {
-  let normalized = text.toLowerCase();
-  normalized = normalized.replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
-  normalized = normalized.replace(/@/g, 'a').replace(/\$/g, 's').replace(/\+/g, 't');
-  normalized = normalized.replace(/[\s\._\-*]/g, '');
+  let normalized = String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  normalized = normalized
+    .replace(/[0º°]/g, 'o').replace(/[1!|ìíîï]/g, 'i').replace(/[3€]/g, 'e')
+    .replace(/[4@]/g, 'a').replace(/[5$]/g, 's').replace(/[7+]/g, 't')
+    .replace(/[8]/g, 'b').replace(/[9]/g, 'g');
+  normalized = normalized.replace(/(.)\1{2,}/g, '$1$1');
+  normalized = normalized.replace(/[^a-z0-9]/g, '');
   return normalized;
 }
 function filterMessageServer(text) {
   if (!text) return text;
-  const normalized = normalizeTextServer(text);
+  const original = String(text);
+  const normalized = normalizeTextServer(original);
+  const spaced = original.replace(/(.)\1{2,}/g, '$1$1');
+  const compactWords = normalized.match(/[a-z]+/g)?.join(' ') || normalized;
+  const hasContext = /\b(?:kill\s*yourself|kys|discord\s*\.\s*gg|free\s*robux|password|token|cookie)\b/i.test(spaced);
+  if (hasContext || BAD_WORD_PATTERNS_SERVER.some(pattern => pattern.test(spaced))) return '#'.repeat(original.length);
   for (const bad of BAD_WORDS_LIST_SERVER) {
-    if (normalized.includes(bad)) return '#'.repeat(text.length);
+    const normalizedBad = normalizeTextServer(bad);
+    if (normalizedBad.length >= 3 && (normalized.includes(normalizedBad) || compactWords.includes(normalizedBad))) return '#'.repeat(original.length);
   }
   return text;
 }
@@ -806,7 +962,8 @@ app.get('/api/leaderboard', async (req, res) => {
   const donors = await Donation.aggregate([{ $match: match }, { $group: { _id: '$donorId', total: { $sum: '$amount' } } }, { $sort: { total: -1 } }, { $limit: 10 }]);
   const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
   const enrich = async (arr) => { const result = []; for (const item of arr) { const user = User ? await User.findById(item._id) : null; result.push({ username: user ? (user.customDisplayName || user.robloxDisplayName || user.robloxUsername) : 'Unknown', amount: item.total }); } return result; };
-  res.json({ receivers: await enrich(receivers), donors: await enrich(donors) });
+  const streaks = User ? await User.find({ 'dailyReward.streak': { $gt: 0 } }).sort({ 'dailyReward.streak': -1, coins: -1 }).limit(10).select('robloxUsername robloxDisplayName customDisplayName dailyReward') : [];
+  res.json({ receivers: await enrich(receivers), donors: await enrich(donors), streaks: streaks.map(user => ({ username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player', streak: user.dailyReward?.streak || 0 })) });
 });
 
 // ADS
@@ -910,12 +1067,19 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
 
   const User = getUserModel();
   const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
-  if (!User || !Donation) return res.status(503).json({ error: 'Database not ready' });
+  const ConsumedPurchase = mongoose.connection.readyState === 1 ? mongoose.model('ConsumedPurchase') : null;
+  if (!User || !Donation || !ConsumedPurchase) return res.status(503).json({ error: 'Database not ready' });
   const donor = await User.findById(donorId);
   if (!donor) return res.status(404).json({ error: 'User not found' });
 
+  const consumedKey = `${donorId}:${gamepassId}`;
+  const consumed = await ConsumedPurchase.findById(consumedKey);
+  if (consumed) {
+    pendingDonations.delete(donorId);
+    return res.status(400).json({ error: 'You have already verified this purchase. Remove it from your inventory and buy it again if you wish to donate again.' });
+  }
   const existing = await Donation.findOne({ donorId, receiverId, gamepassId, amount });
-  if (existing) return res.status(400).json({ error: 'You have already donated this gamepass to this user.' });
+  if (existing) return res.status(400).json({ error: 'You have already verified this purchase. Remove it from your inventory and buy it again if you wish to donate again.' });
 
   try {
     const inv = await axios.get(`https://inventory.roblox.com/v1/users/${donorId}/items/GamePass/${gamepassId}`, { timeout: 5000 });
@@ -924,13 +1088,19 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
 
   const receiver = await User.findById(receiverId);
   if (!receiver) return res.status(404).json({ error: 'Receiver not found' });
+  const donationAmount = Math.max(0, Math.floor(Number(amount) || 0));
+  const donorCoins = Math.floor(donationAmount / 10);
+  const receiverCoins = Math.floor(donationAmount / 20);
   const donation = new Donation({
     _id: crypto.randomBytes(8).toString('hex'), donorId, donorName: donor.robloxUsername,
-    receiverId, receiverName: receiver.robloxUsername, gamepassId, amount, roomId: null, verified: true, timestamp: new Date()
+    receiverId, receiverName: receiver.robloxUsername, gamepassId, amount: donationAmount, roomId: null, verified: true,
+    coinRewards: { donor: donorCoins, receiver: receiverCoins }, consumedPurchaseKey: consumedKey, timestamp: new Date()
   });
   await donation.save();
-  await User.findByIdAndUpdate(donorId, { $inc: { 'donations.given': amount } });
-  await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': amount } });
+  await ConsumedPurchase.create({ _id: consumedKey, donorId, gamepassId, receiverId, amount: donationAmount, donationId: donation._id });
+  await User.findByIdAndUpdate(donorId, { $inc: { 'donations.given': donationAmount, coins: donorCoins } });
+  await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': donationAmount, coins: receiverCoins } });
+  amount = donationAmount;
   pendingDonations.delete(donorId);
 
   // ========== SEND DONATION MESSAGES ==========
@@ -958,7 +1128,7 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
     timestamp: new Date()
   });
 
-  res.json({ success: true, message: 'Donation recorded! Thank you.' });
+  res.json({ success: true, message: 'Donation recorded! Thank you.', coinRewards: { donor: Math.floor(amount / 10), receiver: Math.floor(amount / 20) } });
 });
 const OWNER_ROBLOX_ID = '3115362000';
 const ADMINS = new Set();
