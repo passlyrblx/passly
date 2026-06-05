@@ -282,14 +282,13 @@
     list.innerHTML = tags.map(tag => `<span class="available-tag tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>`).join('');
   }
 
-  function isVipRole(role) { return ['vip','admin','owner'].includes(String(role || '').toLowerCase()); }
   function renderVipUpgrade() {
     const card = document.getElementById('vipUpgradeCard');
     const idEl = document.getElementById('vipGamepassId');
     if(!card) return;
     const vipGamepass = userData?.vipGamepass || { id: '1859054633', price: 1000 };
     if(idEl) idEl.textContent = vipGamepass.id;
-    card.style.display = (!userData?.isGuest && !isVipRole(userData?.role)) ? 'block' : 'none';
+    card.style.display = 'block';
   }
   async function buyVipGamepass() {
     const status = document.getElementById('vipUpgradeStatus');
@@ -298,9 +297,8 @@
       const res = await fetch('/api/vip/purchase', { method:'POST', headers:authHeaders() });
       const data = await res.json().catch(() => ({}));
       if(!res.ok) throw new Error(data.error || 'Could not start VIP purchase.');
-      if(data.alreadyVip) { status.textContent = 'VIP is already active on your account.'; return; }
-      window.open(data.url, '_blank');
-      status.textContent = 'Purchase opened. After buying, come back and click Verify VIP.';
+      if(data.url) window.open(data.url, '_blank');
+      status.textContent = data.alreadyVip ? 'VIP is already active on your account. The VIP gamepass page is still available above.' : 'Purchase opened. After buying, come back and click Verify VIP.';
     } catch(e) { status.textContent = e.message; PasslyUI.error(e.message); }
   }
   async function verifyVipGamepass() {
