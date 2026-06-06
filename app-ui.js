@@ -22,7 +22,6 @@
     if (/guest users?.*earn passly coins/i.test(text)) return 'Guest users can’t earn Passly Coins. Please log in with Roblox to continue.';
     if (/no token|missing .*token|login required|please log in|guests? cannot|guest accounts/i.test(text)) return 'Please log in with Roblox to continue.';
     if (/database not ready|mongo|mongoose|cast to|validation failed|internal server|stack|syntaxerror|typeerror|referenceerror/i.test(text)) return 'Something went wrong on our side. Please try again in a moment.';
-    if (/microphone|permission|notallowed|notfound|notreadable|media/i.test(text)) return 'Microphone is unavailable or permission was denied. Check your browser permissions and try again.';
     return text.replace(/^Error:\s*/i, '');
   };
 

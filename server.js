@@ -763,6 +763,7 @@ app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, 
   let { name, desc, type } = req.body;
   name = sanitizeInput(name); desc = sanitizeInput(desc);
   if (!name) return res.status(400).json({ error: 'Room name required' });
+  if (filterMessageServer(name) !== name || filterMessageServer(desc) !== desc) return res.status(400).json({ error: 'Room name or description contains blocked content.' });
   if (!['Public', 'Private', 'VIP'].includes(type)) type = 'Public';
   const user = await User.findById(req.user.id);
   if (type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
@@ -881,44 +882,37 @@ app.post('/api/rooms/guest/leave', async (req, res) => {
   }
   res.json({ success: true });
 });
-const BAD_WORDS_LIST_SERVER = [
-  'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'twat', 'whore', 'slut', 'bastard', 'piss', 'cock',
-  'faggot', 'nigga', 'nigger', 'retard', 'fck', 'fcuk', 'phuk', 'fuk', 'sh1t', 'sht', 'b1tch', 'btch', 'c0ck', 'd1ck', 'dck',
-  'n1gga', 'n1gger', 'ngga', 'f4ggot', 'f4g', 'ret4rd', 'rtrd', 'b8stard', 'bstrd', 'wh0re',
-  'whre', 'b!tch', 'c0k', 'dik', 'dikhed', 'clit', 'cl1t', 'tw4t', 'wanker', 'w4nker', 'bollocks', 'arsehole',
-  '5hit', '5h1t', 'phoque', 'kunt'
-];
-const BAD_WORD_PATTERNS_SERVER = [
-  /f+\W*[u*]\W*c+\W*k+/i,
-  /s+\W*h+\W*[i1!*]+\W*t+/i,
-  /b+\W*[i1!*]+\W*t+\W*c+\W*h+/i,
-  /n+\W*[i1!*]+\W*g+\W*g+\W*(?:a|e|er)?/i,
-  /f+\W*a+\W*g+(?:\W*o+\W*t+)?/i,
-  /r+\W*e+\W*t+\W*a+\W*r+\W*d+/i
-];
+const MODERATION_SIGNATURES_SERVER = new Set([111009209, 131223985, 143668650, 329118256, 386109098, 502535704, 551573376, 555451591, 559076015, 602418012, 641486548, 725389688, 1413536787, 1413787050, 1460770119, 1514452764, 1530439355, 1559734732, 1579344374, 1644392271, 1652072215, 1698156692, 1780401646, 1794766504, 1825958011, 2000021598, 2090526271, 2170560880, 2197349758, 2300720737, 2371240910, 2378842645, 2444789715, 2491017778, 2491417249, 2502654918, 2502990200, 2523928442, 2755324272, 2755618503, 2761596009, 2824268595, 2916843581, 2919109247, 2985822365, 3005511384, 3006755830, 3017509295, 3093067160, 3114006918, 3168946342, 3171316098, 3248370327, 3272027626, 3403702076, 3529674079, 3542999934, 3610473989, 3626884894, 3627576442, 3739672974, 3866578250, 3930762817, 3949966424, 4102686208, 4109682119, 4250961641]);
 function normalizeTextServer(text) {
-  let normalized = String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  normalized = normalized
+  return String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/[0º°]/g, 'o').replace(/[1!|ìíîï]/g, 'i').replace(/[3€]/g, 'e')
     .replace(/[4@]/g, 'a').replace(/[5$]/g, 's').replace(/[7+]/g, 't')
-    .replace(/[8]/g, 'b').replace(/[9]/g, 'g');
-  normalized = normalized.replace(/(.)\1{2,}/g, '$1$1');
-  normalized = normalized.replace(/[^a-z0-9]/g, '');
-  return normalized;
+    .replace(/[8]/g, 'b').replace(/[9]/g, 'g')
+    .replace(/(.)\1+/g, '$1').replace(/[^a-z0-9]/g, '');
+}
+function moderationHashServer(text) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash >>> 0;
+}
+function hasBlockedSignatureServer(value) {
+  if (value.length < 2) return false;
+  for (let size = 2; size <= Math.min(16, value.length); size++) {
+    for (let start = 0; start <= value.length - size; start++) {
+      if (MODERATION_SIGNATURES_SERVER.has(moderationHashServer(value.slice(start, start + size)))) return true;
+    }
+  }
+  return false;
 }
 function filterMessageServer(text) {
   if (!text) return text;
   const original = String(text);
   const normalized = normalizeTextServer(original);
-  const spaced = original.replace(/(.)\1{2,}/g, '$1$1');
-  const compactWords = normalized.match(/[a-z]+/g)?.join(' ') || normalized;
-  const hasContext = /\b(?:kill\s*yourself|kys|discord\s*\.\s*gg|free\s*robux|password|token|cookie)\b/i.test(spaced);
-  if (hasContext || BAD_WORD_PATTERNS_SERVER.some(pattern => pattern.test(spaced))) return '#'.repeat(original.length);
-  for (const bad of BAD_WORDS_LIST_SERVER) {
-    const normalizedBad = normalizeTextServer(bad);
-    if (normalizedBad.length >= 3 && (normalized.includes(normalizedBad) || compactWords.includes(normalizedBad))) return '#'.repeat(original.length);
-  }
-  return text;
+  const consonantKey = normalized.replace(/[aeiou]/g, '');
+  return hasBlockedSignatureServer(normalized) || hasBlockedSignatureServer(consonantKey) ? '#'.repeat(original.length) : text;
 }
 
 const guestChatCooldown = new Map();
@@ -1130,11 +1124,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('voice-data', (audioBuffer) => {
-    if ((!userId && !guestId) || !currentRoomId) return;
-    const senderId = userId || guestId;
-    socket.to(currentRoomId).emit('voice-data', { userId: senderId, audio: audioBuffer });
-  });
 
   socket.on('leave-room', async () => {
     if (currentRoomId) {

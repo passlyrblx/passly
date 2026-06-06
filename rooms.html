@@ -174,10 +174,6 @@
     .chat-input-area { display:flex; gap:10px; }
     .chat-input { flex:1; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; }
     .send-btn { padding:12px 24px; background:#8b5cf6; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:600; }
-    .voice-controls { display:flex; gap:10px; margin-bottom:15px; }
-    .voice-btn { padding:10px 20px; border:none; border-radius:10px; color:white; cursor:pointer; font-weight:bold; }
-    .voice-btn.speak { background:#22c55e; }
-    .voice-btn.mute { background:#f59e0b; }
     .back-btn { padding:10px 20px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; cursor:pointer; margin-bottom:20px; }
     .queue-box { background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); border-radius:12px; padding:15px; margin:15px 0; display:none; color:#fbbf24; }
     .room-filter { display:flex; gap:10px; margin-bottom:20px; }
@@ -258,13 +254,6 @@
       <h2 id="viewRoomName"></h2>
       <p class="room-view-desc" id="viewRoomDesc"></p>
       <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
-      <div class="voice-controls">
-        <button class="voice-btn speak" id="speakButton" onclick="toggleSpeak()">🎤 Speak</button>
-        <div style="position:relative;">
-          <button class="voice-btn mute" id="muteButton" onclick="toggleMutePopup()">🔇 Mute</button>
-          <div class="mute-popup" id="mutePopup"></div>
-        </div>
-      </div>
       <button class="create-btn" style="margin-bottom:15px;" onclick="showBoard()">🎁 Show My Board</button>
       <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="openViewBooths()">👀 View Booths</button>
       <div class="queue-box" id="queueBox">
@@ -380,31 +369,41 @@
   let currentRoom = null;
   let roomTypeForCreate = 'Public';
   let selectedReceiverId = null;
-  let localStream = null;
-  let isSpeaking = false;
-  let mutedUsers = new Set();
   let boardCooldown = false;
   let lastBoardSentAt = 0;
   let guestChatCooldown = false;
   let currentRoomFilter = 'all';
   let allRoomsCache = [];
-  const BAD_WORDS_LIST = ['fuck','shit','bitch','cunt','dick','pussy','twat','whore','slut','bastard','piss','cock','faggot','nigga','nigger','retard','fck','fcuk','phuk','fuk','sh1t','sht','b1tch','btch','c0ck','d1ck','dck','n1gga','f4ggot','f4g','ret4rd'];
-  const BAD_WORD_PATTERNS = [/f+\W*[u*]\W*c+\W*k+/i, /s+\W*h+\W*[i1!*]+\W*t+/i, /b+\W*[i1!*]+\W*t+\W*c+\W*h+/i, /n+\W*[i1!*]+\W*g+\W*g+/i, /f+\W*a+\W*g+(?:\W*o+\W*t+)?/i, /r+\W*e+\W*t+\W*a+\W*r+\W*d+/i];
+  const MODERATION_SIGNATURES = new Set([111009209, 131223985, 143668650, 329118256, 386109098, 502535704, 551573376, 555451591, 559076015, 602418012, 641486548, 725389688, 1413536787, 1413787050, 1460770119, 1514452764, 1530439355, 1559734732, 1579344374, 1644392271, 1652072215, 1698156692, 1780401646, 1794766504, 1825958011, 2000021598, 2090526271, 2170560880, 2197349758, 2300720737, 2371240910, 2378842645, 2444789715, 2491017778, 2491417249, 2502654918, 2502990200, 2523928442, 2755324272, 2755618503, 2761596009, 2824268595, 2916843581, 2919109247, 2985822365, 3005511384, 3006755830, 3017509295, 3093067160, 3114006918, 3168946342, 3171316098, 3248370327, 3272027626, 3403702076, 3529674079, 3542999934, 3610473989, 3626884894, 3627576442, 3739672974, 3866578250, 3930762817, 3949966424, 4102686208, 4109682119, 4250961641]);
   function normalizeText(text) {
     return String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       .replace(/[0º°]/g,'o').replace(/[1!|ìíîï]/g,'i').replace(/[3€]/g,'e').replace(/[4@]/g,'a')
       .replace(/[5$]/g,'s').replace(/[7+]/g,'t').replace(/[8]/g,'b').replace(/[9]/g,'g')
-      .replace(/(.)\1{2,}/g,'$1$1').replace(/[^a-z0-9]/g,'');
+      .replace(/(.)\1+/g,'$1').replace(/[^a-z0-9]/g,'');
+  }
+  function moderationHash(text) {
+    let hash = 0x811c9dc5;
+    for(let i = 0; i < text.length; i++) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash >>> 0;
+  }
+  function hasBlockedSignature(value) {
+    if(value.length < 2) return false;
+    for(let size = 2; size <= Math.min(16, value.length); size++) {
+      for(let start = 0; start <= value.length - size; start++) {
+        if(MODERATION_SIGNATURES.has(moderationHash(value.slice(start, start + size)))) return true;
+      }
+    }
+    return false;
   }
   function filterMessage(text) {
     if(!text) return text;
     const raw = String(text);
     const norm = normalizeText(raw);
-    const softened = raw.replace(/(.)\1{2,}/g,'$1$1');
-    if(/\b(?:kill\s*yourself|kys|discord\s*\.\s*gg|free\s*robux|password|token|cookie)\b/i.test(softened)) return '#'.repeat(raw.length);
-    if(BAD_WORD_PATTERNS.some(pattern => pattern.test(softened))) return '#'.repeat(raw.length);
-    for(const bad of BAD_WORDS_LIST) if(norm.includes(normalizeText(bad))) return '#'.repeat(raw.length);
-    return text;
+    const consonantKey = norm.replace(/[aeiou]/g, '');
+    return hasBlockedSignature(norm) || hasBlockedSignature(consonantKey) ? '#'.repeat(raw.length) : text;
   }
   function showError(msg) {
     const box = document.getElementById('errorBox');
@@ -502,7 +501,7 @@
   socket.on('force-leave', (data) => { PasslyUI.toast(data.reason); leaveRoom(); });
   socket.on('player-left', (data) => { if(currentRoom && currentRoom.players) { currentRoom.players = currentRoom.players.filter(pid => pid !== data.userId); fetchPlayerDetails(currentRoom.players); } });
   socket.on('player-joined', (data) => { if(currentRoom && !currentRoom.players.includes(data.userId)) { currentRoom.players.push(data.userId); fetchPlayerDetails(currentRoom.players); } });
-  socket.on('room-members-updated', (data) => { if(currentRoom && (currentRoom._id === data.roomId || currentRoom.id === data.roomId)) { currentRoom.players = data.players || []; fetchPlayerDetails(currentRoom.players); updateMutePopup(); } });
+  socket.on('room-members-updated', (data) => { if(currentRoom && (currentRoom._id === data.roomId || currentRoom.id === data.roomId)) { currentRoom.players = data.players || []; fetchPlayerDetails(currentRoom.players); } });
   // ========== DONATION MESSAGE LISTENERS ==========
   socket.on('room-donation', (data) => {
     if(currentRoom) {
@@ -712,6 +711,7 @@ window.createRoom = async function() {
   const name = document.getElementById('roomNameInput').value.trim();
   const desc = document.getElementById('roomDescInput').value.trim();
   if(!name) { showError('Enter room name.'); return; }
+  if(filterMessage(name) !== name || filterMessage(desc) !== desc) { showError('Room name or description contains blocked content.'); return; }
   if(roomTypeForCreate === 'VIP' && userData && !['vip','admin','owner'].includes(userData.role)) { showError('VIP role required.'); return; }
   try {
     const res = await fetch('/api/rooms/create', { method:'POST', headers:authHeaders(), body:JSON.stringify({ name, desc, type:roomTypeForCreate }) });
@@ -736,10 +736,6 @@ function showRoomView(room) {
   updateMembersList(room.players.map(pid => ({ userId: pid, username: 'Loading...', avatarUrl: '' })));
   fetchPlayerDetails([...new Set(room.players || [])]);
   socket.emit('join-room', room._id);
-  isSpeaking = false;
-  updateSpeakButton();
-  mutedUsers.clear();
-  updateMutePopup();
 }
 async function fetchPlayerDetails(playerIds) {
   const members = [];
@@ -756,7 +752,6 @@ async function fetchPlayerDetails(playerIds) {
   updateMembersList(members);
 }
 async function leaveRoom() {
-  if(isSpeaking) await toggleSpeak();
   socket.emit('leave-room');
   if(isGuest && guestData.id) await fetch('/api/rooms/guest/leave', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ guestId: guestData.id }) });
   else if(token) await fetch('/api/rooms/leave', { method:'POST', headers:authHeaders() });
@@ -769,67 +764,6 @@ async function leaveRoom() {
   loadRooms();
 }
 async function leaveQueue() { await leaveRoom(); }
-// Voice functions (simplified)
-async function toggleSpeak() {
-  if(!currentRoom) return;
-  if(!isSpeaking) {
-    try {
-      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Microphone is unavailable in this browser.');
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(localStream);
-      const processor = audioContext.createScriptProcessor(4096,1,1);
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-      processor.onaudioprocess = (e) => {
-        if(!isSpeaking || !currentRoom) return;
-        const input = e.inputBuffer.getChannelData(0);
-        const buffer = new Int16Array(input.length);
-        for(let i=0;i<input.length;i++) buffer[i] = Math.max(-1, Math.min(1, input[i])) * 0x7FFF;
-        socket.emit('voice-data', buffer.buffer);
-      };
-      window.currentAudioProcessor = processor;
-      isSpeaking = true;
-    } catch(err) { PasslyUI.error('Microphone is unavailable or permission was denied. Check your browser permissions and try again.'); isSpeaking = false; updateSpeakButton(); return; }
-  } else {
-    if(localStream) localStream.getTracks().forEach(t => t.stop());
-    if(window.currentAudioProcessor) window.currentAudioProcessor.disconnect();
-    isSpeaking = false;
-  }
-  updateSpeakButton();
-}
-function updateSpeakButton() {
-  const btn = document.getElementById('speakButton');
-  btn.textContent = isSpeaking ? '🔇 Stop Speaking' : '🎤 Speak';
-  if(isSpeaking) btn.classList.add('active'); else btn.classList.remove('active');
-}
-function toggleMutePopup() {
-  const popup = document.getElementById('mutePopup');
-  popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
-  if(popup.style.display === 'block') updateMutePopup();
-}
-function updateMutePopup() {
-  const popup = document.getElementById('mutePopup');
-  if(!currentRoom) return;
-  popup.innerHTML = (currentRoom.players || []).map(pid => {
-    const isMe = (token && userData && pid === userData.id) || (isGuest && pid === guestData.id);
-    return `<div class="player-mute-row"><input type="checkbox" id="mute-${pid}" ${mutedUsers.has(pid) ? 'checked' : ''} onchange="toggleMuteUser('${pid}', this.checked)" ${isMe ? 'disabled' : ''}><label for="mute-${pid}">${isMe ? 'You' : 'Player'}</label></div>`;
-  }).join('');
-}
-function toggleMuteUser(userId, mute) { if(mute) mutedUsers.add(userId); else mutedUsers.delete(userId); }
-socket.off('voice-data');
-socket.on('voice-data', (data) => {
-  if(mutedUsers.has(data.userId)) return;
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const buffer = audioCtx.createBuffer(1, data.audio.byteLength/2, audioCtx.sampleRate);
-  const channel = buffer.getChannelData(0);
-  const int16 = new Int16Array(data.audio);
-  for(let i=0;i<int16.length;i++) channel[i] = int16[i]/0x7FFF;
-  const source = audioCtx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(audioCtx.destination);
-  source.start();
-});
 // Board (horizontal scroll, sorted)
 window.showBoard = async function() {
   if(!userData) return;
