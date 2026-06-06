@@ -21,6 +21,7 @@ const logger = winston.createLogger({
 if (process.env.NODE_ENV !== 'production') logger.add(new winston.transports.Console({ format: winston.format.simple() }));
 
 const app = express();
+app.use('/health', require('./routes/health'));
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 
