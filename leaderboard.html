@@ -137,6 +137,8 @@
     .rank-3 { background: #cd7f32; color: #fff; }
     .rank-other { background: rgba(139,92,246,0.2); color: #a78bfa; }
     .empty-state { text-align: center; padding: 40px; color: #a0a0b0; }
+    .rank-summary { margin-top: 12px; padding: 12px 16px; border: 1px solid rgba(139,92,246,0.22); border-radius: 14px; background: rgba(139,92,246,0.08); color: #ddd6fe; font-weight: 700; text-align: center; }
+    .rank-summary span { color: #fbbf24; }
     @media (max-width: 768px) {
       .nav-links { display: none; }
       .main-content { padding: 20px; }
@@ -184,16 +186,24 @@
     <button class="tab-btn" data-period="total" onclick="switchTab('total')">🌐 Total</button>
   </div>
   <div class="leaderboard-section">
+    <div class="section-title">🪙 Top Passly Coins</div>
+    <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Passly Coins</th></tr></thead><tbody id="coinsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table>
+    <div class="rank-summary" id="coinsRank">Your rank: <span>Login to see your rank</span></div>
+  </div>
+  <div class="leaderboard-section">
     <div class="section-title">💰 Top Receivers</div>
     <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Received</th></tr></thead><tbody id="receiversTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table>
+    <div class="rank-summary" id="receiversRank">Your rank: <span>Login to see your rank</span></div>
   </div>
   <div class="leaderboard-section streak-card">
     <div class="section-title">🔥 Top Streaks</div>
     <div class="streak-leader-list" id="streakList"><div class="empty-state">Loading...</div></div>
+    <div class="rank-summary" id="streaksRank">Your rank: <span>Login to see your rank</span></div>
   </div>
   <div class="leaderboard-section">
     <div class="section-title">💸 Top Donors</div>
     <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Donated</th></tr></thead><tbody id="donorsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table>
+    <div class="rank-summary" id="donorsRank">Your rank: <span>Login to see your rank</span></div>
   </div>
 </div>
   <script>
@@ -251,19 +261,25 @@
       loadLeaderboard();
     }
     async function loadLeaderboard() {
+      document.getElementById('coinsTable').innerHTML = '<tr><td colspan="3" class="empty-state">Loading...</td></tr>';
       document.getElementById('receiversTable').innerHTML = '<tr><td colspan="3" class="empty-state">Loading...</td></tr>';
       document.getElementById('donorsTable').innerHTML = '<tr><td colspan="3" class="empty-state">Loading...</td></tr>';
+      updateRanks({});
       document.getElementById('streakList').innerHTML = '<div class="empty-state">Loading...</div>';
       try {
-        const res = await fetch(`/api/leaderboard?period=${currentPeriod}`);
+        const res = await fetch(`/api/leaderboard?period=${currentPeriod}`, token ? { headers: { 'Authorization': `Bearer ${token}` } } : {});
         if (!res.ok) throw new Error();
         const data = await res.json();
-        renderTable('receiversTable', data.receivers);
-        renderTable('donorsTable', data.donors);
+        renderTable('coinsTable', data.coins, 'Passly');
+        renderTable('receiversTable', data.receivers, 'Robux');
+        renderTable('donorsTable', data.donors, 'Robux');
         renderStreaks(data.streaks || []);
+        updateRanks(data.ranks || {});
       } catch (e) {
+        document.getElementById('coinsTable').innerHTML = '<tr><td colspan="3" class="empty-state">Error loading data</td></tr>';
         document.getElementById('receiversTable').innerHTML = '<tr><td colspan="3" class="empty-state">Error loading data</td></tr>';
         document.getElementById('donorsTable').innerHTML = '<tr><td colspan="3" class="empty-state">Error loading data</td></tr>';
+        updateRanks({});
         document.getElementById('streakList').innerHTML = '<div class="empty-state">Error loading streaks</div>';
       }
     }
@@ -272,10 +288,18 @@
       if (!players.length) { list.innerHTML = '<div class="empty-state">No streaks yet</div>'; return; }
       list.innerHTML = players.map((player, index) => `<div class="streak-leader-row"><span class="streak-leader-name">${index + 1}. ${escapeHtml(player.username)}</span><span class="streak-pill">🔥 ${Number(player.streak || 0).toLocaleString()}</span></div>`).join('');
     }
-    function renderTable(tableId, players) {
+    function updateRanks(ranks) {
+      ['coins', 'receivers', 'streaks', 'donors'].forEach(key => {
+        const el = document.getElementById(`${key}Rank`);
+        if (!el) return;
+        const rank = ranks?.[key];
+        el.innerHTML = `Your rank: <span>${rank || (token ? 'Unranked' : 'Login to see your rank')}</span>`;
+      });
+    }
+    function renderTable(tableId, players, unit) {
       const table = document.getElementById(tableId);
       if (!players || players.length === 0) {
-        table.innerHTML = '<tr><td colspan="3" class="empty-state">No donations yet</td></tr>';
+        table.innerHTML = '<tr><td colspan="3" class="empty-state">No ranked players yet</td></tr>';
         return;
       }
       table.innerHTML = players.map((player, index) => {
@@ -283,7 +307,7 @@
         if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
         else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
         else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
-        return `<tr><td><span class="rank ${rankClass}">${rankEmoji || index+1}</span></td><td>${escapeHtml(player.username)}</td><td>${player.amount.toLocaleString()} Robux</td></tr>`;
+        return `<tr><td><span class="rank ${rankClass}">${rankEmoji || index+1}</span></td><td>${escapeHtml(player.username)}</td><td>${Number(player.amount || 0).toLocaleString()} ${unit}</td></tr>`;
       }).join('');
     }
     loadLeaderboard();

@@ -317,7 +317,7 @@ function authenticateToken(req, res, next) {
 }
 
 // ========== PUBLIC API PATHS (no token required) ==========
-const publicApiPaths = ['/rooms', '/health', '/guest-login', '/search', '/leaderboard', '/streak-leaderboard'];
+const publicApiPaths = ['/rooms', '/health', '/guest-login', '/search', '/leaderboard', '/streak-leaderboard', '/live-donations'];
 app.use('/api', (req, res, next) => {
   if (publicApiPaths.some(path => req.path === path || req.path.startsWith(`${path}/`))) {
     return next();
@@ -1137,21 +1137,103 @@ io.on('connection', (socket) => {
 });
 
 // LEADERBOARD
+function getOptionalRequestUserId(req) {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET)?.id || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function leaderboardRankLabel(rank) {
+  return Number.isFinite(rank) && rank > 0 ? `#${rank}` : null;
+}
+
 app.get('/api/leaderboard', async (req, res) => {
   const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
-  if (!Donation) return res.json({ receivers: [], donors: [], streaks: [] });
+  const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+  if (!Donation || !User) return res.json({ receivers: [], donors: [], coins: [], streaks: [], ranks: {} });
+
+  const viewerId = getOptionalRequestUserId(req);
   const period = req.query.period || 'daily';
   let startDate = new Date();
   if (period === 'daily') startDate.setHours(0,0,0,0);
   else if (period === 'weekly') startDate.setDate(startDate.getDate() - 7);
   else if (period === 'total') startDate = new Date(0);
   const match = period === 'total' ? {} : { timestamp: { $gte: startDate } };
-  const receivers = await Donation.aggregate([{ $match: match }, { $group: { _id: '$receiverId', total: { $sum: '$amount' } } }, { $sort: { total: -1 } }, { $limit: 10 }]);
-  const donors = await Donation.aggregate([{ $match: match }, { $group: { _id: '$donorId', total: { $sum: '$amount' } } }, { $sort: { total: -1 } }, { $limit: 10 }]);
-  const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
-  const enrich = async (arr) => { const result = []; for (const item of arr) { const user = User ? await User.findById(item._id) : null; result.push({ username: user ? (user.customDisplayName || user.robloxDisplayName || user.robloxUsername) : 'Unknown', amount: item.total }); } return result; };
-  const streaks = User ? await User.find({ 'dailyReward.streak': { $gt: 0 } }).sort({ 'dailyReward.streak': -1, coins: -1 }).limit(10).select('robloxUsername robloxDisplayName customDisplayName dailyReward') : [];
-  res.json({ receivers: await enrich(receivers), donors: await enrich(donors), streaks: streaks.map(user => ({ username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player', streak: user.dailyReward?.streak || 0 })) });
+
+  const rankOf = (arr, id) => id ? arr.findIndex(item => String(item._id) === String(id)) + 1 : 0;
+  const enrichDonationLeaders = async (arr) => {
+    const result = [];
+    for (const item of arr.slice(0, 10)) {
+      const user = await User.findById(item._id).select('robloxUsername robloxDisplayName customDisplayName');
+      result.push({ username: user ? (user.customDisplayName || user.robloxDisplayName || user.robloxUsername) : 'Unknown', amount: item.total });
+    }
+    return result;
+  };
+
+  const receiverTotals = await Donation.aggregate([
+    { $match: match },
+    { $group: { _id: '$receiverId', total: { $sum: '$amount' } } },
+    { $sort: { total: -1, _id: 1 } }
+  ]);
+  const donorTotals = await Donation.aggregate([
+    { $match: match },
+    { $group: { _id: '$donorId', total: { $sum: '$amount' } } },
+    { $sort: { total: -1, _id: 1 } }
+  ]);
+
+  const coinUsers = await User.find({ $or: [{ totalCoins: { $gt: 0 } }, { coins: { $gt: 0 } }] })
+    .select('robloxUsername robloxDisplayName customDisplayName coins totalCoins')
+    .lean();
+  const coinTotals = coinUsers
+    .map(user => ({
+      _id: user._id,
+      username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player',
+      amount: getCoinBalance(user)
+    }))
+    .filter(user => user.amount > 0)
+    .sort((a, b) => b.amount - a.amount || String(a._id).localeCompare(String(b._id)));
+
+  const streakUsers = await User.find({ 'dailyReward.streak': { $gt: 0 } })
+    .sort({ 'dailyReward.streak': -1, coins: -1, _id: 1 })
+    .select('robloxUsername robloxDisplayName customDisplayName dailyReward')
+    .lean();
+  const streakTotals = streakUsers.map(user => ({
+    _id: user._id,
+    username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player',
+    streak: user.dailyReward?.streak || 0
+  }));
+
+  res.json({
+    receivers: await enrichDonationLeaders(receiverTotals),
+    donors: await enrichDonationLeaders(donorTotals),
+    coins: coinTotals.slice(0, 10).map(user => ({ username: user.username, amount: user.amount })),
+    streaks: streakTotals.slice(0, 10).map(user => ({ username: user.username, streak: user.streak })),
+    ranks: {
+      receivers: leaderboardRankLabel(rankOf(receiverTotals, viewerId)),
+      donors: leaderboardRankLabel(rankOf(donorTotals, viewerId)),
+      coins: leaderboardRankLabel(rankOf(coinTotals, viewerId)),
+      streaks: leaderboardRankLabel(rankOf(streakTotals, viewerId))
+    }
+  });
+});
+
+app.get('/api/live-donations', async (req, res) => {
+  const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
+  if (!Donation) return res.json({ donations: [] });
+  const donations = await Donation.find({ verified: true })
+    .sort({ timestamp: -1 })
+    .select('donorName receiverName amount timestamp')
+    .lean();
+  res.json({ donations: donations.map(donation => ({
+    donorName: donation.donorName || 'Unknown',
+    receiverName: donation.receiverName || 'Unknown',
+    amount: donation.amount || 0,
+    timestamp: donation.timestamp
+  })) });
 });
 
 app.post('/api/guest-login', async (req, res) => {

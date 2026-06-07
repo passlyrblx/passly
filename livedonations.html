@@ -236,15 +236,11 @@
     }
     // Socket authentication
     if (token) socket.emit('authenticate', token);
-    // Listen for new donations
-    socket.on('new-donation', (donation) => {
-      const container = document.getElementById('donationList');
-      if (container.querySelector('.empty-state')) container.innerHTML = '';
-      const donationDiv = document.createElement('div');
-      donationDiv.className = 'donation-item';
+    function donationHtml(donation) {
       const donorAvatar = escapeHtml(donation.donorAvatar || donation.avatarUrl || '');
       const receiverAvatar = escapeHtml(donation.receiverAvatar || '');
-      donationDiv.innerHTML = `
+      const timestamp = donation.timestamp ? new Date(donation.timestamp) : new Date();
+      return `
         <div class="donation-details">
           <div class="donation-line">
             <div class="donation-party" title="${escapeHtml(donation.donorName)}">
@@ -257,19 +253,39 @@
               <div class="donation-avatar" style="background-image:url('${receiverAvatar}');"></div>
             </div>
           </div>
-          <div style="font-size:0.8rem; color:#a0a0b0; margin-top:8px;">${new Date(donation.timestamp).toLocaleTimeString()}</div>
+          <div style="font-size:0.8rem; color:#a0a0b0; margin-top:8px;">${timestamp.toLocaleString()}</div>
         </div>
       `;
-      container.prepend(donationDiv);
-      while (container.children.length > 20) container.removeChild(container.lastChild);
-    });
-    // Optional: load recent donations
-    async function loadRecentDonations() {
-      try {
-        await fetch('/api/leaderboard?period=daily');
-      } catch(e) {}
     }
-    loadRecentDonations();
+    function addDonation(donation, prepend = true) {
+      const container = document.getElementById('donationList');
+      if (container.querySelector('.empty-state')) container.innerHTML = '';
+      const donationDiv = document.createElement('div');
+      donationDiv.className = 'donation-item';
+      donationDiv.innerHTML = donationHtml(donation);
+      if (prepend) container.prepend(donationDiv);
+      else container.appendChild(donationDiv);
+    }
+    // Listen for every new donation and keep the full live list visible.
+    socket.on('new-donation', (donation) => addDonation(donation, true));
+    async function loadAllDonations() {
+      try {
+        const res = await fetch('/api/live-donations');
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        const container = document.getElementById('donationList');
+        container.innerHTML = '';
+        const donations = data.donations || [];
+        if (!donations.length) {
+          container.innerHTML = '<div class="empty-state">No live donations right now.</div>';
+          return;
+        }
+        donations.forEach(donation => addDonation(donation, false));
+      } catch(e) {
+        document.getElementById('donationList').innerHTML = '<div class="empty-state">Error loading donations.</div>';
+      }
+    }
+    loadAllDonations();
   </script>
   <script src="/app-ui.js" defer></script>
 </body>
