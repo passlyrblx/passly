@@ -306,6 +306,7 @@ tbody td:last-child { border-radius: 0 14px 14px 0; }
 .tag-owner { background: linear-gradient(135deg,#2563eb,#38bdf8); color: #eff6ff; }
 .tag-admin { background: linear-gradient(135deg,#ef4444,#8b5cf6); color: #fff; }
 .tag-vip { background: linear-gradient(135deg,#ffd700,#f59e0b); color: #0a0a14; }
+.tag-fan { background: linear-gradient(135deg,#5865f2,#22d3ee); color: #f8fbff; }
 .guest-badge { border-radius: 999px !important; }
 
 @media (min-width: 1281px) {

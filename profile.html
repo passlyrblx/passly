@@ -120,14 +120,25 @@
     .vip-upgrade-actions .save-btn { width:auto; display:inline-block; }
     .vip-upgrade-status { margin-top:10px; color:#fde68a; font-size:0.9rem; }
     .discord-link-card { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:14px; border-radius:16px; background:rgba(88,101,242,.12); border:1px solid rgba(88,101,242,.32); margin-bottom:14px; }
+    .profile-page-nav { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+    .profile-page-nav a { text-align:center; text-decoration:none; color:#ddd6fe; background:rgba(139,92,246,.12); border:1px solid rgba(139,92,246,.26); border-radius:14px; padding:12px; font-weight:800; }
+    .profile-page-nav a.active { background:linear-gradient(135deg,#8b5cf6,#5865f2); color:white; }
+    .discord-join-link { color:#67e8f9; text-decoration:underline; cursor:pointer; font-weight:800; }
+    .fan-bonus-note { margin:10px 0 14px; color:#dbeafe; font-size:.92rem; }
     .discord-identity { display:flex; align-items:center; gap:10px; color:#dbe4ff; }
     .discord-pfp { width:42px; height:42px; border-radius:50%; background:#1f2340 center/cover no-repeat; border:1px solid rgba(255,255,255,.18); }
     .link-actions { display:flex; gap:10px; flex-wrap:wrap; }
     @media (max-width:768px) {
       .hamburger { display: flex; }
       .nav-links { display: none; }
-      .main-content { padding:20px; }
-      h1 { font-size:1.8rem; }
+      .main-content { padding:14px; }
+      h1 { font-size:1.65rem; margin-bottom:18px; }
+      .profile-page-nav { grid-template-columns:1fr; }
+      .section-card { padding:18px; border-radius:16px; }
+      .profile-header { align-items:flex-start; gap:14px; }
+      .profile-avatar { width:64px; height:64px; flex:0 0 auto; }
+      .link-actions, .discord-link-card { width:100%; }
+      .link-actions .save-btn { flex:1 1 140px; }
     }
   </style>
   <link rel="stylesheet" href="/app-ui.css">
@@ -161,6 +172,7 @@
 <div class="menu-overlay" id="menuOverlay"></div>
 <div class="main-content">
   <h1>👤 Profile Settings</h1>
+  <div class="profile-page-nav"><a class="active" href="/profile">Profile</a><a href="/find-player">Find Player</a><a href="/booths">Booths</a></div>
   <div class="notification-bar" id="notificationBar">
     <div><strong>🔔 Notifications</strong><br><span class="settings-help">Edit alerts and see latest friend, message, and offline donation updates.</span></div>
     <button class="save-btn notification-toggle" onclick="toggleNotificationPanel()">Edit</button>
@@ -193,7 +205,8 @@
     <div class="discord-link-card" id="discordLinkCard">
       <div>
         <strong>Discord login</strong>
-        <div class="settings-help" id="discordLinkHelp">Connect Discord to show your Discord profile and server list on your Passly account.</div>
+        <div class="settings-help" id="discordLinkHelp">Connect Discord to show your Discord profile and refresh your server perks.</div>
+        <div class="fan-bonus-note" id="fanBonusNote">Join our Discord and receive 10% extra Passly on every income plus the Fan tag. <span class="discord-join-link" onclick="openSupportDiscord()">Click here</span>.</div>
         <div class="discord-identity" id="discordIdentity" style="display:none;"><div class="discord-pfp" id="discordPfp"></div><span id="discordUsername"></span></div>
       </div>
       <div class="link-actions">
@@ -210,14 +223,6 @@
     <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
     <div class="save-message" id="saveMessage">✅ Profile saved!</div>
   </div>
-  <div class="section-card">
-    <h3 style="color:#a78bfa; margin-bottom:15px;">🔍 Find a Player</h3>
-    <input type="text" id="searchUsername" class="search-input" placeholder="Enter Roblox username">
-    <button class="search-btn" onclick="searchPlayer()">Search</button>
-    <div id="searchResult"></div>
-  </div>
-  </div>
-
   <div class="section-card vip-upgrade-card" id="vipUpgradeCard" style="display:none;">
     <h3 style="color:#fbbf24; margin-bottom:12px;">⭐ Buy VIP</h3>
     <p style="color:#fef3c7; margin-bottom:8px;"><strong>VIP costs 1,000 Robux.</strong> Buy the VIP gamepass, then return here and verify ownership to unlock VIP.</p>
@@ -227,22 +232,6 @@
       <button class="save-btn" onclick="requireLogin(() => verifyVipGamepass())" style="background:#22c55e;">Verify VIP</button>
     </div>
     <div class="vip-upgrade-status" id="vipUpgradeStatus"></div>
-  </div>
-  <!-- My Board Section with manual Add only -->
-  <div class="section-card" id="booth">
-    <h3 style="color:#a78bfa; margin-bottom:15px;">🎁 My Board</h3>
-    <div class="add-board-section" style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-      <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
-      <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
-      <button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())" style="width:auto; display:inline-block;">Add</button>
-    </div>
-    <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
-    <div class="board-gamepass-grid" id="boardGamepassGrid"><p>No gamepasses added yet.</p></div>
-  </div>
-  <div class="section-card" id="earn-passly">
-    <h3 style="color:#a78bfa; margin-bottom:15px;">🏪 Booth Shop & Earn Passly</h3>
-    <p style="margin-bottom:12px;">Buy and equip booth themes with your coin balance: <span data-passly-coins data-coin-size="medium">0</span></p><p style="margin-bottom:12px; color:#b0b0c0;">Earn Passly through daily rewards and gift coupons. <a href="/redeem" style="color:#c4b5fd;">Redeem a coupon</a>.</p>
-    <div class="booth-shop-grid" id="boothShopGrid"><p>Loading booths...</p></div>
   </div>
   <!-- Admin Box (hidden by default) -->
   <div id="adminBox" class="admin-box">
@@ -255,6 +244,7 @@
     <button class="save-btn" onclick="window.location.href='/friends'" style="background:#22c55e;">Go to Friends</button>
   </div>
 </div>
+</div>
 <script>
   let token = localStorage.getItem('passly_token');
   let userData = null;
@@ -262,6 +252,7 @@
   function authHeaders() { const h = {'Content-Type':'application/json'}; if(token) h['Authorization'] = `Bearer ${token}`; return h; }
   function linkDiscord() { if(!token) return window.location.href='/auth/discord'; window.location.href = `/auth/discord?linkToken=${encodeURIComponent(token)}`; }
   function linkRoblox() { if(!token) return window.location.href='/auth/roblox'; window.location.href = `/auth/roblox?linkToken=${encodeURIComponent(token)}`; }
+  function openSupportDiscord() { window.location.href = 'https://discord.gg/9qNpCGztun'; }
   function requireLogin(cb) { if(!token) { PasslyUI.toast('Please log in with Roblox to continue.'); window.location.href='/auth/roblox'; return; } cb(); }
   function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
   function toggleNotificationPanel() { const panel = document.getElementById('notificationPanel'); panel.classList.toggle('open'); if(panel.classList.contains('open')) loadNotifications(); }
@@ -350,16 +341,16 @@
     setAvatarWithFallback(document.getElementById('userAvatar'), avatarUrl, avatarFallback);
     setAvatarWithFallback(document.getElementById('profileAvatar'), avatarUrl, avatarFallback);
     if(userData.profile) { document.getElementById('showBooth').value = userData.profile.showBooth ? 'true' : 'false'; document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online'; document.getElementById('showRoomId').value = userData.profile.showRoomId ? 'true' : 'false'; document.getElementById('showDiscordIdentity').value = userData.profile.showDiscordIdentity && userData.hasDiscord ? 'true' : 'false'; }
-    if(userData.hasDiscord && userData.discord) { document.getElementById('discordIdentity').style.display = 'flex'; document.getElementById('discordPfp').style.backgroundImage = userData.discord.avatarUrl ? `url(${userData.discord.avatarUrl})` : ''; document.getElementById('discordUsername').textContent = `${userData.discord.username} · ${userData.discord.guildCount || 0} servers`; document.getElementById('discordLinkButton').textContent = 'Refresh Discord'; document.getElementById('discordLinkHelp').textContent = 'Discord is connected. You can refresh permissions or choose to show your Discord profile publicly below.'; }
+    if(userData.hasDiscord && userData.discord) { document.getElementById('discordIdentity').style.display = 'flex'; document.getElementById('discordPfp').style.backgroundImage = userData.discord.avatarUrl ? `url(${userData.discord.avatarUrl})` : ''; document.getElementById('discordUsername').textContent = `${userData.discord.username} · ${userData.discord.guildCount || 0} servers`; document.getElementById('discordLinkButton').textContent = 'Refresh Discord'; document.getElementById('discordLinkHelp').textContent = userData.discord.fanMember ? 'Discord is connected and your Fan perks are active.' : 'Discord is connected. Refresh permissions after joining our server to unlock Fan perks.'; }
     if(userData.hasRoblox) document.getElementById('robloxLinkButton').textContent = 'Refresh Roblox';
     if(userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
     renderTagSettings();
     renderVipUpgrade();
     applyNotificationPrefs(userData.notificationPreferences || {});
     if(token) loadNotifications();
-    if(userData.board && userData.board.length) { const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = userData.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); }
+    if(userData.board && userData.board.length && document.getElementById('boardGamepassGrid')) { const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = userData.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); }
     window.PasslyUI?.updateCoinDisplays?.(userData.coins || 0);
-    await loadBoothShop();
+    if(document.getElementById('boothShopGrid')) await loadBoothShop();
     await checkAdminStatus();
     if (!userData.isGuest && userData.role) { const friendsBtnDiv = document.getElementById('friendsButtonContainer'); if (friendsBtnDiv) friendsBtnDiv.style.display = 'block'; }
   }
@@ -392,7 +383,7 @@
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Could not purchase booth.');
       (window.PasslyUI?.success || alert)(`Purchased ${data.purchased.name}!`);
-      await loadBoothShop();
+      if(document.getElementById('boothShopGrid')) await loadBoothShop();
     } catch(e) { (window.PasslyUI?.error || alert)(e.message); }
   }
   async function equipBooth(themeId) {
@@ -401,7 +392,7 @@
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Could not equip booth.');
       (window.PasslyUI?.success || alert)('Booth equipped.');
-      await loadBoothShop();
+      if(document.getElementById('boothShopGrid')) await loadBoothShop();
     } catch(e) { (window.PasslyUI?.error || alert)(e.message); }
   }
   async function checkAdminStatus() { if(!token) return; try { const res = await fetch('/api/admin/check', { headers:{'Authorization':`Bearer ${token}`} }); const data = await res.json(); if(data.isAdmin) document.getElementById('adminBox').style.display = 'block'; } catch(e) {} }

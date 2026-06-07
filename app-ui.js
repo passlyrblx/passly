@@ -142,8 +142,9 @@
       ]},
       { label: '⚙️ Settings', href: '/profile', children: [
         { label: 'Profile settings', href: '/profile' },
-        { label: 'Booth settings', href: '/profile#booth' },
-        { label: 'Passly rewards', href: '/profile#earn-passly' },
+        { label: 'Booth settings', href: '/booths' },
+        { label: 'Find player', href: '/find-player' },
+        { label: 'Passly rewards', href: '/booths#earn-passly' },
         { label: 'Redeem coupon', href: '/redeem' }
       ]}
     ];
