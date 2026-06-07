@@ -445,7 +445,7 @@
     closeUserModal();
   }
   // Chat display
-  function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false, displayTag = null) {
+  function addChatMessage(username, message, userId, avatarUrl, isAdmin = false, isOwner = false, displayTag = null, displayTags = []) {
     const chatBox = document.getElementById('chatBox');
     const msgDiv = document.createElement('div');
     msgDiv.className = 'chat-msg';
@@ -458,7 +458,7 @@
     contentDiv.className = 'msg-content';
     const usernameSpan = document.createElement('span');
     usernameSpan.className = 'msg-username';
-    usernameSpan.innerHTML = escapeHtml(username) + tagBadgeHtml(displayTag);
+    usernameSpan.innerHTML = escapeHtml(username) + tagBadgeHtml(displayTags || displayTag);
     const messageDiv = document.createElement('div');
     messageDiv.innerHTML = filterMessage(message);
     contentDiv.appendChild(usernameSpan);
@@ -495,7 +495,7 @@
       <div class="donation-chat-user" title="${receiverName}"><span class="donation-chat-name">${receiverName}</span><span class="donation-chat-avatar" style="background-image:url('${receiverAvatar}')"></span></div>
     </div>`;
   }
-  socket.on('chat-message', (data) => addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner, data.displayTag));
+  socket.on('chat-message', (data) => addChatMessage(data.username, data.message, data.userId, data.avatarUrl, data.isAdmin, data.isOwner, data.displayTag, data.displayTags));
   socket.on('chat-error', (errMsg) => showError(errMsg));
   socket.on('room-closed', (data) => { PasslyUI.toast(data.message); leaveRoom(); });
   socket.on('force-leave', (data) => { PasslyUI.toast(data.reason); leaveRoom(); });
@@ -548,7 +548,7 @@
     container.innerHTML = players.map(p => `
       <div class="member-item" onclick="showMemberProfile('${p.userId}', '${escapeHtml(p.username)}', '${p.avatarUrl || ''}')">
         <div class="member-avatar" style="background-image:url('${p.avatarUrl || ''}'); background-size:cover;"></div>
-        <div class="member-name">${escapeHtml(p.username)}${tagBadgeHtml(p.displayTag)}</div>
+        <div class="member-name">${escapeHtml(p.username)}${tagBadgeHtml(p.displayTags || p.displayTag)}</div>
       </div>
     `).join('');
   }
@@ -744,7 +744,7 @@ async function fetchPlayerDetails(playerIds) {
       const res = await fetch(`/api/user/${pid}/stats`, { headers: authHeaders() });
       if(res.ok) {
         const data = await res.json();
-        members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl, displayTag: data.displayTag });
+        members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl, displayTag: data.displayTag, displayTags: data.displayTags });
       } else members.push({ userId: pid, username: pid.startsWith('Guest_') ? 'Guest' : 'Player', avatarUrl: '' });
     } catch(e) { members.push({ userId: pid, username: 'Unknown', avatarUrl: '' }); }
   }
@@ -840,7 +840,7 @@ window.removeGamepass = async function(assetId) {
       document.getElementById('modalOverlay').style.display = 'none';
     };
     function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
-    function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
+    function tagBadgeHtml(tag) { if(Array.isArray(tag)) return tag.map(tagBadgeHtml).join(''); return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
     function setAvatarWithFallback(el, url, fallback) {
       if(!el) return;
       const primary = url || fallback;
@@ -892,7 +892,7 @@ window.removeGamepass = async function(assetId) {
         socket.emit('guest-auth', data.id);
       }
       const displayName = userData?.displayName || userData?.username || (isGuest ? guestData.displayName : 'Guest');
-      const tagHtml = tagBadgeHtml(userData?.displayTag);
+      const tagHtml = tagBadgeHtml(userData?.displayTags || userData?.displayTag);
       document.getElementById('userName').innerHTML = escapeHtml(displayName) + tagHtml;
       setAvatarWithFallback(document.getElementById('userAvatar'), userData?.avatarUrl, userData?.avatarFallback);
       loadRooms();

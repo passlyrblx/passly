@@ -252,7 +252,7 @@
     })();
     function authHeaders() { const h = { 'Content-Type':'application/json' }; if (token) h['Authorization'] = `Bearer ${token}`; return h; }
     function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
-    function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(tag.key || '').toLowerCase()}">${escapeHtml(tag.label)}</span>` : ''; }
+    function tagBadgeHtml(tag) { if(Array.isArray(tag)) return tag.map(tagBadgeHtml).join(''); return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
     async function loadDashboard() {
       try {
         if (token) {
@@ -275,7 +275,7 @@
             localStorage.setItem('passly_user', JSON.stringify(userData));
           }
         }
-        const displayTagHtml = tagBadgeHtml(userData.displayTag);
+        const displayTagHtml = tagBadgeHtml(userData.displayTags || userData.displayTag);
         document.getElementById('dashUsername').innerHTML = escapeHtml(userData.displayName || userData.username) + displayTagHtml;
         document.getElementById('userName').innerHTML = escapeHtml(userData.displayName || userData.username) + displayTagHtml;
         if (userData.isGuest) {
