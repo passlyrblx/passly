@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const morgan = require('morgan');
 const winston = require('winston');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -39,12 +40,21 @@ const FALLBACK_ROOMS = [
 ];
 
 const userSchema = new mongoose.Schema({
-  _id: String, robloxUsername: String, robloxDisplayName: String,
+  _id: String, robloxId: String, robloxUsername: String, robloxDisplayName: String,
   customDisplayName: String, avatarUrl: String,
   robloxAccessToken: String,
+  discord: {
+    id: { type: String, index: true, sparse: true },
+    username: String,
+    avatar: String,
+    avatarUrl: String,
+    guilds: { type: Array, default: [] },
+    linkedAt: Date
+  },
+  authProviders: { type: [String], default: [] },
   role: { type: String, default: 'user', enum: ['guest', 'user', 'vip', 'admin', 'owner'] },
   isGuest: { type: Boolean, default: false },
-  profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null } },
+  profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null }, showDiscordIdentity: { type: Boolean, default: false } },
   notificationPreferences: { offlineDonations: { type: Boolean, default: true }, friendRequests: { type: Boolean, default: true }, friendMessages: { type: Boolean, default: true }, friendAccepted: { type: Boolean, default: true } },
   roomId: String, inQueue: Boolean,
   donations: { received: Number, given: Number },
@@ -263,6 +273,7 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 8000, socketTimeoutMS: 2
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname)));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
@@ -301,10 +312,44 @@ const ROBLOX_CONFIG = {
   authUrl: 'https://apis.roblox.com/oauth/v1/authorize', tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
   userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo', usersApi: 'https://users.roblox.com/v1/users'
 };
+const DISCORD_CONFIG = {
+  clientId: process.env.DISCORD_CLIENT_ID,
+  clientSecret: process.env.DISCORD_CLIENT_SECRET,
+  redirectUri: process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/auth/discord/callback',
+  authUrl: 'https://discord.com/api/oauth2/authorize',
+  tokenUrl: 'https://discord.com/api/oauth2/token',
+  userInfoUrl: 'https://discord.com/api/users/@me',
+  guildsUrl: 'https://discord.com/api/users/@me/guilds',
+  scopes: 'identify guilds'
+};
 const VIP_GAMEPASS = { id: VIP_GAMEPASS_ID, price: 1000, url: `https://www.roblox.com/game-pass/${VIP_GAMEPASS_ID}` };
 
-const oauthStateSchema = new mongoose.Schema({ state: { type: String, required: true, unique: true }, createdAt: { type: Date, default: Date.now, expires: 600 } });
+const oauthStateSchema = new mongoose.Schema({ state: { type: String, required: true, unique: true }, provider: String, linkUserId: String, createdAt: { type: Date, default: Date.now, expires: 600 } });
 const OAuthState = mongoose.models.OAuthState || mongoose.model('OAuthState', oauthStateSchema);
+
+
+function createSessionToken(user) {
+  const robloxId = user.robloxId || (/^\d+$/.test(String(user._id)) ? String(user._id) : null);
+  const username = user.robloxUsername || user.discord?.username || 'Player';
+  const displayName = user.customDisplayName || user.robloxDisplayName || user.discord?.username || username;
+  const avatarUrl = user.profile?.showDiscordIdentity && user.discord?.avatarUrl ? user.discord.avatarUrl : (user.avatarUrl || user.discord?.avatarUrl || '');
+  return jwt.sign({ id: String(user._id), robloxId, username, displayName, avatarUrl, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+}
+function discordAvatarUrl(discordUser) {
+  if (!discordUser?.id || !discordUser?.avatar) return '';
+  const ext = String(discordUser.avatar).startsWith('a_') ? 'gif' : 'png';
+  return `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.${ext}?size=128`;
+}
+function safeGuild(guild) {
+  return { id: String(guild.id), name: String(guild.name || ''), icon: guild.icon || null, owner: !!guild.owner, permissions: String(guild.permissions || '') };
+}
+function getLoginRedirectWithToken(user) {
+  const token = createSessionToken(user);
+  return { token, redirect: `/dashboard#token=${token}` };
+}
+function getRobloxAccountId(user) {
+  return user?.robloxId || (/^\d+$/.test(String(user?._id || '')) ? String(user._id) : null);
+}
 
 function authenticateToken(req, res, next) {
   const token = req.headers['authorization']?.split(' ')[1];
@@ -349,8 +394,13 @@ app.get('/loading', (req, res) => res.sendFile(path.join(__dirname, 'loading.htm
 
 // OAUTH
 app.get('/auth/roblox', async (req, res) => {
+  if (!ROBLOX_CONFIG.clientId || !ROBLOX_CONFIG.clientSecret) return res.status(500).send('<h1>Roblox login is not configured.</h1><a href="/">Go back</a>');
   const state = crypto.randomBytes(16).toString('hex');
-  await OAuthState.create({ state });
+  let linkUserId = null;
+  if (req.query.linkToken) {
+    try { linkUserId = jwt.verify(String(req.query.linkToken), JWT_SECRET).id; } catch (e) { return res.status(403).send('<h1>Invalid link session</h1><a href="/profile">Go back</a>'); }
+  }
+  await OAuthState.create({ state, provider: 'roblox', linkUserId });
   res.redirect(`${ROBLOX_CONFIG.authUrl}?${new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId, redirect_uri: ROBLOX_CONFIG.redirectUri,
     response_type: 'code', scope: 'openid', state
@@ -359,38 +409,124 @@ app.get('/auth/roblox', async (req, res) => {
 app.get('/auth/roblox/callback', async (req, res) => {
   const { code, state, error } = req.query;
   if (error === 'access_denied') return res.send('<h1>Authorization Denied</h1><a href="/">Try again</a>');
-  const doc = await OAuthState.findOneAndDelete({ state });
+  const doc = await OAuthState.findOneAndDelete({ state, provider: 'roblox' });
   if (!doc) return res.status(403).send('<h1>Invalid State</h1><a href="/">Go back</a>');
   if (!code) return res.redirect('/');
   try {
     const tokenRes = await axios.post(ROBLOX_CONFIG.tokenUrl,
       new URLSearchParams({ client_id: ROBLOX_CONFIG.clientId, client_secret: ROBLOX_CONFIG.clientSecret, grant_type: 'authorization_code', code }).toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
     );
-    const accessToken = tokenRes.data.access_token; // <-- SAVE THIS
-    const ui = await axios.get(ROBLOX_CONFIG.userInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
-    const userId = ui.data.sub;
-    const profile = (await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`)).data;
+    const accessToken = tokenRes.data.access_token;
+    const ui = await axios.get(ROBLOX_CONFIG.userInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
+    const userId = String(ui.data.sub);
+    const profile = (await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`, { timeout: 10000 })).data;
     const robloxUsername = profile.name || 'Player';
     const robloxDisplayName = profile.displayName || robloxUsername;
     let avatarUrl = '';
     try {
-      const thumb = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`);
+      const thumb = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`, { timeout: 10000 });
       if (thumb.data?.data?.length) avatarUrl = thumb.data.data[0].imageUrl;
     } catch (e) {}
     if (!avatarUrl) avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
 
-    await mongoose.model('User').findOneAndUpdate(
-      { _id: userId },
-      { $set: { robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken } }, // <-- store token
-      { upsert: true, setDefaultsOnInsert: true }
-    );
-    const user = await mongoose.model('User').findById(userId);
-    const displayName = user.customDisplayName || robloxDisplayName;
-    const jwtToken = jwt.sign({ id: userId, username: robloxUsername, displayName, avatarUrl, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    let user;
+    if (doc.linkUserId) {
+      user = await mongoose.model('User').findByIdAndUpdate(
+        doc.linkUserId,
+        { $set: { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, isGuest: false }, $addToSet: { authProviders: 'roblox' } },
+        { new: true, setDefaultsOnInsert: true }
+      );
+      if (!user) return res.status(404).send('<h1>Account not found</h1><a href="/profile">Go back</a>');
+    } else {
+      await mongoose.model('User').findOneAndUpdate(
+        { _id: userId },
+        { $set: { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, isGuest: false }, $addToSet: { authProviders: 'roblox' } },
+        { upsert: true, setDefaultsOnInsert: true }
+      );
+      user = await mongoose.model('User').findById(userId);
+    }
+    const { token: jwtToken, redirect } = getLoginRedirectWithToken(user);
     res.cookie('passly_token', jwtToken, { maxAge: 7*24*60*60*1000, httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
-    res.redirect(`/dashboard#token=${jwtToken}`);
+    res.redirect(redirect);
   } catch (e) { console.error(e); res.send('<h1>Login Failed</h1><a href="/">Go back</a>'); }
+});
+
+app.get('/auth/discord', async (req, res) => {
+  if (!DISCORD_CONFIG.clientId || !DISCORD_CONFIG.clientSecret || !DISCORD_CONFIG.redirectUri) return res.status(500).send('<h1>Discord login is not configured.</h1><a href="/">Go back</a>');
+  const state = crypto.randomBytes(16).toString('hex');
+  let linkUserId = null;
+  if (req.query.linkToken) {
+    try { linkUserId = jwt.verify(String(req.query.linkToken), JWT_SECRET).id; } catch (e) { return res.status(403).send('<h1>Invalid link session</h1><a href="/profile">Go back</a>'); }
+  }
+  await OAuthState.create({ state, provider: 'discord', linkUserId });
+  res.redirect(`${DISCORD_CONFIG.authUrl}?${new URLSearchParams({
+    client_id: DISCORD_CONFIG.clientId,
+    redirect_uri: DISCORD_CONFIG.redirectUri,
+    response_type: 'code',
+    scope: DISCORD_CONFIG.scopes,
+    state,
+    prompt: 'consent'
+  })}`);
+});
+app.get('/auth/discord/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error === 'access_denied') return res.send('<h1>Authorization Denied</h1><a href="/">Try again</a>');
+  const doc = await OAuthState.findOneAndDelete({ state, provider: 'discord' });
+  if (!doc) return res.status(403).send('<h1>Invalid State</h1><a href="/">Go back</a>');
+  if (!code) return res.redirect('/');
+  try {
+    const tokenRes = await axios.post(DISCORD_CONFIG.tokenUrl,
+      new URLSearchParams({ client_id: DISCORD_CONFIG.clientId, client_secret: DISCORD_CONFIG.clientSecret, grant_type: 'authorization_code', code, redirect_uri: DISCORD_CONFIG.redirectUri }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+    );
+    const accessToken = tokenRes.data.access_token;
+    const [meRes, guildsRes] = await Promise.all([
+      axios.get(DISCORD_CONFIG.userInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 }),
+      axios.get(DISCORD_CONFIG.guildsUrl, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 })
+    ]);
+    const discordUser = meRes.data;
+    const discordId = String(discordUser.id);
+    const username = discordUser.global_name || discordUser.username;
+    const avatarUrl = discordAvatarUrl(discordUser);
+    const discordUpdate = {
+      id: discordId,
+      username,
+      avatar: discordUser.avatar || '',
+      avatarUrl,
+      guilds: Array.isArray(guildsRes.data) ? guildsRes.data.map(safeGuild) : [],
+      linkedAt: new Date()
+    };
+    let user;
+    if (doc.linkUserId) {
+      user = await mongoose.model('User').findByIdAndUpdate(
+        doc.linkUserId,
+        { $set: { discord: discordUpdate, isGuest: false }, $addToSet: { authProviders: 'discord' } },
+        { new: true, setDefaultsOnInsert: true }
+      );
+      if (!user) return res.status(404).send('<h1>Account not found</h1><a href="/profile">Go back</a>');
+    } else {
+      user = await mongoose.model('User').findOne({ 'discord.id': discordId });
+      if (!user) {
+        user = await mongoose.model('User').findOneAndUpdate(
+          { _id: `discord:${discordId}` },
+          { $set: { discord: discordUpdate, customDisplayName: username, avatarUrl: avatarUrl || '', isGuest: false, acceptedTos: true }, $addToSet: { authProviders: 'discord' }, $setOnInsert: { donations: { received: 0, given: 0 }, board: [], role: 'user' } },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } else {
+        user.discord = discordUpdate;
+        if (!user.authProviders?.includes('discord')) user.authProviders = [...(user.authProviders || []), 'discord'];
+        await user.save();
+      }
+    }
+    const { token: jwtToken, redirect } = getLoginRedirectWithToken(user);
+    res.cookie('passly_token', jwtToken, { maxAge: 7*24*60*60*1000, httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
+    res.redirect(redirect);
+  } catch (e) { console.error(e); res.send('<h1>Discord Login Failed</h1><a href="/">Go back</a>'); }
+});
+app.get('/logout', (req, res) => {
+  res.clearCookie('passly_token', { secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
+  res.send('<!doctype html><html><body><script>localStorage.removeItem("passly_token"); localStorage.removeItem("passly_user"); window.location.href="/";</script><a href="/">Logged out. Go home</a></body></html>');
 });
 // Helper to get User model (may be undefined if DB not connected)
 function getUserModel() {
@@ -451,11 +587,14 @@ app.get('/api/user', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready', fallback: true });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const avatarUrl = user.avatarUrl || '';
-  const avatarFallback = avatarUrl ? '' : `https://www.roblox.com/bust-thumbnail/image?userId=${user._id}&width=150&height=150&format=png`;
+  const robloxAccountId = getRobloxAccountId(user);
+  const publicDiscord = user.discord ? { id: user.discord.id, username: user.discord.username, avatarUrl: user.discord.avatarUrl, guildCount: (user.discord.guilds || []).length } : null;
+  const avatarUrl = user.profile?.showDiscordIdentity && publicDiscord?.avatarUrl ? publicDiscord.avatarUrl : (user.avatarUrl || publicDiscord?.avatarUrl || '');
+  const avatarFallback = avatarUrl ? '' : (robloxAccountId ? `https://www.roblox.com/bust-thumbnail/image?userId=${robloxAccountId}&width=150&height=150&format=png` : '');
   res.json({
-    id: user._id, robloxUsername: user.robloxUsername || '', robloxDisplayName: user.robloxDisplayName || '',
-    displayName: user.customDisplayName || user.robloxDisplayName || '', avatarUrl, avatarFallback, profile: user.profile,
+    id: user._id, robloxId: robloxAccountId, robloxUsername: user.robloxUsername || '', robloxDisplayName: user.robloxDisplayName || '',
+    displayName: user.customDisplayName || user.robloxDisplayName || publicDiscord?.username || '', avatarUrl, avatarFallback, profile: user.profile,
+    discord: publicDiscord, authProviders: user.authProviders || [], hasRoblox: !!robloxAccountId, hasDiscord: !!publicDiscord,
     roomId: user.roomId, inQueue: user.inQueue, donations: user.donations,
     customDisplayName: user.customDisplayName || null, board: user.board || [],
     role: effectiveRoleFor(user), notificationPreferences: user.notificationPreferences || {}, vipGamepass: VIP_GAMEPASS, ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
@@ -619,10 +758,11 @@ app.post('/api/vip/verify', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!getRobloxAccountId(user)) return res.status(401).json({ error: 'Please link Roblox before verifying VIP.' });
   const currentRole = effectiveRoleFor(user);
   if (['vip', 'admin', 'owner'].includes(currentRole)) return res.json({ success: true, message: 'VIP is already active on your account.', role: currentRole, ...serializeUserTags(user) });
   try {
-    const inv = await axios.get(`https://inventory.roblox.com/v1/users/${req.user.id}/items/GamePass/${VIP_GAMEPASS.id}`, { timeout: 5000 });
+    const inv = await axios.get(`https://inventory.roblox.com/v1/users/${getRobloxAccountId(user)}/items/GamePass/${VIP_GAMEPASS.id}`, { timeout: 5000 });
     if (!inv.data?.data?.length) return res.status(400).json({ error: 'VIP gamepass not found in your inventory yet. Buy the 1,000 Robux VIP gamepass, then try Verify again.' });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to verify VIP gamepass ownership. Please try again.' });
@@ -636,13 +776,14 @@ app.post('/api/vip/verify', authenticateToken, async (req, res) => {
 app.post('/api/profile/update', authenticateToken, async (req, res) => {
   const User = getUserModel();
   if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const { showBooth, statusDot, showRoomId, customDisplayName, displayTag } = req.body;
+  const { showBooth, statusDot, showRoomId, showDiscordIdentity, customDisplayName, displayTag } = req.body;
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const update = {};
   if (showBooth !== undefined) update['profile.showBooth'] = showBooth;
   if (statusDot) update['profile.statusDot'] = statusDot;
   if (showRoomId !== undefined) update['profile.showRoomId'] = showRoomId;
+  if (showDiscordIdentity !== undefined) update['profile.showDiscordIdentity'] = !!showDiscordIdentity && !!user.discord?.id;
   if (customDisplayName !== undefined) update.customDisplayName = customDisplayName.trim().substring(0,20) || null;
   if (displayTag !== undefined) {
     const requestedTag = String(displayTag || '').toLowerCase();
@@ -680,8 +821,10 @@ app.post('/api/board/add', authenticateToken, async (req, res) => {
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.board.some(g => g.id === assetId)) return res.status(400).json({ error: 'Already on board' });
+  const robloxAccountId = getRobloxAccountId(user);
+  if (!robloxAccountId) return res.status(401).json({ error: 'Please link Roblox before adding gamepasses to your board.' });
   try {
-    const check = await axios.get(`https://inventory.roblox.com/v1/users/${user._id}/items/GamePass/${assetId}`, { timeout: 5000 });
+    const check = await axios.get(`https://inventory.roblox.com/v1/users/${robloxAccountId}/items/GamePass/${assetId}`, { timeout: 5000 });
     if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
   } catch (e) { return res.status(400).json({ error: 'Ownership verification failed' }); }
   user.board.push({ id: assetId, name: 'Gamepass', price: parseInt(price) });
@@ -1252,6 +1395,11 @@ app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   const { receiverId, gamepassId, amount } = req.body;
   if (!receiverId || !gamepassId || !amount) return res.status(400).json({ error: 'Missing fields' });
   const donorId = req.user.id;
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const donor = await User.findById(donorId);
+  if (!donor) return res.status(404).json({ error: 'User not found' });
+  if (!getRobloxAccountId(donor)) return res.status(401).json({ error: 'Please link Roblox before donating.' });
   if (pendingDonations.has(donorId)) {
     const pending = pendingDonations.get(donorId);
     if (Date.now() - pending.timestamp < 3600000) return res.status(400).json({ error: 'You already have a pending donation. Verify or wait.' });
@@ -1275,6 +1423,8 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   if (!User || !Donation || !ConsumedPurchase) return res.status(503).json({ error: 'Database not ready' });
   const donor = await User.findById(donorId);
   if (!donor) return res.status(404).json({ error: 'User not found' });
+  const donorRobloxId = getRobloxAccountId(donor);
+  if (!donorRobloxId) return res.status(401).json({ error: 'Please link Roblox before verifying donations.' });
 
   const consumedKey = `${donorId}:${gamepassId}`;
   const consumed = await ConsumedPurchase.findById(consumedKey);
@@ -1286,7 +1436,7 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   if (existing) return res.status(400).json({ error: 'You have already verified this purchase. Remove it from your inventory and buy it again if you wish to donate again.' });
 
   try {
-    const inv = await axios.get(`https://inventory.roblox.com/v1/users/${donorId}/items/GamePass/${gamepassId}`, { timeout: 5000 });
+    const inv = await axios.get(`https://inventory.roblox.com/v1/users/${donorRobloxId}/items/GamePass/${gamepassId}`, { timeout: 5000 });
     if (!inv.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass.' });
   } catch (err) { return res.status(500).json({ error: 'Failed to verify ownership.' }); }
 
@@ -1296,8 +1446,8 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   const donorCoins = Math.floor(donationAmount / 10);
   const receiverCoins = Math.floor(donationAmount / 20);
   const donation = new Donation({
-    _id: crypto.randomBytes(8).toString('hex'), donorId, donorName: donor.robloxUsername,
-    receiverId, receiverName: receiver.robloxUsername, gamepassId, amount: donationAmount, roomId: null, verified: true,
+    _id: crypto.randomBytes(8).toString('hex'), donorId, donorName: donor.robloxUsername || donor.discord?.username || 'Player',
+    receiverId, receiverName: receiver.robloxUsername || receiver.discord?.username || 'Player', gamepassId, amount: donationAmount, roomId: null, verified: true,
     coinRewards: { donor: donorCoins, receiver: receiverCoins }, consumedPurchaseKey: consumedKey, timestamp: new Date()
   });
   await donation.save();
@@ -1781,13 +1931,14 @@ app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const User = mongoose.model('User');
     const user = await User.findById(userId);
-    if (!user || !user.robloxAccessToken) {
-      return res.status(401).json({ error: 'Missing Roblox access token. Please re-login.' });
+    if (!user || !user.robloxAccessToken || !getRobloxAccountId(user)) {
+      return res.status(401).json({ error: 'Please link Roblox before using donation features.' });
     }
 
     const accessToken = user.robloxAccessToken;
+    const robloxAccountId = getRobloxAccountId(user);
     // Use the v2 inventory API with Authorization header
-    const url = `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=GamePass&limit=100`;
+    const url = `https://inventory.roblox.com/v2/users/${robloxAccountId}/inventory?assetTypes=GamePass&limit=100`;
     const response = await axios.get(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
       timeout: 10000
