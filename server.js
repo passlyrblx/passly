@@ -109,8 +109,14 @@ function getPublicTag(user) {
   const selectedTag = String(user?.profile?.displayTag || '').toLowerCase();
   return availableTags.includes(selectedTag) ? selectedTag : (availableTags[0] || null);
 }
+function getPublicTags(user) {
+  return getAvailableTags(user);
+}
 function serializeTag(tag) {
   return tag ? { key: tag, label: TAG_LABELS[tag] || tag.toUpperCase() } : null;
+}
+function serializeTags(tags) {
+  return (tags || []).map(serializeTag).filter(Boolean);
 }
 function isGuestRecord(user) {
   return !!(user?.isGuest || user?.role === 'guest' || /^Guest_/i.test(user?.robloxUsername || '') || /^Guest_/i.test(user?.customDisplayName || ''));
@@ -120,7 +126,8 @@ function serializeUserTags(user) {
   const publicTag = getPublicTag(user);
   return {
     availableTags: availableTags.map(serializeTag),
-    displayTag: serializeTag(publicTag)
+    displayTag: serializeTag(publicTag),
+    displayTags: serializeTags(getPublicTags(user))
   };
 }
 
@@ -662,7 +669,7 @@ app.get('/api/user/:userId/stats', authenticateToken, async (req, res) => {
     displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
     username: user.robloxUsername,
     avatarUrl: user.avatarUrl,
-    displayTag: serializeTag(getPublicTag(user))
+    displayTag: serializeTag(getPublicTag(user)), displayTags: serializeTags(getPublicTags(user))
   });
 });
 
@@ -821,7 +828,7 @@ app.post('/api/profile/update', authenticateToken, async (req, res) => {
     update['profile.displayTag'] = requestedTag || null;
   }
   const updatedUser = await User.findByIdAndUpdate(req.user.id, { $set: update }, { new: true });
-  res.json({ success: true, displayTag: serializeTag(getPublicTag(updatedUser)) });
+  res.json({ success: true, displayTag: serializeTag(getPublicTag(updatedUser)), displayTags: serializeTags(getPublicTags(updatedUser)) });
 });
 
 app.get('/api/search', async (req, res) => {
@@ -831,7 +838,7 @@ app.get('/api/search', async (req, res) => {
   if (!q) return res.status(400).json({ error: 'Username required' });
   const found = await User.findOne({ robloxUsername: new RegExp(`^${q}$`, 'i') });
   if (!found) return res.json({ error: 'User not found' });
-  res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, displayTag: serializeTag(getPublicTag(found)), booth: found.booth || { activeTheme: 'default', ownedThemes: ['default'] }, board: found.profile?.showBooth !== false ? (found.board || []) : [] });
+  res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, displayTag: serializeTag(getPublicTag(found)), displayTags: serializeTags(getPublicTags(found)), booth: found.booth || { activeTheme: 'default', ownedThemes: ['default'] }, board: found.profile?.showBooth !== false ? (found.board || []) : [] });
 });
 
 app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
@@ -839,7 +846,7 @@ app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.params.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user._id, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl, displayTag: serializeTag(getPublicTag(user)), booth: user.booth || { activeTheme: 'default', ownedThemes: ['default'] }, board: user.profile?.showBooth !== false ? (user.board || []) : [] });
+  res.json({ id: user._id, displayName: user.customDisplayName || user.robloxDisplayName, avatarUrl: user.avatarUrl, displayTag: serializeTag(getPublicTag(user)), displayTags: serializeTags(getPublicTags(user)), booth: user.booth || { activeTheme: 'default', ownedThemes: ['default'] }, board: user.profile?.showBooth !== false ? (user.board || []) : [] });
 });
 
 app.post('/api/board/add', authenticateToken, async (req, res) => {
@@ -1187,7 +1194,7 @@ io.on('connection', (socket) => {
       username: user?.customDisplayName || user?.robloxDisplayName || user?.robloxUsername || 'Admin',
       message: cleanMessage,
       timestamp: Date.now(),
-      displayTag: serializeTag(getPublicTag(user))
+      displayTag: serializeTag(getPublicTag(user)), displayTags: serializeTags(getPublicTags(user))
     });
   });
 
@@ -1221,6 +1228,7 @@ io.on('connection', (socket) => {
     let isAdmin = false;
     let isOwner = false;
     let senderTag = null;
+    let senderTags = [];
     let senderId = userId || guestId;
 
     if (isGuest) {
@@ -1239,6 +1247,7 @@ io.on('connection', (socket) => {
         isOwner = (userId === OWNER_ROBLOX_ID);
         isAdmin = ADMINS.has(userId) || isOwner;
         senderTag = serializeTag(getPublicTag(user));
+        senderTags = serializeTags(getPublicTags(user));
       } else {
         senderName = 'User';
       }
@@ -1273,7 +1282,8 @@ io.on('connection', (socket) => {
       timestamp: Date.now(),
       isAdmin,
       isOwner,
-      displayTag: senderTag
+      displayTag: senderTag,
+      displayTags: senderTags
     });
   });
 
@@ -1609,7 +1619,7 @@ app.post('/api/admin/grant', authenticateToken, async (req, res) => {
   const target = await findAdminTargetUser(req.body.userId, { provisionRobloxId: true });
   if (target.error) return res.status(target.error === 'Database not ready' ? 503 : 404).json({ error: target.error });
   const user = await applyAdminRole(target.user, role);
-  res.json({ success: true, id: user._id, username: user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)) });
+  res.json({ success: true, id: user._id, username: user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)), displayTags: serializeTags(getPublicTags(user)) });
 });
 app.post('/api/admin/ban', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
@@ -1638,7 +1648,7 @@ app.get('/api/admin/search-user', authenticateToken, async (req, res) => {
   const target = await findAdminTargetUser(req.query.username, { provisionRobloxId: true });
   if (target.error) return res.json({ error: target.error });
   const user = target.user;
-  res.json({ id: user._id, username: user.robloxUsername, displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)), coins: getCoinBalance(user) });
+  res.json({ id: user._id, username: user.robloxUsername, displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)), displayTags: serializeTags(getPublicTags(user)), coins: getCoinBalance(user) });
 });
 app.post('/api/admin/broadcast', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403);
@@ -1748,7 +1758,7 @@ app.post('/api/admin/set-role', authenticateToken, async (req, res) => {
   const target = await findAdminTargetUser(req.body.userId, { provisionRobloxId: true });
   if (target.error) return res.status(target.error === 'Database not ready' ? 503 : 404).json({ error: target.error });
   const user = await applyAdminRole(target.user, role);
-  res.json({ success: true, id: user._id, username: user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)) });
+  res.json({ success: true, id: user._id, username: user.robloxUsername, role: effectiveRoleFor(user), displayTag: serializeTag(getPublicTag(user)), displayTags: serializeTags(getPublicTags(user)) });
 });
 app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 // ========== FRIEND & MESSAGE ENDPOINTS (guest‑disabled) ==========

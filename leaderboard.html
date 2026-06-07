@@ -222,7 +222,7 @@
       menuOverlay.addEventListener('click', closeMenu);
     }
     function escapeHtml(str) { return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
-    function tagBadgeHtml(tag) { return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
+    function tagBadgeHtml(tag) { if(Array.isArray(tag)) return tag.map(tagBadgeHtml).join(''); return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
     function setAvatarWithFallback(el, url, fallback) {
       if (!el) return;
       const primary = url || fallback;
@@ -246,7 +246,7 @@
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data) {
-            document.getElementById('userName').innerHTML = escapeHtml(data.displayName || data.username) + tagBadgeHtml(data.displayTag);
+            document.getElementById('userName').innerHTML = escapeHtml(data.displayName || data.username) + tagBadgeHtml(data.displayTags || data.displayTag);
             setAvatarWithFallback(document.getElementById('userAvatar'), data.avatarUrl, data.avatarFallback);
           }
         })
