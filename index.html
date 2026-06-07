@@ -95,6 +95,20 @@
       transform: translateY(-2px);
       box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3);
     }
+    .btn-discord {
+      background: linear-gradient(135deg, #5865f2, #4752c4);
+      color: white;
+    }
+    .btn-discord:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(88, 101, 242, 0.35);
+    }
+    .login-note {
+      margin: -2px 0 12px;
+      color: #c7d2fe;
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
     .btn-guest {
       background: rgba(139, 92, 246, 0.15);
       border: 1px solid rgba(139, 92, 246, 0.3);
@@ -224,6 +238,8 @@
     </div>
 
     <button class="btn btn-roblox" id="robloxLoginBtn" disabled>Login with Roblox</button>
+    <button class="btn btn-discord" id="discordLoginBtn" disabled>Login through Discord</button>
+    <div class="login-note">Players can also log in with Discord. To donate, receive donations, or manage gamepasses, link your Roblox account from Profile.</div>
     <button class="btn btn-guest" id="guestLoginBtn" disabled>Continue as Guest</button>
     <div id="loginStatus" class="status-message"></div>
 
@@ -246,12 +262,14 @@
     const acceptCheckbox = document.getElementById('acceptCheckbox');
     const robloxBtn = document.getElementById('robloxLoginBtn');
     const guestBtn = document.getElementById('guestLoginBtn');
+    const discordBtn = document.getElementById('discordLoginBtn');
 
     // Enable/disable buttons based on checkbox
     function updateButtons() {
       const isChecked = acceptCheckbox.checked;
       robloxBtn.disabled = !isChecked;
       guestBtn.disabled = !isChecked;
+      discordBtn.disabled = !isChecked;
     }
     acceptCheckbox.addEventListener('change', updateButtons);
     updateButtons(); // initial state
@@ -282,6 +300,10 @@
     // Login functions
     robloxBtn.addEventListener('click', () => {
       window.location.href = '/auth/roblox';
+    });
+
+    discordBtn.addEventListener('click', () => {
+      window.location.href = '/auth/discord';
     });
 
     guestBtn.addEventListener('click', async () => {

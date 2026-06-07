@@ -78,6 +78,13 @@
     balance.dataset.coinSize = 'small';
     balance.innerHTML = renderCoins(0);
     box.insertBefore(balance, box.firstChild);
+    const notificationLink = document.createElement('a');
+    notificationLink.href = '/friends#notifications';
+    notificationLink.className = 'passly-notification-link';
+    notificationLink.title = 'Open friend notifications';
+    notificationLink.setAttribute('aria-label', 'Open friend notifications');
+    notificationLink.innerHTML = '<span aria-hidden="true">🔔</span><span class="passly-notification-count" data-passly-notification-count hidden>0</span>';
+    box.insertBefore(notificationLink, balance.nextSibling);
     const token = localStorage.getItem('passly_token');
     if (!token) return;
     try {
@@ -86,6 +93,16 @@
         const data = await res.json();
         updateCoinDisplays(data.coins || 0);
         window.dispatchEvent(new CustomEvent('passly:economy', { detail: data }));
+      }
+      const notificationsRes = await fetch('/api/friends/notifications', { headers: { Authorization: `Bearer ${token}` } });
+      if (notificationsRes.ok) {
+        const notificationsData = await notificationsRes.json();
+        const count = (notificationsData.notifications || []).length;
+        const countEl = document.querySelector('[data-passly-notification-count]');
+        if (countEl) {
+          countEl.textContent = count > 99 ? '99+' : String(count);
+          countEl.hidden = count === 0;
+        }
       }
     } catch (e) {}
   };

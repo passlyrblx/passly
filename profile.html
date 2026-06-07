@@ -119,6 +119,10 @@
     .vip-upgrade-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
     .vip-upgrade-actions .save-btn { width:auto; display:inline-block; }
     .vip-upgrade-status { margin-top:10px; color:#fde68a; font-size:0.9rem; }
+    .discord-link-card { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:14px; border-radius:16px; background:rgba(88,101,242,.12); border:1px solid rgba(88,101,242,.32); margin-bottom:14px; }
+    .discord-identity { display:flex; align-items:center; gap:10px; color:#dbe4ff; }
+    .discord-pfp { width:42px; height:42px; border-radius:50%; background:#1f2340 center/cover no-repeat; border:1px solid rgba(255,255,255,.18); }
+    .link-actions { display:flex; gap:10px; flex-wrap:wrap; }
     @media (max-width:768px) {
       .hamburger { display: flex; }
       .nav-links { display: none; }
@@ -182,13 +186,26 @@
       </div>
     </div>
     <div id="loginPrompt" class="login-prompt">
-      <p>🔐 <strong>Log in with Roblox</strong> to edit your profile.</p>
+      <p>🔐 <strong>Log in with Roblox or Discord</strong> to edit your profile.</p>
       <button class="save-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
+      <button class="save-btn" onclick="window.location.href='/auth/discord'" style="background:#5865f2; margin-top:8px;">Login through Discord</button>
+    </div>
+    <div class="discord-link-card" id="discordLinkCard">
+      <div>
+        <strong>Discord login</strong>
+        <div class="settings-help" id="discordLinkHelp">Connect Discord to show your Discord profile and server list on your Passly account.</div>
+        <div class="discord-identity" id="discordIdentity" style="display:none;"><div class="discord-pfp" id="discordPfp"></div><span id="discordUsername"></span></div>
+      </div>
+      <div class="link-actions">
+        <button class="save-btn" id="discordLinkButton" onclick="linkDiscord()">Link Discord</button>
+        <button class="save-btn" id="robloxLinkButton" onclick="linkRoblox()">Link Roblox</button>
+      </div>
     </div>
     <div class="settings-group"><label class="settings-label">Custom Display Name</label><input type="text" class="custom-name-input" id="customDisplayName" placeholder="Leave blank to use Roblox name" maxlength="20"></div>
     <div class="settings-group"><label class="settings-label">Show Booth (Gamepass Board)</label><select class="settings-select" id="showBooth"><option value="true">✅ Yes - Show my board</option><option value="false">❌ No - Hide my board</option></select></div>
     <div class="settings-group"><label class="settings-label">Online Status Display</label><select class="settings-select" id="statusDotSelect"><option value="online">🟢 Show when online</option><option value="offline">⚫ Always offline</option></select></div>
     <div class="settings-group"><label class="settings-label">Show Room ID on Profile</label><select class="settings-select" id="showRoomId"><option value="true">✅ Yes</option><option value="false">❌ No</option></select></div>
+    <div class="settings-group"><label class="settings-label">Show Discord Picture & Username</label><select class="settings-select" id="showDiscordIdentity"><option value="true">✅ Yes - use Discord profile publicly</option><option value="false">❌ No - use Roblox profile</option></select><div class="settings-help">Link Discord first, then choose whether your Discord pfp and username can appear on your profile.</div></div>
     <div class="settings-group" id="tagSettingsGroup" style="display:none;"><label class="settings-label">Public Tag</label><select class="settings-select" id="displayTagSelect"></select><div class="settings-help">Choose which available badge appears next to your name across Passly.</div><div class="available-tags" id="availableTags"></div></div>
     <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
     <div class="save-message" id="saveMessage">✅ Profile saved!</div>
@@ -243,6 +260,8 @@
   let userData = null;
   (function() { const hash = window.location.hash; if(hash && hash.includes('token=')) { const tokenPart = hash.split('token=')[1].split('&')[0]; localStorage.setItem('passly_token', tokenPart); token = tokenPart; history.replaceState(null,null,' '); } })();
   function authHeaders() { const h = {'Content-Type':'application/json'}; if(token) h['Authorization'] = `Bearer ${token}`; return h; }
+  function linkDiscord() { if(!token) return window.location.href='/auth/discord'; window.location.href = `/auth/discord?linkToken=${encodeURIComponent(token)}`; }
+  function linkRoblox() { if(!token) return window.location.href='/auth/roblox'; window.location.href = `/auth/roblox?linkToken=${encodeURIComponent(token)}`; }
   function requireLogin(cb) { if(!token) { PasslyUI.toast('Please log in with Roblox to continue.'); window.location.href='/auth/roblox'; return; } cb(); }
   function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
   function toggleNotificationPanel() { const panel = document.getElementById('notificationPanel'); panel.classList.toggle('open'); if(panel.classList.contains('open')) loadNotifications(); }
@@ -324,13 +343,15 @@
     if(!userData) { const guest = JSON.parse(localStorage.getItem('passly_user') || 'null'); if(guest && guest.username) userData = { ...guest, isGuest: true }; else { const res = await fetch('/api/guest-login', { method:'POST' }); const data = await res.json(); userData = { ...data, isGuest: true }; localStorage.setItem('passly_user', JSON.stringify(userData)); } document.getElementById('loginPrompt').style.display = 'block'; }
     renderDisplayName(document.getElementById('userName'), userData);
     renderDisplayName(document.getElementById('profileName'), userData);
-    document.getElementById('robloxUsernameDisplay').textContent = userData.robloxUsername ? `Roblox: @${userData.robloxUsername}` : '';
+    document.getElementById('robloxUsernameDisplay').textContent = userData.robloxUsername ? `Roblox: @${userData.robloxUsername}` : 'Roblox not linked yet';
     if(userData.isGuest) document.getElementById('guestBadge').style.display = 'inline-block';
     const avatarUrl = userData.avatarUrl || '';
     const avatarFallback = userData.avatarFallback || `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png`;
     setAvatarWithFallback(document.getElementById('userAvatar'), avatarUrl, avatarFallback);
     setAvatarWithFallback(document.getElementById('profileAvatar'), avatarUrl, avatarFallback);
-    if(userData.profile) { document.getElementById('showBooth').value = userData.profile.showBooth ? 'true' : 'false'; document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online'; document.getElementById('showRoomId').value = userData.profile.showRoomId ? 'true' : 'false'; }
+    if(userData.profile) { document.getElementById('showBooth').value = userData.profile.showBooth ? 'true' : 'false'; document.getElementById('statusDotSelect').value = userData.profile.statusDot || 'online'; document.getElementById('showRoomId').value = userData.profile.showRoomId ? 'true' : 'false'; document.getElementById('showDiscordIdentity').value = userData.profile.showDiscordIdentity && userData.hasDiscord ? 'true' : 'false'; }
+    if(userData.hasDiscord && userData.discord) { document.getElementById('discordIdentity').style.display = 'flex'; document.getElementById('discordPfp').style.backgroundImage = userData.discord.avatarUrl ? `url(${userData.discord.avatarUrl})` : ''; document.getElementById('discordUsername').textContent = `${userData.discord.username} · ${userData.discord.guildCount || 0} servers`; document.getElementById('discordLinkButton').textContent = 'Refresh Discord'; document.getElementById('discordLinkHelp').textContent = 'Discord is connected. You can refresh permissions or choose to show your Discord profile publicly below.'; }
+    if(userData.hasRoblox) document.getElementById('robloxLinkButton').textContent = 'Refresh Roblox';
     if(userData.customDisplayName) document.getElementById('customDisplayName').value = userData.customDisplayName;
     renderTagSettings();
     renderVipUpgrade();
@@ -342,7 +363,7 @@
     await checkAdminStatus();
     if (!userData.isGuest && userData.role) { const friendsBtnDiv = document.getElementById('friendsButtonContainer'); if (friendsBtnDiv) friendsBtnDiv.style.display = 'block'; }
   }
-  async function saveProfile() { if(!token) return; const showBooth = document.getElementById('showBooth').value === 'true'; const statusDot = document.getElementById('statusDotSelect').value; const showRoomId = document.getElementById('showRoomId').value === 'true'; const customDisplayName = document.getElementById('customDisplayName').value.trim(); const displayTag = document.getElementById('displayTagSelect')?.value || null; try { const res = await fetch('/api/profile/update', { method:'POST', headers:authHeaders(), body:JSON.stringify({ showBooth, statusDot, showRoomId, customDisplayName, displayTag }) }); const data = await res.json().catch(() => ({})); if(res.ok) { const msg = document.getElementById('saveMessage'); msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); userData.displayName = customDisplayName || userData.robloxDisplayName || userData.username; if(data.displayTag) userData.displayTag = data.displayTag; renderDisplayName(document.getElementById('profileName'), userData); renderDisplayName(document.getElementById('userName'), userData); } else PasslyUI.toast(data.error || 'We could not save your profile. Please try again.'); } catch(e) { PasslyUI.toast('We could not save your profile. Please try again.'); } }
+  async function saveProfile() { if(!token) return; const showBooth = document.getElementById('showBooth').value === 'true'; const statusDot = document.getElementById('statusDotSelect').value; const showRoomId = document.getElementById('showRoomId').value === 'true'; const showDiscordIdentity = document.getElementById('showDiscordIdentity').value === 'true'; const customDisplayName = document.getElementById('customDisplayName').value.trim(); const displayTag = document.getElementById('displayTagSelect')?.value || null; try { const res = await fetch('/api/profile/update', { method:'POST', headers:authHeaders(), body:JSON.stringify({ showBooth, statusDot, showRoomId, showDiscordIdentity, customDisplayName, displayTag }) }); const data = await res.json().catch(() => ({})); if(res.ok) { const msg = document.getElementById('saveMessage'); msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); userData.displayName = customDisplayName || userData.robloxDisplayName || userData.username; if(data.displayTag) userData.displayTag = data.displayTag; renderDisplayName(document.getElementById('profileName'), userData); renderDisplayName(document.getElementById('userName'), userData); } else PasslyUI.toast(data.error || 'We could not save your profile. Please try again.'); } catch(e) { PasslyUI.toast('We could not save your profile. Please try again.'); } }
   async function searchPlayer() { const username = document.getElementById('searchUsername').value.trim(); if(!username) return PasslyUI.toast('Enter a Roblox username.'); const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`); const data = await res.json(); const container = document.getElementById('searchResult'); if(data.error) { container.innerHTML = `<p style="color:#ff4444;">${escapeHtml(data.error)}</p>`; return; } let boardHtml = ''; if(data.board && data.board.length) { boardHtml = `<div class="board-gamepass-grid">${data.board.map(gp => `<div class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span>💰 ${gp.price} R$</span><span>${escapeHtml(gp.id)}</span></div>`).join('')}</div>`; } else boardHtml = '<p>No gamepasses on board.</p>'; container.innerHTML = `<div style="display:flex; align-items:center; gap:10px;"><div style="width:40px; height:40px; border-radius:50%; background:url(${data.avatarUrl || ''}) center/cover;"></div><div><strong>${escapeHtml(data.displayName || data.robloxUsername)}${tagBadgeHtml(data.displayTag)}</strong><br><small>@${escapeHtml(data.robloxUsername)}</small></div></div>${boardHtml}`; }
   async function addGamepassToBoard() { const assetId = document.getElementById('newGamepassId').value.trim(); const price = parseInt(document.getElementById('newGamepassPrice').value); if(!assetId || !price) { PasslyUI.toast('Enter a gamepass asset ID and Robux amount.'); return; } const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) }); const data = await res.json(); if(data.error) PasslyUI.toast(data.error); else { userData.board = data.board; const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); document.getElementById('newGamepassId').value = ''; document.getElementById('newGamepassPrice').value = ''; } }
   async function removeGamepass(assetId) { if(!await PasslyUI.confirm('Remove this gamepass?', { confirmText: 'Remove' })) return; const res = await fetch('/api/board/remove', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId }) }); const data = await res.json(); if(data.success) { userData.board = data.board; const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = data.board.length ? data.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('') : '<p>No gamepasses added yet.</p>'; } }
