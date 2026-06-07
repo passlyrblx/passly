@@ -75,18 +75,34 @@ const userSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-const TAG_LABELS = { owner: 'Owner', admin: 'Admin', vip: 'VIP' };
+const FAN_GUILD_ID = process.env.DISCORD_FAN_GUILD_ID || '1480161445021876407';
+const FAN_BONUS_RATE = 0.10;
+const TAG_LABELS = { owner: 'Owner', admin: 'Admin', vip: 'VIP', fan: 'Fan' };
 function effectiveRoleFor(user) {
   if (!user) return 'user';
   if (String(user._id) === OWNER_ROBLOX_ID || user.role === 'owner') return 'owner';
   return user.role || 'user';
 }
+function isFanGuildMember(user) {
+  return !!(user?.discord?.guilds || []).some(guild => String(guild?.id || '') === FAN_GUILD_ID);
+}
+function withFanTag(tags, user) {
+  return isFanGuildMember(user) ? [...tags, 'fan'] : tags;
+}
 function getAvailableTags(user) {
   const role = effectiveRoleFor(user);
-  if (role === 'owner') return ['owner', 'admin', 'vip'];
-  if (role === 'admin') return ['admin', 'vip'];
-  if (role === 'vip') return ['vip'];
-  return [];
+  if (role === 'owner') return withFanTag(['owner', 'admin', 'vip'], user);
+  if (role === 'admin') return withFanTag(['admin', 'vip'], user);
+  if (role === 'vip') return withFanTag(['vip'], user);
+  return withFanTag([], user);
+}
+function applyFanBonus(amount, user) {
+  const base = Math.max(0, Math.floor(Number(amount) || 0));
+  if (!base || !isFanGuildMember(user)) return base;
+  return Math.ceil(base * (1 + FAN_BONUS_RATE));
+}
+function fanBonusDetails(baseAmount, finalAmount, user) {
+  return { eligible: isFanGuildMember(user), base: baseAmount, final: finalAmount, bonus: Math.max(0, finalAmount - baseAmount) };
 }
 function getPublicTag(user) {
   const availableTags = getAvailableTags(user);
@@ -199,7 +215,7 @@ function serializeEconomy(user) {
       lastClaimDate: reward.lastClaimDate || '',
       nextClaimAt: lastClaimAt ? new Date(lastClaimAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null,
       claimedToday,
-      nextReward: getDailyRewardAmount(nextStreak),
+      nextReward: applyFanBonus(getDailyRewardAmount(nextStreak), user),
       nextStreak
     },
     booth: { activeTheme: user?.booth?.activeTheme || 'default', ownedThemes: user?.booth?.ownedThemes || ['default'] }
@@ -384,6 +400,8 @@ app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard
 app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
+app.get('/booths', (req, res) => res.sendFile(path.join(__dirname, 'booths.html')));
+app.get('/find-player', (req, res) => res.sendFile(path.join(__dirname, 'find-player.html')));
 app.get('/livedonations', (req, res) => res.sendFile(path.join(__dirname, 'livedonations.html')));
 app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'friends.html')));
 app.get('/redeem', (req, res) => res.sendFile(path.join(__dirname, 'redeem.html')));
@@ -588,7 +606,7 @@ app.get('/api/user', authenticateToken, async (req, res) => {
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const robloxAccountId = getRobloxAccountId(user);
-  const publicDiscord = user.discord ? { id: user.discord.id, username: user.discord.username, avatarUrl: user.discord.avatarUrl, guildCount: (user.discord.guilds || []).length } : null;
+  const publicDiscord = user.discord ? { id: user.discord.id, username: user.discord.username, avatarUrl: user.discord.avatarUrl, guildCount: (user.discord.guilds || []).length, fanMember: isFanGuildMember(user) } : null;
   const avatarUrl = user.profile?.showDiscordIdentity && publicDiscord?.avatarUrl ? publicDiscord.avatarUrl : (user.avatarUrl || publicDiscord?.avatarUrl || '');
   const avatarFallback = avatarUrl ? '' : (robloxAccountId ? `https://www.roblox.com/bust-thumbnail/image?userId=${robloxAccountId}&width=150&height=150&format=png` : '');
   res.json({
@@ -597,7 +615,7 @@ app.get('/api/user', authenticateToken, async (req, res) => {
     discord: publicDiscord, authProviders: user.authProviders || [], hasRoblox: !!robloxAccountId, hasDiscord: !!publicDiscord,
     roomId: user.roomId, inQueue: user.inQueue, donations: user.donations,
     customDisplayName: user.customDisplayName || null, board: user.board || [],
-    role: effectiveRoleFor(user), notificationPreferences: user.notificationPreferences || {}, vipGamepass: VIP_GAMEPASS, ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
+    role: effectiveRoleFor(user), fanBonus: { eligible: isFanGuildMember(user), rate: FAN_BONUS_RATE }, notificationPreferences: user.notificationPreferences || {}, vipGamepass: VIP_GAMEPASS, ...serializeUserTags(user), acceptedTos: user.acceptedTos, ...serializeEconomy(user)
   });
 });
 
@@ -672,7 +690,8 @@ app.post('/api/daily-reward/claim', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'Daily reward already claimed. Please wait 24 hours between claims.', ...serializeEconomy(user) });
   }
   const streak = lastClaimAt && now - lastClaimAt <= 48 * 60 * 60 * 1000 ? Number(reward.streak || 0) + 1 : 1;
-  const amount = getDailyRewardAmount(streak);
+  const baseAmount = getDailyRewardAmount(streak);
+  const amount = applyFanBonus(baseAmount, user);
   const currentBalance = getCoinBalance(user);
   user.coins = currentBalance + amount;
   user.totalCoins = currentBalance + amount;
@@ -680,7 +699,7 @@ app.post('/api/daily-reward/claim', authenticateToken, async (req, res) => {
   user.streakDay = streak;
   user.dailyReward = { streak, lastClaimDate: now.toISOString(), totalClaims: Number(reward.totalClaims || 0) + 1 };
   await user.save();
-  res.json({ success: true, claimed: amount, ...serializeEconomy(user) });
+  res.json({ success: true, claimed: amount, fanBonus: fanBonusDetails(baseAmount, amount, user), ...serializeEconomy(user) });
 });
 
 app.get('/api/streak-leaderboard', async (req, res) => {
@@ -1443,8 +1462,10 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   const receiver = await User.findById(receiverId);
   if (!receiver) return res.status(404).json({ error: 'Receiver not found' });
   const donationAmount = Math.max(0, Math.floor(Number(amount) || 0));
-  const donorCoins = Math.floor(donationAmount / 10);
-  const receiverCoins = Math.floor(donationAmount / 20);
+  const donorBaseCoins = Math.floor(donationAmount / 10);
+  const receiverBaseCoins = Math.floor(donationAmount / 20);
+  const donorCoins = applyFanBonus(donorBaseCoins, donor);
+  const receiverCoins = applyFanBonus(receiverBaseCoins, receiver);
   const donation = new Donation({
     _id: crypto.randomBytes(8).toString('hex'), donorId, donorName: donor.robloxUsername || donor.discord?.username || 'Player',
     receiverId, receiverName: receiver.robloxUsername || receiver.discord?.username || 'Player', gamepassId, amount: donationAmount, roomId: null, verified: true,
@@ -1493,7 +1514,7 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
     });
   }
 
-  res.json({ success: true, message: 'Donation recorded! Thank you.', coinRewards: { donor: Math.floor(amount / 10), receiver: Math.floor(amount / 20) } });
+  res.json({ success: true, message: 'Donation recorded! Thank you.', coinRewards: { donor: donorCoins, receiver: receiverCoins }, fanBonus: { donor: fanBonusDetails(donorBaseCoins, donorCoins, donor), receiver: fanBonusDetails(receiverBaseCoins, receiverCoins, receiver) } });
 });
 const OWNER_ROBLOX_ID = '3115362000';
 const ADMINS = new Set();
@@ -1563,11 +1584,13 @@ app.post('/api/coupons/redeem', authenticateToken, async (req, res) => {
     const existing = await Coupon.findOne({ code });
     return res.status(400).json({ error: existing ? 'This coupon has already been redeemed.' : 'Coupon not found.' });
   }
-  const balance = getCoinBalance(user) + coupon.passlyAmount;
+  const basePasslyAmount = coupon.passlyAmount;
+  const passlyAmount = applyFanBonus(basePasslyAmount, user);
+  const balance = getCoinBalance(user) + passlyAmount;
   user.coins = balance;
   user.totalCoins = balance;
   await user.save();
-  res.json({ success: true, passlyAmount: coupon.passlyAmount, coins: balance, totalCoins: balance });
+  res.json({ success: true, passlyAmount, basePasslyAmount, fanBonus: fanBonusDetails(basePasslyAmount, passlyAmount, user), coins: balance, totalCoins: balance });
 });
 app.post('/api/admin/grant', authenticateToken, async (req, res) => {
   if (!(await isOwnerRequest(req))) return res.status(403).json({ error: 'Owner only' });
