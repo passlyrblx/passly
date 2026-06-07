@@ -449,20 +449,30 @@ app.get('/auth/roblox/callback', async (req, res) => {
     if (!avatarUrl) avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
 
     let user;
+    const robloxUpdate = { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, isGuest: false };
     if (doc.linkUserId) {
       user = await mongoose.model('User').findByIdAndUpdate(
         doc.linkUserId,
-        { $set: { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, isGuest: false }, $addToSet: { authProviders: 'roblox' } },
+        { $set: robloxUpdate, $addToSet: { authProviders: 'roblox' } },
         { new: true, setDefaultsOnInsert: true }
       );
       if (!user) return res.status(404).send('<h1>Account not found</h1><a href="/profile">Go back</a>');
     } else {
-      await mongoose.model('User').findOneAndUpdate(
-        { _id: userId },
-        { $set: { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, isGuest: false }, $addToSet: { authProviders: 'roblox' } },
-        { upsert: true, setDefaultsOnInsert: true }
-      );
-      user = await mongoose.model('User').findById(userId);
+      const User = mongoose.model('User');
+      const existingLinkedUser = await User.findOne({ robloxId: userId });
+      if (existingLinkedUser) {
+        user = await User.findByIdAndUpdate(
+          existingLinkedUser._id,
+          { $set: robloxUpdate, $addToSet: { authProviders: 'roblox' } },
+          { new: true, setDefaultsOnInsert: true }
+        );
+      } else {
+        user = await User.findOneAndUpdate(
+          { _id: userId },
+          { $set: robloxUpdate, $addToSet: { authProviders: 'roblox' } },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      }
     }
     const { token: jwtToken, redirect } = getLoginRedirectWithToken(user);
     res.cookie('passly_token', jwtToken, { maxAge: 7*24*60*60*1000, httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' });
