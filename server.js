@@ -110,7 +110,8 @@ function getPublicTag(user) {
   return availableTags.includes(selectedTag) ? selectedTag : (availableTags[0] || null);
 }
 function getPublicTags(user) {
-  return getAvailableTags(user);
+  const publicTag = getPublicTag(user);
+  return publicTag ? [publicTag] : [];
 }
 function serializeTag(tag) {
   return tag ? { key: tag, label: TAG_LABELS[tag] || tag.toUpperCase() } : null;
