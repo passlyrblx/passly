@@ -37,9 +37,10 @@ const FALLBACK_ROOMS = [
   { _id: "room1", name: "Chill Donations", desc: "Relax, chat, and help small creators with friendly Passly donations.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-nebula" },
   { _id: "room2", name: "Big Donators", desc: "High-energy donation room for generous players and big goals.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-gold" },
   { _id: "room3", name: "Creator Boost", desc: "Showcase your booth, send boards, and boost up-and-coming creators.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-aurora" },
-  { _id: "room4", name: "Coin Rush", desc: "Earn Passly coins, celebrate streaks, and trade donation support.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-cyber" },
-  { _id: "room5", name: "VIP Spotlight", desc: "A premium-feeling public room for standout booths and donation moments.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-crystal" }
+  { _id: "room4", name: "VIP Spotlight", desc: "A premium room for VIP members to showcase standout booths and donation moments.", type: "VIP", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-crystal" }
 ];
+const FALLBACK_ROOM_IDS = FALLBACK_ROOMS.map(room => room._id);
+const OBSOLETE_FALLBACK_ROOM_IDS = ['room5'];
 const FALLBACK_GAME_ROOMS = [
   { _id: "game1", name: "Blox Fruits", desc: "Find crews, trade tips, grind raids, and plan sea adventures together.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-blox-fruits", robloxPlaceId: "2753915549" },
   { _id: "game2", name: "Grow a Garden", desc: "Share gardens, trade ideas, and relax with other growers.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-grow-garden", robloxPlaceId: "126884695634066" },
@@ -279,11 +280,14 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 8000, socketTimeoutMS: 2
 
   const Room = mongoose.model('Room');
   // Ensure default rooms exist
-  await Room.deleteMany({ name: { $in: ["Chill Donations", "Big Donators", "Anime Fans"] }, _id: { $nin: ["room1", "room2", "room3"] } });
+  await Room.deleteMany({ _id: { $in: OBSOLETE_FALLBACK_ROOM_IDS }, createdBy: 'system' });
   for (const r of FALLBACK_ROOMS) {
     await Room.findOneAndUpdate(
       { _id: r._id },
-      { $setOnInsert: { ...r } },
+      {
+        $set: { name: r.name, desc: r.desc, type: r.type, category: r.category, maxPlayers: r.maxPlayers, backgroundClass: r.backgroundClass },
+        $setOnInsert: { players: [], queue: [], createdBy: r.createdBy }
+      },
       { upsert: true, new: true }
     );
   }
@@ -293,7 +297,7 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 8000, socketTimeoutMS: 2
   async function deleteInactiveRooms() {
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const result = await Room.deleteMany({
-      _id: { $nin: ['room1', 'room2', 'room3'] },
+      _id: { $nin: FALLBACK_ROOM_IDS },
       createdAt: { $lt: twelveHoursAgo }
     });
     if (result.deletedCount) console.log(`Deleted ${result.deletedCount} inactive rooms.`);
@@ -935,6 +939,9 @@ app.get('/api/rooms', async (req, res) => {
     const requestedCategory = req.query.category === 'game' ? 'game' : 'passly';
     const defaults = requestedCategory === 'game' ? FALLBACK_GAME_ROOMS : FALLBACK_ROOMS;
     const roomQuery = requestedCategory === 'passly' ? { $or: [{ category: 'passly' }, { category: { $exists: false } }] } : { category: 'game' };
+    if (requestedCategory === 'passly') {
+      await Room.deleteMany({ _id: { $in: OBSOLETE_FALLBACK_ROOM_IDS }, createdBy: 'system' });
+    }
     await Promise.all(defaults.map(room => Room.updateOne(
         { _id: room._id },
         {
