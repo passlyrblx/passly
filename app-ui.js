@@ -136,6 +136,7 @@
       { label: '🏠 Home', href: '/dashboard' },
       { label: '🚪 Rooms', href: '/rooms' },
       { label: '🎮 Game Rooms', href: '/game-rooms' },
+      { label: '⛏️ Minecraft (coming soon)', href: '#', disabled: true },
       { label: '🌐 Community', href: '/leaderboard', children: [
         { label: 'Leaderboard', href: '/leaderboard' },
         { label: 'Friends', href: '/friends' },
@@ -164,20 +165,23 @@
         external: true
       }
     ]});
-    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
+    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
     const desktopHtml = groups.map((group) => group.children ? `
       <div class="passly-nav-group">
         <a href="${group.href}" class="passly-nav-parent">${group.label}</a>
         <button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button>
         <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
-      </div>` : `<a href="${group.href}">${group.label}</a>`).join('');
+      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${group.label}</a>`).join('');
     const mobileHtml = `<button class="close-menu" id="closeMenuBtn">&times;</button>` + groups.map((group) => group.children ? `
       <div class="passly-mobile-group">
         <div class="passly-mobile-row"><a href="${group.href}">${group.label}</a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button></div>
         <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
-      </div>` : `<a href="${group.href}">${group.label}</a>`).join('');
+      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${group.label}</a>`).join('');
     if (desktopNav) desktopNav.innerHTML = desktopHtml;
     if (mobileNav) mobileNav.innerHTML = mobileHtml;
+    document.querySelectorAll('[data-passly-disabled="true"]').forEach((link) => {
+      link.addEventListener('click', (event) => event.preventDefault());
+    });
     document.querySelectorAll('.passly-submenu-toggle').forEach((button) => {
       button.addEventListener('click', (event) => {
         event.preventDefault();
@@ -207,13 +211,17 @@
     hamburger.addEventListener('click', () => requestAnimationFrame(markOpen));
     overlay.addEventListener('click', () => requestAnimationFrame(markClosed));
     closeBtn?.addEventListener('click', () => requestAnimationFrame(markClosed));
-    menu.querySelectorAll('a').forEach((link) => link.addEventListener('click', markClosed));
+    menu.querySelectorAll('a').forEach((link) => link.addEventListener('click', (event) => {
+      if (link.dataset.passlyDisabled === 'true') { event.preventDefault(); return; }
+      markClosed();
+    }));
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && menu.dataset.open === 'true') { closeBtn?.click(); markClosed(); } });
   };
 
   buildPasslyMenu().then(() => {
     ensureNavbarCoins();
     document.querySelectorAll('.nav-links a, .mobile-menu a').forEach((link) => {
+      if (link.dataset.passlyDisabled === 'true') return;
       const href = new URL(link.getAttribute('href'), window.location.origin).pathname.replace(/\/$/, '') || '/';
       const isCurrent = (aliases.get(path) || [path]).includes(href);
       if (isCurrent) link.setAttribute('aria-current', 'page');

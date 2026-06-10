@@ -39,9 +39,9 @@ const FALLBACK_ROOMS = [
   { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
 ];
 const FALLBACK_GAME_ROOMS = [
-  { _id: "game1", name: "Adventure Hangout", desc: "Team up, chat, and plan your next quest.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-  { _id: "game2", name: "Builder Base", desc: "Share build ideas and find people to play with.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-  { _id: "game3", name: "Chill Chat", desc: "A relaxed game room for meeting new friends.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
+  { _id: "game1", name: "Blox Fruits", desc: "Find crews, trade tips, grind raids, and plan sea adventures together.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+  { _id: "game2", name: "Grow a Garden", desc: "Share gardens, trade ideas, and relax with other growers.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+  { _id: "game3", name: "Rivals", desc: "Squad up, practice aim, and find teammates for fast matches.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
 ];
 
 const userSchema = new mongoose.Schema({
@@ -908,6 +908,16 @@ app.get('/api/rooms', async (req, res) => {
     const requestedCategory = req.query.category === 'game' ? 'game' : 'passly';
     const defaults = requestedCategory === 'game' ? FALLBACK_GAME_ROOMS : FALLBACK_ROOMS;
     const roomQuery = requestedCategory === 'passly' ? { $or: [{ category: 'passly' }, { category: { $exists: false } }] } : { category: 'game' };
+    if (requestedCategory === 'game') {
+      await Promise.all(defaults.map(room => Room.updateOne(
+        { _id: room._id },
+        {
+          $set: { name: room.name, desc: room.desc, type: room.type, category: room.category, maxPlayers: room.maxPlayers },
+          $setOnInsert: { players: [], queue: [], createdBy: room.createdBy }
+        },
+        { upsert: true }
+      )));
+    }
     let rooms = await Room.find(roomQuery);
     for (const room of rooms) await reconcileRoomPresence(room._id, false);
     rooms = await Room.find(roomQuery);
