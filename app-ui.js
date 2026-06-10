@@ -1,7 +1,7 @@
 (() => {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const aliases = new Map([
-    ['/', ['/']], ['/dashboard', ['/dashboard']], ['/rooms', ['/rooms']], ['/leaderboard', ['/leaderboard']],
+    ['/', ['/']], ['/dashboard', ['/dashboard']], ['/rooms', ['/rooms']], ['/game-rooms', ['/game-rooms']], ['/leaderboard', ['/leaderboard']],
     ['/profile', ['/profile']], ['/friends', ['/friends']],
     ['/livedonations', ['/livedonations']], ['/redeem', ['/redeem']], ['/admin', ['/admin']], ['/privacy', ['/privacy']], ['/terms', ['/terms']]
   ]);
@@ -135,6 +135,7 @@
     const groups = [
       { label: '🏠 Home', href: '/dashboard' },
       { label: '🚪 Rooms', href: '/rooms' },
+      { label: '🎮 Game Rooms', href: '/game-rooms' },
       { label: '🌐 Community', href: '/leaderboard', children: [
         { label: 'Leaderboard', href: '/leaderboard' },
         { label: 'Friends', href: '/friends' },
