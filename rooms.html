@@ -32,7 +32,7 @@
     .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:500; font-size:0.95rem; }
     .nav-links a:hover { color:#a78bfa; }
     .user-box { display: flex; align-items: center; gap: 12px; background: rgba(139,92,246,0.1); padding: 6px 14px; border-radius: 40px; }
-    .user-avatar { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; }
+    .user-avatar { width:35px; height:35px; min-width:35px; aspect-ratio:1/1; flex:0 0 auto; border-radius:50%; background:#8b5cf6 center/cover no-repeat; }
     .user-name { font-weight:600; color:#c4b5fd; font-size:0.9rem; }
     /* Mobile slide-out menu */
     .mobile-menu {
@@ -90,7 +90,7 @@
     .member-list { max-height:500px; overflow-y:auto; }
     .member-item { display:flex; align-items:center; gap:12px; padding:8px; border-radius:12px; cursor:pointer; transition:background 0.2s; margin-bottom:5px; }
     .member-item:hover { background:rgba(139,92,246,0.15); }
-    .member-avatar { width:40px; height:40px; border-radius:50%; background:#8b5cf6; background-size:cover; }
+    .member-avatar { width:40px; height:40px; min-width:40px; aspect-ratio:1/1; flex:0 0 auto; border-radius:50%; background:#8b5cf6 center/cover no-repeat; }
     .member-name { flex:1; font-size:0.9rem; }
     /* Rooms list styles */
     .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; flex-wrap:wrap; gap:15px; }
@@ -159,10 +159,20 @@
     .type-btn.active { background:rgba(139,92,246,0.3); border-color:#8b5cf6; }
     .modal-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:10px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
     .room-view { background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); }
-    .room-view h2 { font-size:2rem; margin-bottom:10px; }
+    .room-view-top { display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:start; margin-bottom:18px; }
+    .room-hero { min-width:0; display:grid; gap:10px; }
+    .room-title-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+    .room-view h2 { font-size:2rem; margin:0; line-height:1.1; }
+    .room-id-display { display:inline-flex; align-items:center; gap:6px; width:max-content; max-width:100%; padding:8px 12px; border-radius:999px; background:rgba(34,211,238,.12); border:1px solid rgba(34,211,238,.28); color:#cffafe; font-size:.9rem; box-shadow:0 10px 24px rgba(34,211,238,.08); }
+    .room-board-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:4px 0 14px; }
+    .room-board-actions .create-btn { margin:0; padding:11px 16px; border-radius:999px; white-space:nowrap; }
+    .send-board-btn { background:linear-gradient(135deg,#22c55e,#0891b2) !important; }
+    .send-board-btn.is-cooling { opacity:.7; cursor:not-allowed; filter:saturate(.75); }
+    .view-booths-btn { background:linear-gradient(135deg,#f59e0b,#ec4899) !important; }
+    .room-view-desc { color:#c4b5fd; }
     .chat-box { background:rgba(15,15,30,0.6); border-radius:12px; padding:20px; height:400px; overflow-y:auto; margin-bottom:15px; }
     .chat-msg { display:flex; gap:10px; margin-bottom:15px; }
-    .chat-pfp { width:35px; height:35px; border-radius:50%; background:#8b5cf6; background-size:cover; cursor:pointer; }
+    .chat-pfp { width:35px; height:35px; min-width:35px; aspect-ratio:1/1; flex:0 0 auto; border-radius:50%; background:#8b5cf6 center/cover no-repeat; cursor:pointer; }
     .msg-content { background:rgba(30,30,50,0.6); padding:10px 14px; border-radius:12px; }
     .donation-chat-card { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
     .donation-chat-user { display:inline-flex; flex-direction:column; align-items:center; gap:5px; min-width:78px; padding:7px; border-radius:12px; background:rgba(255,255,255,0.055); border:1px solid rgba(255,255,255,0.08); }
@@ -186,7 +196,16 @@
       .hamburger { display: flex; }
       .nav-links { display: none; }
       .main-content { flex-direction: column; padding:15px; }
-      .rooms-container, .room-view-container, .members-container { width:100%; }
+      .rooms-container, .room-view-container, .members-container { width:100%; min-width:0; }
+      .room-view { padding:18px; }
+      .room-view-top { grid-template-columns:1fr; gap:12px; }
+      .room-title-row { gap:10px; }
+      .room-view h2 { font-size:1.65rem; }
+      .room-id-display { width:100%; justify-content:center; overflow-wrap:anywhere; text-align:center; border-radius:16px; }
+      .room-board-actions { display:grid; grid-template-columns:1fr; }
+      .room-board-actions .create-btn { width:100%; }
+      .user-box { max-width:46vw; overflow:hidden; }
+      .user-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .page-header h1 { font-size:1.8rem; }
     }
   </style>
@@ -250,12 +269,21 @@
   <!-- Room View Container (hidden initially) -->
   <div class="room-view-container" id="roomViewContainer">
     <div class="room-view" id="roomView">
-      <button class="back-btn" onclick="leaveRoom()">⬅ Back to Rooms</button>
-      <h2 id="viewRoomName"></h2>
-      <p class="room-view-desc" id="viewRoomDesc"></p>
-      <div id="roomIdDisplay" class="room-id-display" style="display:inline-block;"></div>
-      <button class="create-btn" style="margin-bottom:15px;" onclick="showBoard()">🎁 Show My Board</button>
-      <button class="create-btn" style="background:#22c55e; margin-bottom:15px;" onclick="openViewBooths()">👀 View Booths</button>
+      <div class="room-view-top">
+        <button class="back-btn" onclick="leaveRoom()">⬅ Back to Rooms</button>
+        <div class="room-hero">
+          <div class="room-title-row">
+            <h2 id="viewRoomName"></h2>
+            <div id="roomIdDisplay" class="room-id-display"></div>
+          </div>
+          <p class="room-view-desc" id="viewRoomDesc"></p>
+          <div class="room-board-actions">
+            <button class="create-btn" onclick="showBoard()">🎁 View My Board</button>
+            <button class="create-btn send-board-btn" id="sendBoardBtn" onclick="sendBoardToChat()">📤 Send Board</button>
+            <button class="create-btn view-booths-btn" onclick="openViewBooths()">👀 See Boards</button>
+          </div>
+        </div>
+      </div>
       <div class="queue-box" id="queueBox">
         ⏳ You are in queue position #<span id="queuePos">1</span>
         <button onclick="leaveQueue()" style="margin-left:10px; background:#ef4444; border:none; color:white; padding:6px 14px; border-radius:8px; cursor:pointer;">Leave Queue</button>
@@ -298,7 +326,7 @@
 </div>
 <!-- Board Modal (horizontal scroll) -->
 <div class="modal" id="boardModal">
-  <h2>🎁 My Board</h2>
+  <h2>🎁 View My Board</h2>
   <div class="add-board-section" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
     <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
     <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
@@ -512,14 +540,31 @@
     if(currentRoom) addChatMessage('🌍 Global Donation', donationChatHtml(data), 'system', null);
   });
   // ============================================
+  function updateSendBoardButton() {
+    const btn = document.getElementById('sendBoardBtn');
+    if(!btn) return;
+    const remaining = 300000 - (Date.now() - lastBoardSentAt);
+    if(remaining > 0) {
+      btn.classList.add('is-cooling');
+      btn.textContent = `⏳ Send Board (${Math.ceil(remaining / 60000)}m)`;
+    } else {
+      btn.classList.remove('is-cooling');
+      btn.textContent = '📤 Send Board';
+      if(boardCooldownTimer) { clearInterval(boardCooldownTimer); boardCooldownTimer = null; }
+    }
+  }
   window.sendBoardToChat = async function() {
     if(!currentRoom || !userData || !userData.board || !userData.board.length) { PasslyUI.toast('No gamepasses on your board.'); return; }
     const remaining = 300000 - (Date.now() - lastBoardSentAt);
-    if(boardCooldown || remaining > 0) { PasslyUI.toast(`You can send your booth again in ${Math.ceil(Math.max(remaining, 0) / 60000)} minute(s).`); return; }
+    if(boardCooldown || remaining > 0) { PasslyUI.toast(`You can send your board again in ${Math.ceil(Math.max(remaining, 0) / 60000)} minute(s).`); updateSendBoardButton(); return; }
     socket.emit('chat-board', userData.board.map(gp => ({ id:gp.id, price:gp.price })));
     lastBoardSentAt = Date.now();
     boardCooldown = true;
-    setTimeout(() => boardCooldown = false, 300000);
+    updateSendBoardButton();
+    if(boardCooldownTimer) clearInterval(boardCooldownTimer);
+    boardCooldownTimer = setInterval(updateSendBoardButton, 15000);
+    setTimeout(() => { boardCooldown = false; updateSendBoardButton(); }, 300000);
+    PasslyUI.toast('Board sent to room chat.');
   };
   window.openViewBooths = function() {
     if(!currentRoom) return;
@@ -530,7 +575,7 @@
     document.getElementById('playerBoardName').innerText = 'Pick a player below to view their booth.';
     const grid = document.getElementById('playerBoardGrid');
     grid.innerHTML = players.map(p => `<button class="board-gamepass-btn" onclick="openDonate('${p.userId}')"><span class="board-gamepass-amount">${escapeHtml(p.username)}</span><span class="board-gamepass-name">Tap to view booth</span></button>`).join('');
-    document.getElementById('playerBoardStatus').innerHTML = userData?.board?.length ? '<button class="modal-btn" style="background:#22c55e;" onclick="sendBoardToChat()">📤 Send my booth in chat (5 min cooldown)</button>' : '<span style="color:#a0a0b0;">Add gamepasses to your own board before sending it in chat.</span>';
+    document.getElementById('playerBoardStatus').innerHTML = userData?.board?.length ? '<button class="modal-btn" style="background:#22c55e;" onclick="sendBoardToChat()">📤 Send my board in chat (5 min cooldown)</button>' : '<span style="color:#a0a0b0;">Add gamepasses to your own board before sending it in chat.</span>';
     document.getElementById('playerBoardModal').style.display = 'block';
     document.getElementById('modalOverlay').style.display = 'block';
   };
@@ -738,7 +783,8 @@ function showRoomView(room) {
   document.getElementById('viewRoomName').textContent = room.name;
   document.getElementById('viewRoomDesc').textContent = room.desc || '';
   document.getElementById('queueBox').style.display = 'none';
-  document.getElementById('roomIdDisplay').innerHTML = `🔒 Room ID: <strong>${room._id}</strong>`;
+  document.getElementById('roomIdDisplay').innerHTML = `🆔 Room ID <strong>${room._id}</strong>`;
+  updateSendBoardButton();
   room.players = [...new Set(room.players || [])];
   updateMembersList(room.players.map(pid => ({ userId: pid, username: 'Loading...', avatarUrl: '' })));
   fetchPlayerDetails([...new Set(room.players || [])]);

@@ -18,7 +18,7 @@
     .nav-links { display:flex; gap:25px; }
     .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:600; }
     .user-box { display:flex; align-items:center; gap:10px; background:rgba(139,92,246,.1); padding:6px 14px; border-radius:999px; }
-    .user-avatar,.member-avatar,.chat-pfp,.profile-avatar { width:36px; height:36px; border-radius:50%; background:#8b5cf6 center/cover no-repeat; }
+    .user-avatar,.member-avatar,.chat-pfp,.profile-avatar { width:36px; height:36px; min-width:36px; aspect-ratio:1/1; flex:0 0 auto; border-radius:50%; background:#8b5cf6 center/cover no-repeat; }
     .mobile-menu { position:fixed; top:0; left:-100%; width:75%; max-width:300px; height:100%; background:rgba(10,10,20,.98); z-index:40; transition:left .25s; padding:70px 25px 25px; display:flex; flex-direction:column; gap:18px; }
     .mobile-menu a { color:#e5e7eb; text-decoration:none; font-size:1.15rem; padding:10px 0; border-bottom:1px solid rgba(139,92,246,.2); }
     .close-menu { position:absolute; top:18px; right:20px; border:0; background:none; color:#c4b5fd; font-size:30px; cursor:pointer; }
@@ -66,7 +66,7 @@
     .modal textarea { height:92px; resize:none; margin-top:12px; }
     .modal-actions { display:flex; gap:10px; margin-top:12px; }
     .modal-actions button { flex:1; padding:12px; }
-    @media (max-width:768px) { .hamburger{display:flex}.nav-links{display:none}.main-content{padding:18px}.room-view-container,.members-container{min-width:100%;}.chat-input-area{flex-direction:column} }
+    @media (max-width:768px) { .hamburger{display:flex}.nav-links{display:none}.main-content{padding:18px}.room-view-container,.members-container{min-width:100%;}.chat-input-area{flex-direction:column}.user-box{max-width:46vw;overflow:hidden}.user-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap} }
   </style>
   <link rel="stylesheet" href="/app-ui.css">
 </head>
