@@ -107,6 +107,63 @@
     } catch (e) {}
   };
 
+
+  const CURRENT_ROOM_STORAGE_KEY = 'passly_current_room';
+  const safeJsonParse = (value) => {
+    try { return value ? JSON.parse(value) : null; } catch (e) { return null; }
+  };
+  const getStoredRoom = () => safeJsonParse(localStorage.getItem(CURRENT_ROOM_STORAGE_KEY));
+  const setStoredRoom = (room) => {
+    if (!room?.id) return localStorage.removeItem(CURRENT_ROOM_STORAGE_KEY);
+    localStorage.setItem(CURRENT_ROOM_STORAGE_KEY, JSON.stringify({
+      id: room.id,
+      name: room.name || 'this room',
+      category: room.category === 'game' ? 'game' : 'passly',
+      minimized: room.minimized !== false,
+      updatedAt: Date.now()
+    }));
+  };
+  const clearStoredRoom = () => localStorage.removeItem(CURRENT_ROOM_STORAGE_KEY);
+  window.PasslyRoomState = { get: getStoredRoom, set: setStoredRoom, clear: clearStoredRoom, key: CURRENT_ROOM_STORAGE_KEY };
+
+  const ensureGlobalRoomDock = async () => {
+    if (document.getElementById('roomMiniDock')) return;
+    const storedRoom = getStoredRoom();
+    const token = localStorage.getItem('passly_token');
+    let room = storedRoom;
+    if (token) {
+      try {
+        const res = await fetch('/api/user', { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.roomId) room = { id: data.roomId, name: storedRoom?.id === data.roomId ? storedRoom.name : 'your room', category: storedRoom?.category || 'passly', minimized: true };
+        }
+      } catch (e) {}
+    }
+    if (!room?.id || room.minimized === false) return;
+    setStoredRoom(room);
+    const style = document.createElement('style');
+    style.textContent = `
+      .room-mini-dock.global-room-mini-dock{position:fixed;right:18px;bottom:18px;left:auto;z-index:180;display:flex;align-items:center;gap:12px;max-width:min(420px,calc(100vw - 32px));padding:12px 14px;border:1px solid rgba(139,92,246,.35);border-radius:18px;background:rgba(15,15,30,.94);box-shadow:0 16px 40px rgba(0,0,0,.38);backdrop-filter:blur(14px);color:#fff}
+      .global-room-mini-dock .room-mini-main{min-width:0;flex:1}.global-room-mini-dock .room-mini-title{font-weight:800;color:#c4b5fd}.global-room-mini-dock .room-mini-message{font-size:.88rem;color:#b0b0c0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.global-room-mini-dock .room-mini-open{width:42px;height:42px;border-radius:999px;border:none;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:white;font-size:1.2rem;font-weight:900;cursor:pointer}.global-room-mini-dock .room-mini-open:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(139,92,246,.32)}
+      @media(max-width:640px){.room-mini-dock.global-room-mini-dock{right:12px;bottom:12px;left:12px;max-width:none}}
+    `;
+    document.head.appendChild(style);
+    const dock = document.createElement('div');
+    dock.id = 'roomMiniDock';
+    dock.className = 'room-mini-dock global-room-mini-dock';
+    dock.innerHTML = `
+      <div class="room-mini-main">
+        <div class="room-mini-title" id="roomMiniTitle">In ${String(room.name || 'your room').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]))}</div>
+        <div class="room-mini-message" id="roomMiniMessage">Tap ↑ to return to your room.</div>
+      </div>
+      <button class="room-mini-open" type="button" aria-label="View current room">↑</button>`;
+    dock.querySelector('button').addEventListener('click', () => {
+      window.location.href = room.category === 'game' ? '/game-rooms' : '/rooms';
+    });
+    document.body.appendChild(dock);
+  };
+
   window.PasslyUI = {
     coinIcon,
     renderCoins,
@@ -220,6 +277,7 @@
 
   buildPasslyMenu().then(() => {
     ensureNavbarCoins();
+    ensureGlobalRoomDock();
     document.querySelectorAll('.nav-links a, .mobile-menu a').forEach((link) => {
       if (link.dataset.passlyDisabled === 'true') return;
       const href = new URL(link.getAttribute('href'), window.location.origin).pathname.replace(/\/$/, '') || '/';
