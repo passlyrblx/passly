@@ -39,9 +39,11 @@ const FALLBACK_ROOMS = [
   { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
 ];
 const FALLBACK_GAME_ROOMS = [
-  { _id: "game1", name: "Blox Fruits", desc: "Find crews, trade tips, grind raids, and plan sea adventures together.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-  { _id: "game2", name: "Grow a Garden", desc: "Share gardens, trade ideas, and relax with other growers.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-  { _id: "game3", name: "Rivals", desc: "Squad up, practice aim, and find teammates for fast matches.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
+  { _id: "game1", name: "Blox Fruits", desc: "Find crews, trade tips, grind raids, and plan sea adventures together.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-blox-fruits", robloxPlaceId: "2753915549" },
+  { _id: "game2", name: "Grow a Garden", desc: "Share gardens, trade ideas, and relax with other growers.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-grow-garden", robloxPlaceId: "126884695634066" },
+  { _id: "game3", name: "Rivals", desc: "Squad up, practice aim, and find teammates for fast matches.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-rivals", robloxPlaceId: "17625359962" },
+  { _id: "game4", name: "Dress To Impress", desc: "Plan themes, rate fits, and find style friends for runway rounds.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-dress-impress", robloxPlaceId: "15101393044" },
+  { _id: "game5", name: "Brookhaven", desc: "Roleplay, cruise around town, and meet other Roblox players.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-brookhaven", robloxPlaceId: "4924922222" }
 ];
 
 const userSchema = new mongoose.Schema({
@@ -140,6 +142,7 @@ function serializeUserTags(user) {
 const roomSchema = new mongoose.Schema({
   _id: String, name: String, desc: String, type: { type: String, enum: ['Public', 'Private', 'VIP'] },
   category: { type: String, enum: ['passly', 'game'], default: 'passly', index: true },
+  backgroundClass: String, robloxPlaceId: String,
   players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
   createdBy: String, createdAt: { type: Date, default: Date.now }
 });
@@ -304,6 +307,28 @@ app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+const robloxThumbnailCache = new Map();
+app.get('/api/roblox-game-thumbnail', async (req, res) => {
+  const placeId = String(req.query.placeId || '').replace(/\D/g, '');
+  if (!placeId) return res.redirect('/roblox-room-bg.svg');
+  const cached = robloxThumbnailCache.get(placeId);
+  if (cached && cached.expiresAt > Date.now()) return res.redirect(cached.url);
+  try {
+    const response = await axios.get('https://thumbnails.roblox.com/v1/places/gameicons', {
+      params: { placeIds: placeId, size: '512x512', format: 'Png', isCircular: false },
+      timeout: 3500
+    });
+    const imageUrl = response.data?.data?.[0]?.imageUrl;
+    if (!imageUrl) throw new Error('Roblox thumbnail missing imageUrl');
+    robloxThumbnailCache.set(placeId, { url: imageUrl, expiresAt: Date.now() + 1000 * 60 * 60 * 6 });
+    res.set('Cache-Control', 'public, max-age=21600');
+    return res.redirect(imageUrl);
+  } catch (err) {
+    logger.warn('Roblox thumbnail lookup failed', { placeId, error: err.message });
+    return res.redirect('/roblox-room-bg.svg');
+  }
+});
+
 app.use(express.static(path.join(__dirname)));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
@@ -912,7 +937,7 @@ app.get('/api/rooms', async (req, res) => {
       await Promise.all(defaults.map(room => Room.updateOne(
         { _id: room._id },
         {
-          $set: { name: room.name, desc: room.desc, type: room.type, category: room.category, maxPlayers: room.maxPlayers },
+          $set: { name: room.name, desc: room.desc, type: room.type, category: room.category, maxPlayers: room.maxPlayers, backgroundClass: room.backgroundClass, robloxPlaceId: room.robloxPlaceId },
           $setOnInsert: { players: [], queue: [], createdBy: room.createdBy }
         },
         { upsert: true }
