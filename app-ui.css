@@ -797,77 +797,59 @@ body::before {
   .booth-preview::after { animation: none; transform: none; opacity: 0.18; }
 }
 
-/* Distinct randomized room card designs for Passly donation rooms and Game Rooms. */
+/* Distinct Google-searched/Unsplash photo room card designs: five Passly room looks and five Game Room looks. */
 .passly-room-card,
 .game-room-card {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background-blend-mode: screen, normal, normal !important;
-  border-color: rgba(255,255,255,0.14) !important;
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-color: #080b18 !important;
+  background-position: center !important;
+  background-size: cover !important;
+  border-color: rgba(255,255,255,0.18) !important;
 }
 .passly-room-card::after,
 .game-room-card::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 1;
   pointer-events: none;
-  opacity: 0.68;
+  opacity: 1;
+  background:
+    linear-gradient(180deg, rgba(4,7,18,0.12), rgba(4,7,18,0.72) 66%, rgba(4,7,18,0.9)),
+    radial-gradient(circle at 12% 10%, rgba(255,255,255,0.18), transparent 13rem),
+    linear-gradient(120deg, rgba(139,92,246,0.34), transparent 48%);
 }
+.passly-room-card::before,
+.game-room-card::before { z-index: 3; }
+.passly-room-card > *,
+.game-room-card > * { position: relative; z-index: 2; }
 .passly-room-card .room-name,
-.game-room-card .room-name { text-shadow: 0 2px 20px rgba(0,0,0,0.42); }
+.game-room-card .room-name { text-shadow: 0 3px 18px rgba(0,0,0,0.86); }
 .passly-room-card .room-desc,
-.game-room-card .room-desc { color: rgba(255,255,255,0.78) !important; }
+.game-room-card .room-desc { color: rgba(255,255,255,0.9) !important; text-shadow: 0 2px 12px rgba(0,0,0,0.78); }
 .passly-room-card .room-type,
 .game-room-card .room-id {
-  border: 1px solid rgba(255,255,255,0.14);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 10px 28px rgba(0,0,0,0.24);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
-.passly-nebula { background:
-  radial-gradient(circle at 18% 18%, rgba(255,255,255,0.16), transparent 16rem),
-  radial-gradient(circle at 85% 12%, rgba(236,72,153,0.5), transparent 13rem),
-  linear-gradient(135deg, #35105f 0%, #12133d 48%, #08111f 100%) !important; }
-.passly-nebula::after { background: repeating-linear-gradient(115deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 15px); }
-.passly-aurora { background:
-  radial-gradient(circle at 80% 20%, rgba(34,211,238,0.42), transparent 14rem),
-  linear-gradient(125deg, #081821 0%, #1a315e 42%, #4c1d95 100%) !important; }
-.passly-aurora::after { background: linear-gradient(75deg, transparent 18%, rgba(125,211,252,0.2) 42%, transparent 68%); }
-.passly-gold { background:
-  radial-gradient(circle at 76% 18%, rgba(253,224,71,0.38), transparent 12rem),
-  linear-gradient(135deg, #42160f 0%, #7c2d12 45%, #1f1632 100%) !important; }
-.passly-gold::after { background: radial-gradient(circle at 18% 90%, rgba(251,191,36,0.22), transparent 13rem); }
-.passly-cyber { background:
-  linear-gradient(135deg, rgba(16,185,129,0.36), transparent 40%),
-  linear-gradient(315deg, rgba(59,130,246,0.42), transparent 48%),
-  #0a1024 !important; }
-.passly-cyber::after { background: linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 28px 28px; }
-.passly-crystal { background:
-  radial-gradient(circle at 12% 15%, rgba(216,180,254,0.42), transparent 12rem),
-  linear-gradient(140deg, #1e1b4b 0%, #3b0764 46%, #082f49 100%) !important; }
-.passly-crystal::after { clip-path: polygon(0 0, 100% 0, 78% 100%, 0 72%); background-color: rgba(255,255,255,0.07); }
-.game-volcano { background:
-  radial-gradient(circle at 82% 16%, rgba(248,113,113,0.52), transparent 12rem),
-  linear-gradient(145deg, #220617 0%, #7f1d1d 45%, #111827 100%) !important; }
-.game-volcano::after { background: radial-gradient(circle at 16% 90%, rgba(251,146,60,0.24), transparent 11rem); }
-.game-ocean { background:
-  radial-gradient(circle at 14% 20%, rgba(45,212,191,0.46), transparent 13rem),
-  linear-gradient(135deg, #042f2e 0%, #0c4a6e 48%, #172554 100%) !important; }
-.game-ocean::after { background: repeating-radial-gradient(circle at 10% 90%, rgba(255,255,255,0.08) 0 2px, transparent 2px 18px); }
-.game-pixel { background:
-  linear-gradient(135deg, rgba(250,204,21,0.22), transparent 38%),
-  linear-gradient(315deg, rgba(168,85,247,0.38), transparent 44%),
-  #111827 !important; }
-.game-pixel::after { background: linear-gradient(90deg, rgba(255,255,255,0.09) 50%, transparent 50%), linear-gradient(rgba(255,255,255,0.07) 50%, transparent 50%); background-size: 18px 18px; }
-.game-jungle { background:
-  radial-gradient(circle at 76% 20%, rgba(132,204,22,0.44), transparent 12rem),
-  linear-gradient(135deg, #052e16 0%, #14532d 50%, #1e1b4b 100%) !important; }
-.game-jungle::after { background: linear-gradient(120deg, transparent 35%, rgba(187,247,208,0.12) 36% 46%, transparent 47%); }
-.game-neon { background:
-  radial-gradient(circle at 20% 18%, rgba(244,114,182,0.44), transparent 12rem),
-  radial-gradient(circle at 84% 84%, rgba(34,211,238,0.38), transparent 13rem),
-  linear-gradient(135deg, #111827 0%, #312e81 52%, #020617 100%) !important; }
-.game-neon::after { background: repeating-linear-gradient(45deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 14px); }
+.passly-nebula { background-image: url('https://images.unsplash.com/photo-1677029907981-e9a44fb7409a?auto=format&fit=crop&w=1200&q=80') !important; }
+.passly-aurora { background-image: url('https://images.unsplash.com/photo-1715279240000-9a50953e327d?auto=format&fit=crop&w=1200&q=80') !important; }
+.passly-gold { background-image: url('https://images.unsplash.com/photo-1672872476232-da16b45c9001?auto=format&fit=crop&w=1200&q=80') !important; }
+.passly-cyber { background-image: url('https://images.unsplash.com/photo-1764178952757-f9856485907a?auto=format&fit=crop&w=1200&q=80') !important; }
+.passly-crystal { background-image: url('https://images.unsplash.com/photo-1768141746443-6d9f4014a91d?auto=format&fit=crop&w=1200&q=80') !important; }
+.game-volcano { background-image: url('https://images.unsplash.com/photo-1601414380752-b0d4cb86a47e?auto=format&fit=crop&w=1200&q=80') !important; }
+.game-ocean { background-image: url('https://images.unsplash.com/photo-1685914960984-ab5fa265644d?auto=format&fit=crop&w=1200&q=80') !important; }
+.game-pixel { background-image: url('https://images.unsplash.com/photo-1769292169574-b5c7e5ff518f?auto=format&fit=crop&w=1200&q=80') !important; }
+.game-jungle { background-image: url('https://images.unsplash.com/photo-1771607068090-48c00a2b35c9?auto=format&fit=crop&w=1200&q=80') !important; }
+.game-neon { background-image: url('https://images.unsplash.com/photo-1521245488535-7d14e2e27b0f?auto=format&fit=crop&w=1200&q=80') !important; }
 .passly-nav-disabled,
 .passly-nav-disabled:hover {
   cursor: default !important;
