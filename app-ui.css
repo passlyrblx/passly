@@ -687,3 +687,112 @@ body.login-page .btn { margin-top: 10px; }
   text-align: center;
   border: 1px solid rgba(255,255,255,.55);
 }
+
+/* Roblox-inspired Passly room refresh: original art, no external copyrighted photo dependency. */
+:root {
+  --passly-room-art: url('/roblox-room-bg.svg');
+  --tile-purple: rgba(139, 92, 246, 0.22);
+  --tile-cyan: rgba(34, 211, 238, 0.18);
+  --tile-pink: rgba(244, 114, 182, 0.16);
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(244, 114, 182, 0.24), transparent 25rem),
+    radial-gradient(circle at 92% 12%, rgba(34, 211, 238, 0.22), transparent 26rem),
+    linear-gradient(rgba(5, 8, 22, 0.78), rgba(5, 8, 22, 0.9)),
+    var(--passly-room-art),
+    linear-gradient(145deg, #050816, #11142a 58%, #0b091a) !important;
+  background-attachment: fixed, fixed, fixed, fixed, fixed !important;
+  background-size: auto, auto, auto, cover, auto !important;
+  background-position: center !important;
+}
+
+body::before {
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.052) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(244, 114, 182, 0.06), transparent 22%, rgba(34, 211, 238, 0.035) 48%, transparent 72%);
+  background-size: 54px 54px, 54px 54px, 320px 320px;
+  opacity: 0.9;
+}
+
+.card, .section-card, .stat-card, .current-room, .profile-card, .board-section, .settings-section, .leaderboard-card, .friend-card, .room-card, .room-item, .chat-container, .members-panel, .login-prompt, .modal, .ad-status, .container, .donation-item, .history-item, .economy-card, .booth-card, .streak-card {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.13), rgba(255,255,255,0.045) 42%, rgba(34,211,238,0.055)),
+    radial-gradient(circle at 18% 14%, rgba(139,92,246,0.34), transparent 14rem),
+    radial-gradient(circle at 86% 0%, rgba(34,211,238,0.18), transparent 13rem),
+    rgba(9, 12, 32, 0.72) !important;
+  border-color: rgba(167, 139, 250, 0.34) !important;
+  box-shadow:
+    0 22px 64px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13) !important;
+}
+
+.card::after, .section-card::after, .stat-card::after, .room-card::after, .friend-card::after, .leaderboard-card::after, .economy-card::after, .booth-card::after, .streak-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -18% -42% 22%;
+  height: 120px;
+  background: radial-gradient(ellipse at center, rgba(34,211,238,0.22), transparent 68%);
+  pointer-events: none;
+  transform: rotate(-8deg);
+}
+
+.room-card, .room-item, .current-room, .chat-container, .members-panel {
+  background:
+    linear-gradient(rgba(7, 10, 28, 0.8), rgba(7, 10, 28, 0.78)),
+    var(--passly-room-art) center/cover,
+    linear-gradient(135deg, rgba(139,92,246,0.24), rgba(34,211,238,0.12)) !important;
+}
+
+.room-card::before, .current-room::before, .chat-container::before, .members-panel::before {
+  height: 3px;
+  background: linear-gradient(90deg, var(--pink), var(--primary-2), var(--cyan), var(--green));
+  box-shadow: 0 0 22px rgba(34,211,238,0.5);
+}
+
+.room-card:hover, .room-item:hover, .booth-card:hover, .economy-card:hover, .streak-card:hover {
+  border-color: rgba(34, 211, 238, 0.52) !important;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.46),
+    0 0 34px rgba(34, 211, 238, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.booth-preview {
+  position: relative;
+  overflow: hidden;
+  min-height: 150px;
+  border-color: rgba(34, 211, 238, 0.28);
+  background:
+    linear-gradient(rgba(3, 7, 18, 0.42), rgba(3, 7, 18, 0.6)),
+    var(--passly-room-art) center/cover !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 18px 44px rgba(0,0,0,0.26);
+}
+
+.booth-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(110deg, transparent 0 35%, rgba(255,255,255,0.18) 45%, transparent 56%),
+    radial-gradient(circle at 50% 120%, rgba(34,211,238,0.3), transparent 56%);
+  transform: translateX(-100%);
+  animation: boothShine 6s ease-in-out infinite;
+}
+
+.booth-theme-neon, .booth-theme-cyber, .booth-theme-galaxy, .booth-theme-crystal, .booth-theme-gold, .booth-theme-shadow, .booth-theme-royal, .booth-theme-energy, .booth-theme-futuristic, .booth-theme-mythic {
+  color: #ffffff;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.9), 0 0 22px rgba(34,211,238,0.55);
+}
+
+@keyframes boothShine {
+  0%, 42% { transform: translateX(-110%); }
+  58%, 100% { transform: translateX(110%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booth-preview::after { animation: none; transform: none; opacity: 0.18; }
+}
