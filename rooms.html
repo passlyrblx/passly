@@ -623,6 +623,13 @@ function setRoomFilter(filter) {
   });
   renderRooms(allRoomsCache);
 }
+const passlyRoomDesigns = ['passly-nebula', 'passly-aurora', 'passly-gold', 'passly-cyber', 'passly-crystal'];
+function roomDesignFor(room, designs = passlyRoomDesigns) {
+  const key = String(room?._id || room?.name || Math.random());
+  let hash = 0;
+  for(let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return designs[hash % designs.length];
+}
 function renderRooms(rooms) {
   const grid = document.getElementById('roomsGrid');
   rooms = (rooms || []).map(room => ({ ...room, players: [...new Set(room.players || [])] }));
@@ -630,7 +637,7 @@ function renderRooms(rooms) {
   if(currentRoomFilter !== 'all') filtered = rooms.filter(r => r.type === currentRoomFilter);
   if(!filtered.length) { grid.innerHTML = '<p>No rooms found.</p>'; return; }
   grid.innerHTML = filtered.map(room => `
-    <div class="room-card">
+    <div class="room-card passly-room-card ${roomDesignFor(room)}">
       <div class="room-name">${escapeHtml(room.name)}</div>
       <div class="room-type ${room.type === 'VIP' ? 'vip' : ''}">${room.type}</div>
       <div class="room-desc">${escapeHtml(room.desc || 'No description')}</div>
