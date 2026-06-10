@@ -31,20 +31,22 @@
     h1 { font-size:2.35rem; }
     .subtitle,.room-desc,.room-view-desc { color:#a0a0b0; line-height:1.5; }
     .toolbar { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-    .create-btn,.refresh-btn,.join-btn,.send-btn,.modal-btn,.back-btn { border:0; border-radius:12px; color:white; cursor:pointer; font-weight:800; transition:.2s; }
+    .create-btn,.refresh-btn,.join-btn,.send-btn,.modal-btn,.back-btn { border:0; border-radius:14px; color:white; cursor:pointer; font-weight:900; letter-spacing:.01em; transition:.2s; }
     .create-btn,.modal-btn,.send-btn,.join-btn { background:linear-gradient(135deg,#8b5cf6,#7c3aed); }
-    .create-btn,.refresh-btn { padding:13px 20px; }
+    .create-btn,.refresh-btn,.join-btn,.send-btn,.back-btn { min-height:46px; padding:13px 20px; }
     .refresh-btn,.back-btn { background:rgba(139,92,246,.18); border:1px solid rgba(139,92,246,.3); }
     button:hover { transform:translateY(-1px); }
     .search-box { display:flex; gap:8px; width:100%; max-width:520px; margin-bottom:20px; }
     .search-box input,.chat-input,.modal input,.modal textarea { width:100%; padding:12px; background:rgba(30,30,50,.82); border:1px solid rgba(139,92,246,.24); border-radius:10px; color:white; outline:none; }
-    .search-box button { min-width:105px; }
+    .search-box button { min-width:112px; }
     .rooms-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:18px; }
     .room-card,.room-view { background:rgba(20,20,40,.68); border:1px solid rgba(139,92,246,.22); border-radius:18px; padding:22px; }
     .room-card:hover { transform:translateY(-4px); border-color:rgba(167,139,250,.48); }
     .room-name { font-size:1.4rem; font-weight:900; margin-bottom:7px; }
     .room-id { display:inline-block; margin:10px 0 14px; color:#c4b5fd; font-size:.85rem; background:rgba(139,92,246,.16); padding:5px 10px; border-radius:999px; }
     .room-stats { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+    .join-btn { min-width:118px; box-shadow:0 14px 34px rgba(124,58,237,.35); }
+    .join-btn:hover { box-shadow:0 18px 44px rgba(124,58,237,.45); }
     .chat-box { height:430px; overflow:auto; background:rgba(15,15,30,.68); border-radius:14px; padding:16px; margin:18px 0; }
     .chat-msg { display:flex; gap:10px; margin-bottom:14px; }
     .msg-content { background:rgba(30,30,50,.72); border-radius:12px; padding:10px 13px; max-width:100%; }
@@ -127,9 +129,10 @@ async function init(){
   if(token) socket.emit('authenticate', token); else socket.emit('guest-auth', guestData.id);
   setupMenu(); loadRooms(); document.getElementById('createRoomBtn').onclick=openCreateModal;
 }
-const gameRoomDesigns = ['game-volcano', 'game-ocean', 'game-pixel', 'game-jungle', 'game-neon'];
-function roomDesignFor(room, designs = gameRoomDesigns){ const key=String(room?._id||room?.name||Math.random()); let hash=0; for(let i=0;i<key.length;i++) hash=(hash*33+key.charCodeAt(i))>>>0; return designs[hash%designs.length]; }
-function renderRooms(rooms){ const grid=document.getElementById('roomsGrid'); const list=(rooms||[]).map(r=>({...r,players:[...new Set(r.players||[])]})); if(!list.length){grid.innerHTML='<p>No game rooms found.</p>';return;} grid.innerHTML=list.map(room=>`<article class="room-card game-room-card ${roomDesignFor(room)}"><div class="room-name">${escapeHtml(room.name)}</div><p class="room-desc">${escapeHtml(room.desc||'No description')}</p><div class="room-id">ID: ${escapeHtml(room._id)}</div><div class="room-stats"><span>👥 ${(room.players||[]).length} / ${room.maxPlayers||18}</span><button class="join-btn" onclick="joinRoomById('${room._id}')">Join</button></div></article>`).join(''); }
+const gameRoomDesigns = ['game-roblox-city', 'game-roblox-adventure', 'game-roblox-arena', 'game-roblox-fashion', 'game-roblox-roleplay'];
+const defaultGameRoomDesigns = { game1: 'game-blox-fruits', game2: 'game-grow-garden', game3: 'game-rivals', game4: 'game-dress-impress', game5: 'game-brookhaven' };
+function roomDesignFor(room, designs = gameRoomDesigns){ if(room?.backgroundClass) return room.backgroundClass; if(defaultGameRoomDesigns[room?._id]) return defaultGameRoomDesigns[room._id]; const key=String(room?._id||room?.name||Math.random()); let hash=0; for(let i=0;i<key.length;i++) hash=(hash*33+key.charCodeAt(i))>>>0; return designs[hash%designs.length]; }
+function renderRooms(rooms){ const grid=document.getElementById('roomsGrid'); const list=(rooms||[]).map(r=>({...r,players:[...new Set(r.players||[])]})); if(!list.length){grid.innerHTML='<p>No game rooms found.</p>';return;} grid.innerHTML=list.map(room=>`<article class="room-card game-room-card ${roomDesignFor(room)}"><div><div class="room-name">${escapeHtml(room.name)}</div><p class="room-desc">${escapeHtml(room.desc||'No description')}</p></div><div><div class="room-id">ID: ${escapeHtml(room._id)}</div><div class="room-stats"><span>👥 ${(room.players||[]).length} / ${room.maxPlayers||18}</span><button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button></div></div></article>`).join(''); }
 async function loadRooms(){ roomsGrid.innerHTML='<p class="subtitle">Loading game rooms…</p>'; const res=await fetch('/api/rooms?category=game'); allRoomsCache=await res.json(); renderRooms(allRoomsCache); }
 function searchRooms(){ const term=roomSearchInput.value.trim().toLowerCase(); if(!term) return renderRooms(allRoomsCache); const matches=allRoomsCache.filter(r=>String(r._id).toLowerCase()===term || String(r.name).toLowerCase()===term); renderRooms(matches); if(!matches.length) showError('No exact room ID or name match. Check the spelling and try again.'); }
 function clearSearch(){ roomSearchInput.value=''; renderRooms(allRoomsCache); showError(''); }

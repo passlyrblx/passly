@@ -856,3 +856,77 @@ body::before {
   opacity: 0.62;
   transform: none !important;
 }
+
+/* Login polish: keep the agreement checkbox compact and shrink the card so more background art remains visible. */
+.login-page .container {
+  width: min(88vw, 460px) !important;
+  max-width: 460px !important;
+  padding: 30px 26px !important;
+  margin: 18px auto !important;
+}
+.login-page .logo-text { font-size: clamp(2.45rem, 8vw, 2.85rem) !important; }
+.login-page .description {
+  padding: 16px !important;
+  margin-bottom: 20px !important;
+  line-height: 1.58 !important;
+}
+.login-page .checkbox-container {
+  margin: 14px 0 18px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.login-page .checkbox-container input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  margin-top: 1px;
+  border-radius: 6px !important;
+  border: 1px solid rgba(196,181,253,0.7) !important;
+  background: rgba(7,9,22,0.72) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+.login-page .checkbox-container input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, #8b5cf6, #22d3ee) !important;
+  border-color: rgba(255,255,255,0.8) !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.14) !important;
+}
+.login-page .checkbox-container input[type="checkbox"]:checked::after {
+  content: "✓";
+  display: block;
+  color: white;
+  font-size: 15px;
+  line-height: 18px;
+  text-align: center;
+  font-weight: 900;
+}
+.login-page .checkbox-container input[type="checkbox"]:focus { outline: none !important; }
+.login-page .legal-buttons, .login-page .features { margin-top: 14px !important; }
+.login-page .install-hint { margin-top: 12px !important; }
+@media (max-width: 600px) {
+  .login-page .container { width: min(92vw, 430px) !important; padding: 24px 18px !important; }
+}
+
+/* Game Rooms use official Roblox game icon thumbnails instead of unrelated scenery. */
+.game-room-card { min-height: 230px; }
+.game-room-card .join-btn {
+  min-width: 128px !important;
+  padding-inline: 22px !important;
+  min-height: 48px !important;
+  border-radius: 999px !important;
+}
+.game-blox-fruits { background-image: url('/api/roblox-game-thumbnail?placeId=2753915549') !important; }
+.game-grow-garden { background-image: url('/api/roblox-game-thumbnail?placeId=126884695634066') !important; }
+.game-rivals { background-image: url('/api/roblox-game-thumbnail?placeId=17625359962') !important; }
+.game-dress-impress { background-image: url('/api/roblox-game-thumbnail?placeId=15101393044') !important; }
+.game-brookhaven { background-image: url('/api/roblox-game-thumbnail?placeId=4924922222') !important; }
+.game-roblox-city { background-image: url('/api/roblox-game-thumbnail?placeId=4924922222') !important; }
+.game-roblox-adventure { background-image: url('/api/roblox-game-thumbnail?placeId=2753915549') !important; }
+.game-roblox-arena { background-image: url('/api/roblox-game-thumbnail?placeId=17625359962') !important; }
+.game-roblox-fashion { background-image: url('/api/roblox-game-thumbnail?placeId=15101393044') !important; }
+.game-roblox-roleplay { background-image: url('/api/roblox-game-thumbnail?placeId=126884695634066') !important; }
