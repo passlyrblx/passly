@@ -34,16 +34,18 @@ mongoose.set('bufferCommands', false);
 
 // Fallback default rooms
 const FALLBACK_ROOMS = [
-  { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-  { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-  { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
+  { _id: "room1", name: "Chill Donations", desc: "Relax, chat, and help small creators with friendly Passly donations.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-nebula" },
+  { _id: "room2", name: "Big Donators", desc: "High-energy donation room for generous players and big goals.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-gold" },
+  { _id: "room3", name: "Creator Boost", desc: "Showcase your booth, send boards, and boost up-and-coming creators.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-aurora" },
+  { _id: "room4", name: "Coin Rush", desc: "Earn Passly coins, celebrate streaks, and trade donation support.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-cyber" },
+  { _id: "room5", name: "VIP Spotlight", desc: "A premium-feeling public room for standout booths and donation moments.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "passly-crystal" }
 ];
 const FALLBACK_GAME_ROOMS = [
   { _id: "game1", name: "Blox Fruits", desc: "Find crews, trade tips, grind raids, and plan sea adventures together.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-blox-fruits", robloxPlaceId: "2753915549" },
   { _id: "game2", name: "Grow a Garden", desc: "Share gardens, trade ideas, and relax with other growers.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-grow-garden", robloxPlaceId: "126884695634066" },
   { _id: "game3", name: "Rivals", desc: "Squad up, practice aim, and find teammates for fast matches.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-rivals", robloxPlaceId: "17625359962" },
-  { _id: "game4", name: "Dress To Impress", desc: "Plan themes, rate fits, and find style friends for runway rounds.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-dress-impress", robloxPlaceId: "15101393044" },
-  { _id: "game5", name: "Brookhaven", desc: "Roleplay, cruise around town, and meet other Roblox players.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-brookhaven", robloxPlaceId: "4924922222" }
+  { _id: "game4", name: "Adopt Me", desc: "Trade pet tips, plan builds, and meet friendly collectors.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-adopt-me", robloxPlaceId: "920587237" },
+  { _id: "game5", name: "Murder Mystery 2", desc: "Find squads, discuss clues, and queue up for mystery rounds.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system", backgroundClass: "game-mm2", robloxPlaceId: "142823291" }
 ];
 
 const userSchema = new mongoose.Schema({
@@ -933,8 +935,7 @@ app.get('/api/rooms', async (req, res) => {
     const requestedCategory = req.query.category === 'game' ? 'game' : 'passly';
     const defaults = requestedCategory === 'game' ? FALLBACK_GAME_ROOMS : FALLBACK_ROOMS;
     const roomQuery = requestedCategory === 'passly' ? { $or: [{ category: 'passly' }, { category: { $exists: false } }] } : { category: 'game' };
-    if (requestedCategory === 'game') {
-      await Promise.all(defaults.map(room => Room.updateOne(
+    await Promise.all(defaults.map(room => Room.updateOne(
         { _id: room._id },
         {
           $set: { name: room.name, desc: room.desc, type: room.type, category: room.category, maxPlayers: room.maxPlayers, backgroundClass: room.backgroundClass, robloxPlaceId: room.robloxPlaceId },
@@ -942,7 +943,6 @@ app.get('/api/rooms', async (req, res) => {
         },
         { upsert: true }
       )));
-    }
     let rooms = await Room.find(roomQuery);
     for (const room of rooms) await reconcileRoomPresence(room._id, false);
     rooms = await Room.find(roomQuery);

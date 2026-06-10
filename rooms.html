@@ -670,6 +670,7 @@ function setRoomFilter(filter) {
 }
 const passlyRoomDesigns = ['passly-nebula', 'passly-aurora', 'passly-gold', 'passly-cyber', 'passly-crystal'];
 function roomDesignFor(room, designs = passlyRoomDesigns) {
+  if(room?.backgroundClass) return room.backgroundClass;
   const key = String(room?._id || room?.name || Math.random());
   let hash = 0;
   for(let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;

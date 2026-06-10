@@ -797,9 +797,13 @@ body::before {
   .booth-preview::after { animation: none; transform: none; opacity: 0.18; }
 }
 
-/* Distinct Google-searched/Unsplash photo room card designs: five Passly room looks and five Game Room looks. */
+/* Hand-made Passly room art: five donation room looks and five game room looks, with no external photo backgrounds. */
 .passly-room-card,
 .game-room-card {
+  --room-glow: rgba(139, 92, 246, 0.54);
+  --room-accent: #8b5cf6;
+  --room-accent-2: #22d3ee;
+  --room-coin: #ffd86b;
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -821,16 +825,53 @@ body::before {
   pointer-events: none;
   opacity: 1;
   background:
-    linear-gradient(180deg, rgba(4,7,18,0.12), rgba(4,7,18,0.72) 66%, rgba(4,7,18,0.9)),
+    linear-gradient(180deg, rgba(4,7,18,0.06), rgba(4,7,18,0.68) 64%, rgba(4,7,18,0.92)),
     radial-gradient(circle at 12% 10%, rgba(255,255,255,0.18), transparent 13rem),
-    linear-gradient(120deg, rgba(139,92,246,0.34), transparent 48%);
+    linear-gradient(120deg, color-mix(in srgb, var(--room-accent) 34%, transparent), transparent 48%);
 }
-.passly-room-card::before,
-.game-room-card::before { z-index: 3; }
+.passly-room-card::before {
+  content: "P";
+  position: absolute;
+  right: 20px;
+  top: 18px;
+  z-index: 3;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #3b2500;
+  font-weight: 1000;
+  font-size: 1.6rem;
+  letter-spacing: -0.08em;
+  background:
+    radial-gradient(circle at 34% 28%, #fff7bd 0 12%, transparent 13%),
+    linear-gradient(145deg, #ffe98a 0%, var(--room-coin) 44%, #f59e0b 100%);
+  border: 4px solid rgba(255, 255, 255, 0.34);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.28), 0 0 28px rgba(255,216,107,0.42), inset 0 -6px 12px rgba(120,53,15,0.18);
+}
+.game-room-card::before {
+  content: "🎮";
+  position: absolute;
+  right: 20px;
+  top: 18px;
+  z-index: 3;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  font-size: 1.55rem;
+  background: linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06));
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.28), 0 0 28px var(--room-glow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
 .passly-room-card > *,
 .game-room-card > * { position: relative; z-index: 2; }
 .passly-room-card .room-name,
-.game-room-card .room-name { text-shadow: 0 3px 18px rgba(0,0,0,0.86); }
+.game-room-card .room-name { max-width: calc(100% - 84px); text-shadow: 0 3px 18px rgba(0,0,0,0.86); }
 .passly-room-card .room-desc,
 .game-room-card .room-desc { color: rgba(255,255,255,0.9) !important; text-shadow: 0 2px 12px rgba(0,0,0,0.78); }
 .passly-room-card .room-type,
@@ -840,16 +881,88 @@ body::before {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
-.passly-nebula { background-image: url('https://images.unsplash.com/photo-1677029907981-e9a44fb7409a?auto=format&fit=crop&w=1200&q=80') !important; }
-.passly-aurora { background-image: url('https://images.unsplash.com/photo-1715279240000-9a50953e327d?auto=format&fit=crop&w=1200&q=80') !important; }
-.passly-gold { background-image: url('https://images.unsplash.com/photo-1672872476232-da16b45c9001?auto=format&fit=crop&w=1200&q=80') !important; }
-.passly-cyber { background-image: url('https://images.unsplash.com/photo-1764178952757-f9856485907a?auto=format&fit=crop&w=1200&q=80') !important; }
-.passly-crystal { background-image: url('https://images.unsplash.com/photo-1768141746443-6d9f4014a91d?auto=format&fit=crop&w=1200&q=80') !important; }
-.game-volcano { background-image: url('https://images.unsplash.com/photo-1601414380752-b0d4cb86a47e?auto=format&fit=crop&w=1200&q=80') !important; }
-.game-ocean { background-image: url('https://images.unsplash.com/photo-1685914960984-ab5fa265644d?auto=format&fit=crop&w=1200&q=80') !important; }
-.game-pixel { background-image: url('https://images.unsplash.com/photo-1769292169574-b5c7e5ff518f?auto=format&fit=crop&w=1200&q=80') !important; }
-.game-jungle { background-image: url('https://images.unsplash.com/photo-1771607068090-48c00a2b35c9?auto=format&fit=crop&w=1200&q=80') !important; }
-.game-neon { background-image: url('https://images.unsplash.com/photo-1521245488535-7d14e2e27b0f?auto=format&fit=crop&w=1200&q=80') !important; }
+.passly-nebula {
+  --room-accent: #8b5cf6; --room-accent-2: #22d3ee;
+  background-image:
+    radial-gradient(circle at 18% 18%, rgba(255,255,255,0.34) 0 2px, transparent 3px),
+    radial-gradient(circle at 72% 26%, rgba(196,181,253,0.52) 0 3px, transparent 4px),
+    radial-gradient(circle at 28% 70%, rgba(34,211,238,0.34), transparent 11rem),
+    radial-gradient(circle at 78% 70%, rgba(139,92,246,0.48), transparent 14rem),
+    linear-gradient(135deg, #12072f, #06192e 58%, #180723) !important;
+}
+.passly-aurora {
+  --room-accent: #34d399; --room-accent-2: #a78bfa;
+  background-image:
+    linear-gradient(105deg, transparent 0 18%, rgba(52,211,153,0.46) 24%, transparent 35%, rgba(167,139,250,0.38) 48%, transparent 62%, rgba(34,211,238,0.36) 72%, transparent 86%),
+    radial-gradient(circle at 22% 78%, rgba(139,92,246,0.44), transparent 13rem),
+    linear-gradient(135deg, #04151f, #15123d 52%, #092421) !important;
+}
+.passly-gold {
+  --room-accent: #f59e0b; --room-accent-2: #facc15;
+  background-image:
+    radial-gradient(circle at 24% 24%, rgba(255,232,138,0.6), transparent 9rem),
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.13) 0 2px, transparent 2px 24px),
+    radial-gradient(circle at 76% 72%, rgba(245,158,11,0.42), transparent 12rem),
+    linear-gradient(135deg, #2a1304, #4a2507 48%, #180a05) !important;
+}
+.passly-cyber {
+  --room-accent: #22d3ee; --room-accent-2: #ec4899;
+  background-image:
+    linear-gradient(rgba(34,211,238,0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(236,72,153,0.14) 1px, transparent 1px),
+    radial-gradient(circle at 72% 32%, rgba(34,211,238,0.5), transparent 11rem),
+    radial-gradient(circle at 20% 74%, rgba(236,72,153,0.34), transparent 10rem),
+    linear-gradient(135deg, #04111d, #171038 55%, #25081d) !important;
+  background-size: 36px 36px, 36px 36px, auto, auto, auto !important;
+}
+.passly-crystal {
+  --room-accent: #a78bfa; --room-accent-2: #67e8f9;
+  background-image:
+    linear-gradient(130deg, transparent 18%, rgba(255,255,255,0.2) 19% 21%, transparent 22% 44%, rgba(103,232,249,0.22) 45% 47%, transparent 48%),
+    radial-gradient(circle at 24% 30%, rgba(216,180,254,0.48), transparent 11rem),
+    radial-gradient(circle at 78% 70%, rgba(103,232,249,0.34), transparent 11rem),
+    linear-gradient(135deg, #12081f, #17254c 55%, #0d1228) !important;
+}
+.game-blox-fruits {
+  --room-accent: #38bdf8; --room-accent-2: #f97316;
+  background-image:
+    radial-gradient(ellipse at 18% 76%, rgba(56,189,248,0.5), transparent 14rem),
+    radial-gradient(ellipse at 80% 22%, rgba(249,115,22,0.42), transparent 11rem),
+    linear-gradient(145deg, rgba(255,255,255,0.16) 0 8%, transparent 9% 100%),
+    linear-gradient(135deg, #062536, #12305c 50%, #2c1408) !important;
+}
+.game-grow-garden {
+  --room-accent: #22c55e; --room-accent-2: #facc15;
+  background-image:
+    radial-gradient(circle at 18% 24%, rgba(250,204,21,0.5), transparent 7rem),
+    radial-gradient(ellipse at 74% 72%, rgba(34,197,94,0.48), transparent 13rem),
+    repeating-linear-gradient(90deg, rgba(34,197,94,0.18) 0 10px, transparent 10px 24px),
+    linear-gradient(135deg, #082314, #11351f 54%, #281c06) !important;
+}
+.game-rivals {
+  --room-accent: #ef4444; --room-accent-2: #60a5fa;
+  background-image:
+    linear-gradient(115deg, transparent 0 36%, rgba(239,68,68,0.5) 37% 40%, transparent 41% 100%),
+    radial-gradient(circle at 26% 30%, rgba(96,165,250,0.5), transparent 10rem),
+    radial-gradient(circle at 76% 70%, rgba(239,68,68,0.42), transparent 12rem),
+    linear-gradient(135deg, #100b1f, #111827 48%, #300d13) !important;
+}
+.game-adopt-me {
+  --room-accent: #fb7185; --room-accent-2: #fbbf24;
+  background-image:
+    radial-gradient(circle at 24% 26%, rgba(251,113,133,0.55), transparent 10rem),
+    radial-gradient(circle at 76% 34%, rgba(251,191,36,0.42), transparent 9rem),
+    radial-gradient(circle at 62% 82%, rgba(167,139,250,0.38), transparent 11rem),
+    linear-gradient(135deg, #32112b, #301842 52%, #3a1d0a) !important;
+}
+.game-mm2 {
+  --room-accent: #94a3b8; --room-accent-2: #8b5cf6;
+  background-image:
+    linear-gradient(40deg, transparent 0 46%, rgba(226,232,240,0.32) 47% 50%, transparent 51% 100%),
+    radial-gradient(circle at 76% 24%, rgba(139,92,246,0.42), transparent 10rem),
+    radial-gradient(circle at 22% 78%, rgba(15,23,42,0.8), transparent 12rem),
+    linear-gradient(135deg, #070914, #111827 55%, #1e102f) !important;
+}
 .passly-nav-disabled,
 .passly-nav-disabled:hover {
   cursor: default !important;
@@ -912,7 +1025,7 @@ body::before {
   .login-page .container { width: min(92vw, 430px) !important; padding: 24px 18px !important; }
 }
 
-/* Game Rooms use official Roblox game icon thumbnails instead of unrelated scenery. */
+/* Game Rooms keep large handmade cards with comfortable join buttons. */
 .game-room-card { min-height: 230px; }
 .game-room-card .join-btn {
   min-width: 128px !important;
@@ -920,13 +1033,3 @@ body::before {
   min-height: 48px !important;
   border-radius: 999px !important;
 }
-.game-blox-fruits { background-image: url('/api/roblox-game-thumbnail?placeId=2753915549') !important; }
-.game-grow-garden { background-image: url('/api/roblox-game-thumbnail?placeId=126884695634066') !important; }
-.game-rivals { background-image: url('/api/roblox-game-thumbnail?placeId=17625359962') !important; }
-.game-dress-impress { background-image: url('/api/roblox-game-thumbnail?placeId=15101393044') !important; }
-.game-brookhaven { background-image: url('/api/roblox-game-thumbnail?placeId=4924922222') !important; }
-.game-roblox-city { background-image: url('/api/roblox-game-thumbnail?placeId=4924922222') !important; }
-.game-roblox-adventure { background-image: url('/api/roblox-game-thumbnail?placeId=2753915549') !important; }
-.game-roblox-arena { background-image: url('/api/roblox-game-thumbnail?placeId=17625359962') !important; }
-.game-roblox-fashion { background-image: url('/api/roblox-game-thumbnail?placeId=15101393044') !important; }
-.game-roblox-roleplay { background-image: url('/api/roblox-game-thumbnail?placeId=126884695634066') !important; }

@@ -129,8 +129,8 @@ async function init(){
   if(token) socket.emit('authenticate', token); else socket.emit('guest-auth', guestData.id);
   setupMenu(); loadRooms(); document.getElementById('createRoomBtn').onclick=openCreateModal;
 }
-const gameRoomDesigns = ['game-roblox-city', 'game-roblox-adventure', 'game-roblox-arena', 'game-roblox-fashion', 'game-roblox-roleplay'];
-const defaultGameRoomDesigns = { game1: 'game-blox-fruits', game2: 'game-grow-garden', game3: 'game-rivals', game4: 'game-dress-impress', game5: 'game-brookhaven' };
+const gameRoomDesigns = ['game-blox-fruits', 'game-grow-garden', 'game-rivals', 'game-adopt-me', 'game-mm2'];
+const defaultGameRoomDesigns = { game1: 'game-blox-fruits', game2: 'game-grow-garden', game3: 'game-rivals', game4: 'game-adopt-me', game5: 'game-mm2' };
 function roomDesignFor(room, designs = gameRoomDesigns){ if(room?.backgroundClass) return room.backgroundClass; if(defaultGameRoomDesigns[room?._id]) return defaultGameRoomDesigns[room._id]; const key=String(room?._id||room?.name||Math.random()); let hash=0; for(let i=0;i<key.length;i++) hash=(hash*33+key.charCodeAt(i))>>>0; return designs[hash%designs.length]; }
 function renderRooms(rooms){ const grid=document.getElementById('roomsGrid'); const list=(rooms||[]).map(r=>({...r,players:[...new Set(r.players||[])]})); if(!list.length){grid.innerHTML='<p>No game rooms found.</p>';return;} grid.innerHTML=list.map(room=>`<article class="room-card game-room-card ${roomDesignFor(room)}"><div><div class="room-name">${escapeHtml(room.name)}</div><p class="room-desc">${escapeHtml(room.desc||'No description')}</p></div><div><div class="room-id">ID: ${escapeHtml(room._id)}</div><div class="room-stats"><span>👥 ${(room.players||[]).length} / ${room.maxPlayers||18}</span><button class="join-btn" onclick="joinRoomById('${room._id}')">Join Room</button></div></div></article>`).join(''); }
 async function loadRooms(){ roomsGrid.innerHTML='<p class="subtitle">Loading game rooms…</p>'; const res=await fetch('/api/rooms?category=game'); allRoomsCache=await res.json(); renderRooms(allRoomsCache); }
