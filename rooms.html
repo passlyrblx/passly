@@ -496,7 +496,7 @@
   function currentRoomId() { return currentRoom?._id || currentRoom?.id || null; }
   function rememberCurrentRoom(minimized = true) {
     if(!currentRoomId()) return;
-    window.PasslyRoomState?.set?.({ id: currentRoomId(), name: currentRoom.name || 'this room', category: currentRoom.category || 'passly', minimized });
+    window.PasslyRoomState?.set?.({ id: currentRoomId(), name: currentRoom.name || 'this room', category: 'passly', minimized, lastMessage: lastRoomMessage });
   }
   function updateRoomMiniDock() {
     const dock = document.getElementById('roomMiniDock');
@@ -531,6 +531,7 @@
     if(userId !== 'system') {
       const plain = String(message || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       lastRoomMessage = `${username || 'Player'}: ${plain || 'sent an update'}`;
+      rememberCurrentRoom(roomMinimized);
       updateRoomMiniDock();
     }
     const chatBox = document.getElementById('chatBox');
@@ -782,7 +783,9 @@ window.joinRoomById = async function(id) {
     body = {};
   } else { showError('Login or continue as guest.'); return; }
   try {
-    if(currentRoomId() && currentRoomId() !== id) socket.emit('leave-room');
+    if(currentRoomId() && currentRoomId() !== id) { showError('You are already in a Passly room. Return to it or leave it before joining another Passly room.'); restoreRoom(); return; }
+    const savedPasslyRoom = window.PasslyRoomState?.get?.('passly');
+    if(savedPasslyRoom?.id && savedPasslyRoom.id !== id) { showError('You are already in a Passly room. Leave it before joining another Passly room.'); return; }
     const options = { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) };
     if(token) options.headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(url, options);
@@ -872,10 +875,10 @@ async function fetchPlayerDetails(playerIds) {
 }
 async function leaveRoom() {
   socket.emit('leave-room');
-  if(isGuest && guestData.id) await fetch('/api/rooms/guest/leave', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ guestId: guestData.id }) });
-  else if(token) await fetch('/api/rooms/leave', { method:'POST', headers:authHeaders() });
+  if(isGuest && guestData.id) await fetch('/api/rooms/guest/leave', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ guestId: guestData.id, category:'passly' }) });
+  else if(token) await fetch('/api/rooms/leave', { method:'POST', headers:authHeaders(), body:JSON.stringify({ category:'passly' }) });
   currentRoom = null;
-  window.PasslyRoomState?.clear?.();
+  window.PasslyRoomState?.clear?.('passly');
   roomMinimized = false;
   lastRoomMessage = 'No new messages yet.';
   updateRoomMiniDock();
