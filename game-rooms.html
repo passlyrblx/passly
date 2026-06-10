@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Passly - Game Rooms</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#8b5cf6">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { min-height:100vh; background:#0a0a14; color:white; font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; }
+    .navbar { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:rgba(15,15,30,.95); border-bottom:1px solid rgba(139,92,246,.2); position:sticky; top:0; z-index:20; backdrop-filter:blur(10px); }
+    .navbar-left { display:flex; align-items:center; gap:15px; }
+    .hamburger { background:transparent; border:0; cursor:pointer; display:none; flex-direction:column; gap:5px; padding:8px; }
+    .hamburger span { width:28px; height:3px; border-radius:3px; background:#c4b5fd; }
+    .nav-logo { font-size:1.8rem; font-weight:900; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .nav-links { display:flex; gap:25px; }
+    .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:600; }
+    .user-box { display:flex; align-items:center; gap:10px; background:rgba(139,92,246,.1); padding:6px 14px; border-radius:999px; }
+    .user-avatar,.member-avatar,.chat-pfp,.profile-avatar { width:36px; height:36px; border-radius:50%; background:#8b5cf6 center/cover no-repeat; }
+    .mobile-menu { position:fixed; top:0; left:-100%; width:75%; max-width:300px; height:100%; background:rgba(10,10,20,.98); z-index:40; transition:left .25s; padding:70px 25px 25px; display:flex; flex-direction:column; gap:18px; }
+    .mobile-menu a { color:#e5e7eb; text-decoration:none; font-size:1.15rem; padding:10px 0; border-bottom:1px solid rgba(139,92,246,.2); }
+    .close-menu { position:absolute; top:18px; right:20px; border:0; background:none; color:#c4b5fd; font-size:30px; cursor:pointer; }
+    .menu-overlay,.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.62); display:none; z-index:35; }
+    .main-content { max-width:1400px; margin:0 auto; padding:30px; display:flex; gap:26px; flex-wrap:wrap; }
+    .rooms-container { flex:2; min-width:320px; }
+    .room-view-container { flex:3; min-width:380px; display:none; }
+    .members-container { flex:1; min-width:230px; background:rgba(20,20,40,.68); border:1px solid rgba(139,92,246,.22); border-radius:18px; padding:18px; display:none; }
+    .page-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap; margin-bottom:22px; }
+    h1 { font-size:2.35rem; }
+    .subtitle,.room-desc,.room-view-desc { color:#a0a0b0; line-height:1.5; }
+    .toolbar { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .create-btn,.refresh-btn,.join-btn,.send-btn,.modal-btn,.back-btn { border:0; border-radius:12px; color:white; cursor:pointer; font-weight:800; transition:.2s; }
+    .create-btn,.modal-btn,.send-btn,.join-btn { background:linear-gradient(135deg,#8b5cf6,#7c3aed); }
+    .create-btn,.refresh-btn { padding:13px 20px; }
+    .refresh-btn,.back-btn { background:rgba(139,92,246,.18); border:1px solid rgba(139,92,246,.3); }
+    button:hover { transform:translateY(-1px); }
+    .search-box { display:flex; gap:8px; width:100%; max-width:520px; margin-bottom:20px; }
+    .search-box input,.chat-input,.modal input,.modal textarea { width:100%; padding:12px; background:rgba(30,30,50,.82); border:1px solid rgba(139,92,246,.24); border-radius:10px; color:white; outline:none; }
+    .search-box button { min-width:105px; }
+    .rooms-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:18px; }
+    .room-card,.room-view { background:rgba(20,20,40,.68); border:1px solid rgba(139,92,246,.22); border-radius:18px; padding:22px; }
+    .room-card:hover { transform:translateY(-4px); border-color:rgba(167,139,250,.48); }
+    .room-name { font-size:1.4rem; font-weight:900; margin-bottom:7px; }
+    .room-id { display:inline-block; margin:10px 0 14px; color:#c4b5fd; font-size:.85rem; background:rgba(139,92,246,.16); padding:5px 10px; border-radius:999px; }
+    .room-stats { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+    .chat-box { height:430px; overflow:auto; background:rgba(15,15,30,.68); border-radius:14px; padding:16px; margin:18px 0; }
+    .chat-msg { display:flex; gap:10px; margin-bottom:14px; }
+    .msg-content { background:rgba(30,30,50,.72); border-radius:12px; padding:10px 13px; max-width:100%; }
+    .msg-username { color:#a78bfa; font-weight:900; margin-bottom:3px; }
+    .chat-input-area { display:flex; gap:10px; }
+    .send-btn { padding:12px 22px; }
+    .member-list { max-height:520px; overflow:auto; }
+    .member-item { display:flex; align-items:center; gap:10px; padding:9px; border-radius:12px; cursor:pointer; }
+    .member-item:hover { background:rgba(139,92,246,.14); }
+    .member-name { overflow:hidden; text-overflow:ellipsis; }
+    .tag-badge { display:inline-block; margin-left:5px; padding:2px 7px; border-radius:999px; font-size:.68rem; font-weight:900; background:rgba(167,139,250,.22); color:#ddd6fe; }
+    .tag-owner { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#1f1300; }
+    .tag-admin { background:rgba(248,113,113,.24); color:#fecaca; }
+    .tag-vip { background:rgba(250,204,21,.2); color:#fde68a; }
+    .tag-fan { background:rgba(34,197,94,.2); color:#bbf7d0; }
+    .error-msg { color:#fca5a5; min-height:24px; margin-bottom:12px; }
+    .modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:50; width:90%; max-width:520px; display:none; background:rgba(20,20,40,.98); border:1px solid rgba(139,92,246,.35); border-radius:20px; padding:24px; }
+    .modal h2 { color:#a78bfa; margin-bottom:14px; }
+    .modal textarea { height:92px; resize:none; margin-top:12px; }
+    .modal-actions { display:flex; gap:10px; margin-top:12px; }
+    .modal-actions button { flex:1; padding:12px; }
+    @media (max-width:768px) { .hamburger{display:flex}.nav-links{display:none}.main-content{padding:18px}.room-view-container,.members-container{min-width:100%;}.chat-input-area{flex-direction:column} }
+  </style>
+  <link rel="stylesheet" href="/app-ui.css">
+</head>
+<body>
+<nav class="navbar">
+  <div class="navbar-left"><button class="hamburger" id="hamburgerBtn" aria-label="Menu"><span></span><span></span><span></span></button><div class="nav-logo">Passly</div></div>
+  <div class="nav-links"><a href="/dashboard">🏠 Home</a><a href="/rooms">💜 Passly</a><a href="/game-rooms">🎮 Game Rooms</a><a href="/profile">👤 Profile</a></div>
+  <div class="user-box"><div class="user-avatar" id="userAvatar"></div><span id="userName">Loading...</span></div>
+</nav>
+<div class="mobile-menu" id="mobileMenu"><button class="close-menu" id="closeMenuBtn">&times;</button><a href="/dashboard">🏠 Home</a><a href="/rooms">💜 Passly</a><a href="/game-rooms">🎮 Game Rooms</a><a href="/profile">👤 Profile</a></div>
+<div class="menu-overlay" id="menuOverlay"></div>
+<main class="main-content">
+  <section class="rooms-container" id="roomsListPage">
+    <div class="page-header">
+      <div><h1>🎮 Game Rooms</h1><p class="subtitle">Create rooms for chat and play. No boards, booths, or donation actions here.</p></div>
+      <div class="toolbar"><button class="create-btn" id="createRoomBtn">+ Create Room</button><button class="refresh-btn" onclick="loadRooms()">🔄 Refresh</button></div>
+    </div>
+    <div class="search-box"><input id="roomSearchInput" placeholder="Search exact room ID / name"><button class="create-btn" onclick="searchRooms()">Search</button><button class="refresh-btn" onclick="clearSearch()">Clear</button></div>
+    <div class="error-msg" id="errorBox"></div>
+    <div class="rooms-grid" id="roomsGrid"></div>
+  </section>
+  <section class="room-view-container" id="roomViewContainer">
+    <div class="room-view">
+      <button class="back-btn" onclick="leaveRoom()">⬅ Back to Game Rooms</button>
+      <h2 id="viewRoomName" style="margin-top:12px;"></h2>
+      <p class="room-view-desc" id="viewRoomDesc"></p>
+      <div class="room-id" id="roomIdDisplay"></div>
+      <div class="chat-box" id="chatBox"><div class="chat-msg"><div class="chat-pfp"></div><div class="msg-content"><div class="msg-username">System</div><div>Welcome to Game Rooms! 👋</div></div></div></div>
+      <div class="chat-input-area"><input id="chatInput" class="chat-input" placeholder="Type a message..." maxlength="500"><button class="send-btn" onclick="sendMessage()">Send</button></div>
+    </div>
+  </section>
+  <aside class="members-container" id="membersPanel"><h3>👥 Players</h3><div class="member-list" id="memberList"></div></aside>
+</main>
+<div class="modal-overlay" id="modalOverlay"></div>
+<div class="modal" id="createModal"><h2>Create Game Room</h2><input id="roomNameInput" maxlength="40" placeholder="Room name"><textarea id="roomDescInput" maxlength="160" placeholder="Small description players will see"></textarea><div class="modal-actions"><button class="modal-btn" onclick="createRoom()">Create</button><button class="refresh-btn" onclick="closeModal()">Cancel</button></div></div>
+<div class="modal" id="profileModal"><h2>Player Profile</h2><div style="display:flex;gap:14px;align-items:center;margin-bottom:12px;"><div class="profile-avatar" id="profileAvatar"></div><strong id="profileName"></strong></div><p class="subtitle">Profile tags are visible in Game Rooms. Booths and boards are not available here.</p><div class="modal-actions"><button class="refresh-btn" onclick="closeProfile()">Close</button></div></div>
+<script>
+let token = localStorage.getItem('passly_token');
+let guestData = JSON.parse(localStorage.getItem('passly_user') || '{}');
+let isGuest = !token;
+let userData = null;
+let currentRoom = null;
+let allRoomsCache = [];
+let guestChatCooldown = false;
+const socket = io();
+function authHeaders(){ const h={'Content-Type':'application/json'}; if(token) h.Authorization=`Bearer ${token}`; return h; }
+function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function tagBadgeHtml(tag){ if(Array.isArray(tag)) return tag.map(tagBadgeHtml).join(''); return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key||'').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
+function showError(msg=''){ document.getElementById('errorBox').textContent = msg; if(msg && msg !== 'Joining room...') setTimeout(()=>showError(''),3500); }
+function setAvatar(el,url,fallback){ if(!el) return; const src=url||fallback||''; el.style.backgroundImage = src ? `url(${src})` : ''; }
+function filterMessage(text){ return String(text||'').slice(0,500); }
+function setupMenu(){ const m=document.getElementById('mobileMenu'), o=document.getElementById('menuOverlay'); hamburgerBtn.onclick=()=>{m.style.left='0';o.style.display='block'}; closeMenuBtn.onclick=o.onclick=()=>{m.style.left='-100%';o.style.display='none'}; }
+async function init(){
+  if(token){ const res=await fetch('/api/user',{headers:{Authorization:`Bearer ${token}`}}).catch(()=>null); if(res?.ok){ userData=await res.json(); isGuest=false; } else { localStorage.removeItem('passly_token'); token=null; isGuest=true; } }
+  if(!userData){ if(!guestData.id){ const res=await fetch('/api/guest-login',{method:'POST'}); guestData=await res.json(); localStorage.setItem('passly_user',JSON.stringify(guestData)); } userData={...guestData,isGuest:true}; }
+  document.getElementById('userName').innerHTML=escapeHtml(userData.displayName||userData.username||'Guest')+tagBadgeHtml(userData.displayTags||userData.displayTag);
+  setAvatar(document.getElementById('userAvatar'), userData.avatarUrl, userData.avatarFallback);
+  if(token) socket.emit('authenticate', token); else socket.emit('guest-auth', guestData.id);
+  setupMenu(); loadRooms(); document.getElementById('createRoomBtn').onclick=openCreateModal;
+}
+function renderRooms(rooms){ const grid=document.getElementById('roomsGrid'); const list=(rooms||[]).map(r=>({...r,players:[...new Set(r.players||[])]})); if(!list.length){grid.innerHTML='<p>No game rooms found.</p>';return;} grid.innerHTML=list.map(room=>`<article class="room-card"><div class="room-name">${escapeHtml(room.name)}</div><p class="room-desc">${escapeHtml(room.desc||'No description')}</p><div class="room-id">ID: ${escapeHtml(room._id)}</div><div class="room-stats"><span>👥 ${(room.players||[]).length} / ${room.maxPlayers||18}</span><button class="join-btn" onclick="joinRoomById('${room._id}')">Join</button></div></article>`).join(''); }
+async function loadRooms(){ roomsGrid.innerHTML='<p class="subtitle">Loading game rooms…</p>'; const res=await fetch('/api/rooms?category=game'); allRoomsCache=await res.json(); renderRooms(allRoomsCache); }
+function searchRooms(){ const term=roomSearchInput.value.trim().toLowerCase(); if(!term) return renderRooms(allRoomsCache); const matches=allRoomsCache.filter(r=>String(r._id).toLowerCase()===term || String(r.name).toLowerCase()===term); renderRooms(matches); if(!matches.length) showError('No exact room ID or name match. Check the spelling and try again.'); }
+function clearSearch(){ roomSearchInput.value=''; renderRooms(allRoomsCache); showError(''); }
+function openCreateModal(){ if(!token){ PasslyUI.toast('Login with Roblox or Discord to create Game Rooms.'); return; } modalOverlay.style.display='block'; createModal.style.display='block'; }
+function closeModal(){ modalOverlay.style.display='none'; createModal.style.display='none'; }
+async function createRoom(){ const name=roomNameInput.value.trim(); const desc=roomDescInput.value.trim(); if(!name) return showError('Enter room name.'); const res=await fetch('/api/rooms/create',{method:'POST',headers:authHeaders(),body:JSON.stringify({name,desc,type:'Public',category:'game'})}); const room=await res.json(); if(!res.ok||room.error) return showError(room.error||'Could not create room.'); closeModal(); await joinRoomById(room._id); loadRooms(); }
+async function joinRoomById(id){ if(!id) return; showError('Joining room...'); const guestBody={guestId:guestData.id,guestName:guestData.displayName||'Guest'}; const url=isGuest?`/api/rooms/guest/join/${id}`:`/api/rooms/join/${id}`; const options={method:'POST',headers:authHeaders(),body:JSON.stringify(isGuest?guestBody:{})}; const res=await fetch(url,options); const data=await res.json(); if(!res.ok||data.error) return showError(data.error||'Could not join room.'); showRoomView(data.room||{_id:id,name:'Queued',players:[]}); }
+function showRoomView(room){ currentRoom=room; roomsListPage.style.display='none'; roomViewContainer.style.display='block'; membersPanel.style.display='block'; viewRoomName.textContent=room.name; viewRoomDesc.textContent=room.desc||''; roomIdDisplay.innerHTML=`Room ID: <strong>${escapeHtml(room._id)}</strong>`; chatBox.innerHTML='<div class="chat-msg"><div class="chat-pfp"></div><div class="msg-content"><div class="msg-username">System</div><div>Welcome to Game Rooms! Boards and booths are turned off here.</div></div></div>'; fetchPlayerDetails([...new Set(room.players||[])]); socket.emit('join-room',room._id); }
+async function fetchPlayerDetails(ids){ const members=[]; for(const pid of ids){ try{ const res=await fetch(`/api/user/${pid}/stats`,{headers:authHeaders()}); if(res.ok){ const d=await res.json(); members.push({userId:pid,username:d.displayName||d.username||'Player',avatarUrl:d.avatarUrl,displayTag:d.displayTag,displayTags:d.displayTags}); } else members.push({userId:pid,username:pid.startsWith('Guest_')?'Guest':'Player'}); }catch(e){ members.push({userId:pid,username:'Player'}); } } if(currentRoom) currentRoom.playerDetails=members; updateMembersList(members); }
+function updateMembersList(players){ memberList.innerHTML=(players&&players.length)?players.map(p=>`<div class="member-item" onclick="showMemberProfile('${p.userId}')"><div class="member-avatar" style="background-image:url('${p.avatarUrl||''}')"></div><div class="member-name">${escapeHtml(p.username)}${tagBadgeHtml(p.displayTags||p.displayTag)}</div></div>`).join(''):'<p class="subtitle">No players yet.</p>'; }
+function showMemberProfile(userId){ const p=currentRoom?.playerDetails?.find(x=>x.userId===userId)||{}; profileName.innerHTML=escapeHtml(p.username||'Player')+tagBadgeHtml(p.displayTags||p.displayTag); setAvatar(profileAvatar,p.avatarUrl); modalOverlay.style.display='block'; profileModal.style.display='block'; }
+function closeProfile(){ modalOverlay.style.display='none'; profileModal.style.display='none'; }
+function addChatMessage(username,message,userId,avatarUrl,isAdmin,isOwner,displayTag,displayTags){ const div=document.createElement('div'); div.className='chat-msg'; const tags=tagBadgeHtml(displayTags||displayTag); div.innerHTML=`<div class="chat-pfp" style="background-image:url('${escapeHtml(avatarUrl||'')}')"></div><div class="msg-content"><div class="msg-username">${escapeHtml(username||'Player')}${tags}</div><div>${escapeHtml(message)}</div></div>`; chatBox.appendChild(div); chatBox.scrollTop=chatBox.scrollHeight; }
+function sendMessage(){ const msg=chatInput.value.trim(); if(!msg||!currentRoom) return; if(isGuest){ if(guestChatCooldown) return showError('Guests can send one message every 25 seconds.'); guestChatCooldown=true; setTimeout(()=>guestChatCooldown=false,25000); socket.emit('chat-message',{text:filterMessage(msg),guestName:guestData.displayName||'Guest'}); } else socket.emit('chat-message',filterMessage(msg)); chatInput.value=''; }
+async function leaveRoom(){ socket.emit('leave-room'); if(isGuest) await fetch('/api/rooms/guest/leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guestId:guestData.id})}); else await fetch('/api/rooms/leave',{method:'POST',headers:authHeaders()}); currentRoom=null; roomsListPage.style.display='block'; roomViewContainer.style.display='none'; membersPanel.style.display='none'; loadRooms(); }
+socket.on('chat-message',d=>addChatMessage(d.username,d.message,d.userId,d.avatarUrl,d.isAdmin,d.isOwner,d.displayTag,d.displayTags));
+socket.on('chat-error',showError); socket.on('room-closed',leaveRoom); socket.on('force-leave',leaveRoom);
+socket.on('player-left',d=>{ if(currentRoom){ currentRoom.players=(currentRoom.players||[]).filter(pid=>pid!==d.userId); fetchPlayerDetails(currentRoom.players); }});
+socket.on('player-joined',d=>{ if(currentRoom && !(currentRoom.players||[]).includes(d.userId)){ currentRoom.players=[...(currentRoom.players||[]),d.userId]; fetchPlayerDetails(currentRoom.players); }});
+socket.on('room-members-updated',d=>{ if(currentRoom && currentRoom._id===d.roomId){ currentRoom.players=d.players||[]; fetchPlayerDetails(currentRoom.players); }});
+chatInput?.addEventListener('keydown',e=>{ if(e.key==='Enter') sendMessage(); });
+init();
+</script>
+<script src="/app-ui.js" defer></script>
+</body>
+</html>

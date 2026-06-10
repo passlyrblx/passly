@@ -34,9 +34,14 @@ mongoose.set('bufferCommands', false);
 
 // Fallback default rooms
 const FALLBACK_ROOMS = [
-  { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-  { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
-  { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
+  { _id: "room1", name: "Chill Donations", desc: "Relax and donate to small creators.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+  { _id: "room2", name: "Big Donators", desc: "High donation rooms with active players.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+  { _id: "room3", name: "Anime Fans", desc: "A room for anime lovers.", type: "Public", category: "passly", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
+];
+const FALLBACK_GAME_ROOMS = [
+  { _id: "game1", name: "Adventure Hangout", desc: "Team up, chat, and plan your next quest.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+  { _id: "game2", name: "Builder Base", desc: "Share build ideas and find people to play with.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" },
+  { _id: "game3", name: "Chill Chat", desc: "A relaxed game room for meeting new friends.", type: "Public", category: "game", players: [], queue: [], maxPlayers: 18, createdBy: "system" }
 ];
 
 const userSchema = new mongoose.Schema({
@@ -134,6 +139,7 @@ function serializeUserTags(user) {
 
 const roomSchema = new mongoose.Schema({
   _id: String, name: String, desc: String, type: { type: String, enum: ['Public', 'Private', 'VIP'] },
+  category: { type: String, enum: ['passly', 'game'], default: 'passly', index: true },
   players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
   createdBy: String, createdAt: { type: Date, default: Date.now }
 });
@@ -406,6 +412,7 @@ app.use('/api', (req, res, next) => {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/rooms', (req, res) => res.sendFile(path.join(__dirname, 'rooms.html')));
+app.get('/game-rooms', (req, res) => res.sendFile(path.join(__dirname, 'game-rooms.html')));
 app.get('/leaderboard', (req, res) => res.sendFile(path.join(__dirname, 'leaderboard.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 app.get('/booths', (req, res) => res.sendFile(path.join(__dirname, 'booths.html')));
@@ -896,20 +903,23 @@ app.get('/api/rooms', async (req, res) => {
     const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
     if (!Room) {
       console.log('DB not ready, returning fallback rooms');
-      return res.json(FALLBACK_ROOMS);
+      return res.json(req.query.category === 'game' ? FALLBACK_GAME_ROOMS : FALLBACK_ROOMS);
     }
-    let rooms = await Room.find();
+    const requestedCategory = req.query.category === 'game' ? 'game' : 'passly';
+    const defaults = requestedCategory === 'game' ? FALLBACK_GAME_ROOMS : FALLBACK_ROOMS;
+    const roomQuery = requestedCategory === 'passly' ? { $or: [{ category: 'passly' }, { category: { $exists: false } }] } : { category: 'game' };
+    let rooms = await Room.find(roomQuery);
     for (const room of rooms) await reconcileRoomPresence(room._id, false);
-    rooms = await Room.find();
+    rooms = await Room.find(roomQuery);
     if (!rooms || rooms.length === 0) {
-      console.log('No rooms in DB, inserting fallback');
-      await Room.insertMany(FALLBACK_ROOMS, { ordered: false });
-      rooms = FALLBACK_ROOMS;
+      console.log(`No ${requestedCategory} rooms in DB, inserting fallback`);
+      await Room.insertMany(defaults, { ordered: false });
+      rooms = defaults;
     }
     res.json(rooms);
   } catch (err) {
     console.error('/api/rooms error:', err);
-    res.json(FALLBACK_ROOMS);
+    res.json(req.query.category === 'game' ? FALLBACK_GAME_ROOMS : FALLBACK_ROOMS);
   }
 });
 
@@ -941,11 +951,13 @@ app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, 
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   const User = getUserModel();
   if (!Room || !User) return res.status(503).json({ error: 'Database not ready' });
-  let { name, desc, type } = req.body;
+  let { name, desc, type, category } = req.body;
   name = sanitizeInput(name); desc = sanitizeInput(desc);
+  category = category === 'game' ? 'game' : 'passly';
   if (!name) return res.status(400).json({ error: 'Room name required' });
   if (filterMessageServer(name) !== name || filterMessageServer(desc) !== desc) return res.status(400).json({ error: 'Room name or description contains blocked content.' });
   if (!['Public', 'Private', 'VIP'].includes(type)) type = 'Public';
+  if (category === 'game') type = 'Public';
   const user = await User.findById(req.user.id);
   if (type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
     return res.status(403).json({ error: 'VIP role required to create VIP rooms.' });
@@ -954,7 +966,7 @@ app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, 
   if (!limitCheck.allowed) return res.status(429).json({ error: limitCheck.error });
   await leaveExistingRoomsForMember(req.user.id);
   const roomId = crypto.randomBytes(8).toString('hex');
-  const room = new Room({ _id: roomId, name, desc, type, players: [req.user.id], queue: [], createdBy: req.user.id });
+  const room = new Room({ _id: roomId, name, desc, type, category, players: [req.user.id], queue: [], createdBy: req.user.id });
   await room.save();
   limitCheck.counts[limitCheck.key].count += 1;
   user.roomCreationCounts = limitCheck.counts;
@@ -1296,6 +1308,9 @@ io.on('connection', (socket) => {
       socket.emit('chat-error', 'You can send your booth once every 5 minutes.');
       return;
     }
+    const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+    const activeRoom = Room ? await Room.findById(currentRoomId) : null;
+    if (activeRoom?.category === 'game') return socket.emit('chat-error', 'Boards and booths are not available in Game Rooms.');
     const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
     const user = User ? await User.findById(userId) : null;
     if (!user) return;
