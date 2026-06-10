@@ -965,10 +965,13 @@ app.get('/api/rooms', async (req, res) => {
   }
 });
 
-async function leaveExistingRoomsForMember(memberId, emitUpdates = true) {
+async function leaveExistingRoomsForMember(memberId, emitUpdates = true, category = null) {
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   if (!Room || !memberId) return;
-  const rooms = await Room.find({ $or: [{ players: memberId }, { queue: memberId }] });
+  const roomQuery = { $or: [{ players: memberId }, { queue: memberId }] };
+  if (category === 'game') roomQuery.category = 'game';
+  else if (category === 'passly') roomQuery.$and = [{ $or: [{ category: 'passly' }, { category: { $exists: false } }] }];
+  const rooms = await Room.find(roomQuery);
   for (const room of rooms) {
     const wasPlayer = room.players.includes(memberId);
     room.players = room.players.filter(id => id !== memberId);
@@ -989,6 +992,15 @@ async function leaveExistingRoomsForMember(memberId, emitUpdates = true) {
   }
 }
 
+async function findRoomsForMemberInCategory(memberId, category) {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room || !memberId) return [];
+  const query = { $or: [{ players: memberId }, { queue: memberId }] };
+  if (category === 'game') query.category = 'game';
+  else query.$and = [{ $or: [{ category: 'passly' }, { category: { $exists: false } }] }];
+  return Room.find(query);
+}
+
 app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, res) => {
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   const User = getUserModel();
@@ -1004,9 +1016,11 @@ app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, 
   if (type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
     return res.status(403).json({ error: 'VIP role required to create VIP rooms.' });
   }
+  const existingCategoryRooms = await findRoomsForMemberInCategory(req.user.id, category);
+  if (existingCategoryRooms.length) return res.status(409).json({ error: `You are already in a ${category === 'game' ? 'Game' : 'Passly'} room. Leave it before creating another.` });
   const limitCheck = await canCreateRoom(req.user.id, type);
   if (!limitCheck.allowed) return res.status(429).json({ error: limitCheck.error });
-  await leaveExistingRoomsForMember(req.user.id);
+  await leaveExistingRoomsForMember(req.user.id, true, category);
   const roomId = crypto.randomBytes(8).toString('hex');
   const room = new Room({ _id: roomId, name, desc, type, category, players: [req.user.id], queue: [], createdBy: req.user.id });
   await room.save();
@@ -1030,7 +1044,11 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'VIP room – need VIP role.' });
   }
   if (room.players.includes(req.user.id)) return res.json({ success: true, room, alreadyIn: true });
-  await leaveExistingRoomsForMember(req.user.id);
+  const joinCategory = room.category === 'game' ? 'game' : 'passly';
+  const existingCategoryRooms = await findRoomsForMemberInCategory(req.user.id, joinCategory);
+  const otherCategoryRoom = existingCategoryRooms.find(existingRoom => existingRoom._id !== roomId);
+  if (otherCategoryRoom) return res.status(409).json({ error: `You are already in a ${joinCategory === 'game' ? 'Game' : 'Passly'} room. Leave it before joining another.` });
+  await leaveExistingRoomsForMember(req.user.id, true, joinCategory);
   room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.players.length >= room.maxPlayers) {
@@ -1058,7 +1076,11 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
   room = await reconcileRoomDocument(room) || room;
   if (room.type === 'VIP') return res.status(403).json({ error: 'Guests cannot join VIP rooms.' });
   if (room.players.includes(guestId)) return res.json({ success: true, room, alreadyIn: true });
-  await leaveExistingRoomsForMember(guestId);
+  const joinCategory = room.category === 'game' ? 'game' : 'passly';
+  const existingCategoryRooms = await findRoomsForMemberInCategory(guestId, joinCategory);
+  const otherCategoryRoom = existingCategoryRooms.find(existingRoom => existingRoom._id !== roomId);
+  if (otherCategoryRoom) return res.status(409).json({ error: `You are already in a ${joinCategory === 'game' ? 'Game' : 'Passly'} room. Leave it before joining another.` });
+  await leaveExistingRoomsForMember(guestId, true, joinCategory);
   room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.players.length >= room.maxPlayers) {
@@ -1078,8 +1100,10 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   if (!User || !Room) return res.json({ success: true });
   const user = await User.findById(req.user.id);
-  if (!user || !user.roomId) return res.json({ success: true });
-  const room = await Room.findById(user.roomId);
+  if (!user) return res.json({ success: true });
+  const requestedCategory = req.body?.category === 'game' ? 'game' : (req.body?.category === 'passly' ? 'passly' : null);
+  const activeRoomQuery = requestedCategory === 'game' ? { category: 'game', players: req.user.id } : requestedCategory === 'passly' ? { players: req.user.id, $or: [{ category: 'passly' }, { category: { $exists: false } }] } : { _id: user.roomId };
+  const room = await Room.findOne(activeRoomQuery);
   if (room) {
     room.players = room.players.filter(id => id !== req.user.id);
     if (room.queue.length > 0 && room.players.length < room.maxPlayers) {
@@ -1092,7 +1116,7 @@ app.post('/api/rooms/leave', authenticateToken, async (req, res) => {
     await room.save();
     io.to(room._id).emit('player-left', { userId: req.user.id });
   }
-  await User.findByIdAndUpdate(req.user.id, { roomId: null, inQueue: false });
+  if (!requestedCategory || user.roomId === room?._id) await User.findByIdAndUpdate(req.user.id, { roomId: null, inQueue: false });
   res.json({ success: true });
 });
 
@@ -1101,7 +1125,9 @@ app.post('/api/rooms/guest/leave', async (req, res) => {
   if (!Room) return res.json({ success: true });
   const { guestId } = req.body;
   if (!guestId) return res.status(400).json({ error: 'Guest ID required' });
-  const room = await Room.findOne({ players: guestId });
+  const requestedCategory = req.body?.category === 'game' ? 'game' : (req.body?.category === 'passly' ? 'passly' : null);
+  const activeRoomQuery = requestedCategory === 'game' ? { category: 'game', players: guestId } : requestedCategory === 'passly' ? { players: guestId, $or: [{ category: 'passly' }, { category: { $exists: false } }] } : { players: guestId };
+  const room = await Room.findOne(activeRoomQuery);
   if (room) {
     room.players = room.players.filter(id => id !== guestId);
     if (room.queue.length > 0 && room.players.length < room.maxPlayers) {
