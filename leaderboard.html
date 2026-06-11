@@ -128,8 +128,13 @@
     .tab-btn.active { background: #8b5cf6; color: white; border-color: #8b5cf6; }
     .leaderboard-section { margin-bottom: 40px; }
     .section-title { font-size: 1.5rem; color: #a78bfa; margin-bottom: 20px; }
-    .leaderboard-table { width: 100%; border-collapse: collapse; background: rgba(20,20,40,0.6); border-radius: 16px; overflow: hidden; border: 1px solid rgba(139,92,246,0.2); }
+    .leaderboard-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 16px; border: 1px solid rgba(139,92,246,0.2); background: rgba(20,20,40,0.6); }
+    .leaderboard-table { width: 100%; min-width: 560px; border-collapse: collapse; background: transparent; overflow: hidden; }
     .leaderboard-table th { background: rgba(139,92,246,0.2); padding: 16px; text-align: left; color: #a78bfa; font-weight: 600; }
+    .leaderboard-player { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; min-width: 0; }
+    .leaderboard-avatar { width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto; background: linear-gradient(135deg, #8b5cf6, #22d3ee); background-size: cover; background-position: center; box-shadow: 0 0 0 1px rgba(255,255,255,0.18); }
+    .leaderboard-player-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .swipe-hint { display: none; margin: -10px 0 16px; color: #a0a0b0; font-size: .85rem; text-align: center; }
     .leaderboard-table td { padding: 16px; border-bottom: 1px solid rgba(139,92,246,0.1); }
     .rank { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; }
     .rank-1 { background: #ffd700; color: #000; }
@@ -145,6 +150,7 @@
       h1 { font-size: 1.8rem; }
       .tab-btn { padding: 8px 16px; font-size: 0.9rem; }
       .leaderboard-table th, .leaderboard-table td { padding: 12px; font-size: 0.85rem; }
+      .swipe-hint { display: block; }
     }
   </style>
   <link rel="stylesheet" href="/app-ui.css">
@@ -185,24 +191,26 @@
     <button class="tab-btn" data-period="weekly" onclick="switchTab('weekly')">📆 Weekly</button>
     <button class="tab-btn" data-period="total" onclick="switchTab('total')">🌐 Total</button>
   </div>
+  <div class="swipe-hint">Swipe tables sideways on mobile to see every column.</div>
   <div class="leaderboard-section">
     <div class="section-title">🪙 Top Passly Coins</div>
-    <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Passly Coins</th></tr></thead><tbody id="coinsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table>
+    <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Passly Coins</th></tr></thead><tbody id="coinsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table></div>
     <div class="rank-summary" id="coinsRank">Your rank: <span>Login to see your rank</span></div>
   </div>
   <div class="leaderboard-section">
     <div class="section-title">💰 Top Receivers</div>
-    <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Received</th></tr></thead><tbody id="receiversTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table>
+    <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Received</th></tr></thead><tbody id="receiversTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table></div>
     <div class="rank-summary" id="receiversRank">Your rank: <span>Login to see your rank</span></div>
   </div>
   <div class="leaderboard-section streak-card">
     <div class="section-title">🔥 Top Streaks</div>
+    <div class="swipe-hint">Swipe sideways to view full leaderboard details.</div>
     <div class="streak-leader-list" id="streakList"><div class="empty-state">Loading...</div></div>
     <div class="rank-summary" id="streaksRank">Your rank: <span>Login to see your rank</span></div>
   </div>
   <div class="leaderboard-section">
     <div class="section-title">💸 Top Donors</div>
-    <table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Donated</th></tr></thead><tbody id="donorsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table>
+    <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Donated</th></tr></thead><tbody id="donorsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table></div>
     <div class="rank-summary" id="donorsRank">Your rank: <span>Login to see your rank</span></div>
   </div>
 </div>
@@ -283,10 +291,12 @@
         document.getElementById('streakList').innerHTML = '<div class="empty-state">Error loading streaks</div>';
       }
     }
+    function avatarStyle(url) { return url ? ` style="background-image:url('${escapeHtml(url)}')"` : ''; }
+    function playerCell(player) { return `<span class="leaderboard-player"><span class="leaderboard-avatar"${avatarStyle(player.avatarUrl)}></span><span class="leaderboard-player-name">${escapeHtml(player.username)}</span></span>`; }
     function renderStreaks(players) {
       const list = document.getElementById('streakList');
-      if (!players.length) { list.innerHTML = '<div class="empty-state">No streaks yet</div>'; return; }
-      list.innerHTML = players.map((player, index) => `<div class="streak-leader-row"><span class="streak-leader-name">${index + 1}. ${escapeHtml(player.username)}</span><span class="streak-pill">🔥 ${Number(player.streak || 0).toLocaleString()}</span></div>`).join('');
+      if (!players.length) { list.innerHTML = '<div class="empty-state">No active streaks yet</div>'; return; }
+      list.innerHTML = players.map((player, index) => `<div class="streak-leader-row"><span class="streak-leader-name">${index + 1}. ${playerCell(player)}</span><span class="streak-pill">🔥 ${Number(player.streak || 0).toLocaleString()}</span></div>`).join('');
     }
     function updateRanks(ranks) {
       ['coins', 'receivers', 'streaks', 'donors'].forEach(key => {
@@ -307,7 +317,7 @@
         if (index === 0) { rankClass = 'rank-1'; rankEmoji = '👑'; }
         else if (index === 1) { rankClass = 'rank-2'; rankEmoji = '🥈'; }
         else if (index === 2) { rankClass = 'rank-3'; rankEmoji = '🥉'; }
-        return `<tr><td><span class="rank ${rankClass}">${rankEmoji || index+1}</span></td><td>${escapeHtml(player.username)}</td><td>${Number(player.amount || 0).toLocaleString()} ${unit}</td></tr>`;
+        return `<tr><td><span class="rank ${rankClass}">${rankEmoji || index+1}</span></td><td>${playerCell(player)}</td><td>${Number(player.amount || 0).toLocaleString()} ${unit}</td></tr>`;
       }).join('');
     }
     loadLeaderboard();

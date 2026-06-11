@@ -221,9 +221,9 @@ function serializeEconomy(user) {
   const reward = getRewardState(user);
   const now = new Date();
   const lastClaimAt = parseStoredDate(reward.lastClaimDate);
-  const currentStreak = Number(reward.streak || 0);
-  const claimedToday = !!(lastClaimAt && now - lastClaimAt < 24 * 60 * 60 * 1000);
-  const keepsStreak = !!(lastClaimAt && now - lastClaimAt <= 48 * 60 * 60 * 1000);
+  const currentStreak = getActiveStreak(user, now);
+  const claimedToday = !!(lastClaimAt && currentStreak > 0 && now - lastClaimAt < 24 * 60 * 60 * 1000);
+  const keepsStreak = !!(lastClaimAt && currentStreak > 0 && now - lastClaimAt <= 48 * 60 * 60 * 1000);
   const nextStreak = claimedToday ? currentStreak : (keepsStreak ? currentStreak + 1 : 1);
   const balance = getCoinBalance(user);
   return {
@@ -412,6 +412,57 @@ function getRobloxAccountId(user) {
   return user?.robloxId || (/^\d+$/.test(String(user?._id || '')) ? String(user._id) : null);
 }
 
+function getUserAvatarUrl(user) {
+  const robloxAccountId = getRobloxAccountId(user);
+  if (user?.profile?.showDiscordIdentity && user?.discord?.avatarUrl) return user.discord.avatarUrl;
+  if (user?.avatarUrl) return user.avatarUrl;
+  if (user?.discord?.avatarUrl) return user.discord.avatarUrl;
+  return robloxAccountId ? `https://www.roblox.com/headshot-thumbnail/image?userId=${robloxAccountId}&width=150&height=150&format=png` : '';
+}
+function getUserDisplayName(user) {
+  return user?.customDisplayName || user?.robloxDisplayName || user?.robloxUsername || user?.discord?.username || 'Player';
+}
+function getLeaderboardIdentityKey(user) {
+  if (user?.discord?.id) return `discord:${user.discord.id}`;
+  const robloxAccountId = getRobloxAccountId(user);
+  if (robloxAccountId) return `roblox:${robloxAccountId}`;
+  return `user:${user?._id}`;
+}
+function getActiveStreak(user, now = new Date()) {
+  const reward = getRewardState(user);
+  const lastClaimAt = parseStoredDate(reward.lastClaimDate);
+  if (!lastClaimAt || now - lastClaimAt > 48 * 60 * 60 * 1000) return 0;
+  return Math.max(0, Number(reward.streak || 0));
+}
+async function mergeUserRecords(targetUser, sourceUser) {
+  if (!targetUser || !sourceUser || String(targetUser._id) === String(sourceUser._id)) return targetUser;
+  const Donation = mongoose.models.Donation;
+  const sourceBalance = getCoinBalance(sourceUser);
+  const targetBalance = getCoinBalance(targetUser);
+  targetUser.coins = Math.max(targetBalance, sourceBalance);
+  targetUser.totalCoins = Math.max(targetBalance, sourceBalance);
+  if (getActiveStreak(sourceUser) > getActiveStreak(targetUser)) {
+    targetUser.streakDay = sourceUser.streakDay || sourceUser.dailyReward?.streak || 0;
+    targetUser.lastClaimDate = sourceUser.lastClaimDate || sourceUser.dailyReward?.lastClaimDate || '';
+    targetUser.dailyReward = sourceUser.dailyReward || targetUser.dailyReward;
+  }
+  if (!targetUser.customDisplayName && sourceUser.customDisplayName) targetUser.customDisplayName = sourceUser.customDisplayName;
+  if (!targetUser.avatarUrl && sourceUser.avatarUrl) targetUser.avatarUrl = sourceUser.avatarUrl;
+  targetUser.board = (targetUser.board?.length ? targetUser.board : sourceUser.board) || [];
+  targetUser.donations = {
+    received: Math.max(Number(targetUser.donations?.received || 0), Number(sourceUser.donations?.received || 0)),
+    given: Math.max(Number(targetUser.donations?.given || 0), Number(sourceUser.donations?.given || 0))
+  };
+  targetUser.authProviders = Array.from(new Set([...(targetUser.authProviders || []), ...(sourceUser.authProviders || [])]));
+  await targetUser.save();
+  if (Donation) {
+    await Donation.updateMany({ donorId: String(sourceUser._id) }, { $set: { donorId: String(targetUser._id), donorName: getUserDisplayName(targetUser) } });
+    await Donation.updateMany({ receiverId: String(sourceUser._id) }, { $set: { receiverId: String(targetUser._id), receiverName: getUserDisplayName(targetUser) } });
+  }
+  await sourceUser.deleteOne();
+  return targetUser;
+}
+
 function authenticateToken(req, res, next) {
   const token = req.headers['authorization']?.split(' ')[1];
   if (!token && req.path === '/daily-reward/claim') return res.status(401).json({ error: 'Guest users can’t earn Passly Coins. Please log in with Roblox to claim daily rewards.', guestRestricted: true });
@@ -497,12 +548,15 @@ app.get('/auth/roblox/callback', async (req, res) => {
     let user;
     const robloxUpdate = { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, isGuest: false };
     if (doc.linkUserId) {
-      user = await mongoose.model('User').findByIdAndUpdate(
+      const User = mongoose.model('User');
+      user = await User.findByIdAndUpdate(
         doc.linkUserId,
         { $set: robloxUpdate, $addToSet: { authProviders: 'roblox' } },
         { new: true, setDefaultsOnInsert: true }
       );
       if (!user) return res.status(404).send('<h1>Account not found</h1><a href="/profile">Go back</a>');
+      const existingRobloxUser = await User.findOne({ robloxId: userId, _id: { $ne: user._id } });
+      if (existingRobloxUser) user = await mergeUserRecords(user, existingRobloxUser);
     } else {
       const User = mongoose.model('User');
       const existingLinkedUser = await User.findOne({ robloxId: userId });
@@ -573,12 +627,15 @@ app.get('/auth/discord/callback', async (req, res) => {
     };
     let user;
     if (doc.linkUserId) {
-      user = await mongoose.model('User').findByIdAndUpdate(
+      const User = mongoose.model('User');
+      user = await User.findByIdAndUpdate(
         doc.linkUserId,
         { $set: { discord: discordUpdate, isGuest: false }, $addToSet: { authProviders: 'discord' } },
         { new: true, setDefaultsOnInsert: true }
       );
       if (!user) return res.status(404).send('<h1>Account not found</h1><a href="/profile">Go back</a>');
+      const existingDiscordUser = await User.findOne({ 'discord.id': discordId, _id: { $ne: user._id } });
+      if (existingDiscordUser) user = await mergeUserRecords(user, existingDiscordUser);
     } else {
       user = await mongoose.model('User').findOne({ 'discord.id': discordId });
       if (!user) {
@@ -663,7 +720,7 @@ app.get('/api/user', authenticateToken, async (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
   const robloxAccountId = getRobloxAccountId(user);
   const publicDiscord = user.discord ? { id: user.discord.id, username: user.discord.username, avatarUrl: user.discord.avatarUrl, guildCount: (user.discord.guilds || []).length, fanMember: isFanGuildMember(user) } : null;
-  const avatarUrl = user.profile?.showDiscordIdentity && publicDiscord?.avatarUrl ? publicDiscord.avatarUrl : (user.avatarUrl || publicDiscord?.avatarUrl || '');
+  const avatarUrl = getUserAvatarUrl(user);
   const avatarFallback = avatarUrl ? '' : (robloxAccountId ? `https://www.roblox.com/bust-thumbnail/image?userId=${robloxAccountId}&width=150&height=150&format=png` : '');
   res.json({
     id: user._id, robloxId: robloxAccountId, robloxUsername: user.robloxUsername || '', robloxDisplayName: user.robloxDisplayName || '',
@@ -761,15 +818,21 @@ app.post('/api/daily-reward/claim', authenticateToken, async (req, res) => {
 app.get('/api/streak-leaderboard', async (req, res) => {
   const User = getUserModel();
   if (!User) return res.json([]);
-  const users = await User.find({ 'dailyReward.streak': { $gt: 0 } })
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const users = await User.find({ 'dailyReward.streak': { $gt: 0 }, $or: [{ 'dailyReward.lastClaimDate': { $gte: cutoff } }, { lastClaimDate: { $gte: cutoff } }] })
     .sort({ 'dailyReward.streak': -1, coins: -1 })
-    .limit(10)
-    .select('robloxUsername robloxDisplayName customDisplayName avatarUrl dailyReward');
-  res.json(users.map(user => ({
-    username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player',
-    streak: user.dailyReward?.streak || 0,
-    avatarUrl: user.avatarUrl || ''
-  })));
+    .select('robloxId robloxUsername robloxDisplayName customDisplayName avatarUrl profile discord dailyReward lastClaimDate streakDay')
+    .lean();
+  const byIdentity = new Map();
+  for (const user of users) {
+    const streak = getActiveStreak(user);
+    if (streak <= 0) continue;
+    const key = getLeaderboardIdentityKey(user);
+    const entry = { username: getUserDisplayName(user), streak, avatarUrl: getUserAvatarUrl(user), _id: user._id };
+    const current = byIdentity.get(key);
+    if (!current || entry.streak > current.streak) byIdentity.set(key, entry);
+  }
+  res.json([...byIdentity.values()].sort((a, b) => b.streak - a.streak || String(a._id).localeCompare(String(b._id))).slice(0, 10).map(({ username, streak, avatarUrl }) => ({ username, streak, avatarUrl })));
 });
 
 app.get('/api/booths', authenticateToken, async (req, res) => {
@@ -1454,8 +1517,8 @@ app.get('/api/leaderboard', async (req, res) => {
   const enrichDonationLeaders = async (arr) => {
     const result = [];
     for (const item of arr.slice(0, 10)) {
-      const user = await User.findById(item._id).select('robloxUsername robloxDisplayName customDisplayName');
-      result.push({ username: user ? (user.customDisplayName || user.robloxDisplayName || user.robloxUsername) : 'Unknown', amount: item.total });
+      const user = await User.findById(item._id).select('robloxId robloxUsername robloxDisplayName customDisplayName avatarUrl profile discord');
+      result.push({ username: user ? getUserDisplayName(user) : 'Unknown', amount: item.total, avatarUrl: user ? getUserAvatarUrl(user) : '' });
     }
     return result;
   };
@@ -1472,32 +1535,39 @@ app.get('/api/leaderboard', async (req, res) => {
   ]);
 
   const coinUsers = await User.find({ $or: [{ totalCoins: { $gt: 0 } }, { coins: { $gt: 0 } }] })
-    .select('robloxUsername robloxDisplayName customDisplayName coins totalCoins')
+    .select('robloxId robloxUsername robloxDisplayName customDisplayName avatarUrl profile discord coins totalCoins')
     .lean();
   const coinTotals = coinUsers
     .map(user => ({
       _id: user._id,
-      username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player',
-      amount: getCoinBalance(user)
+      username: getUserDisplayName(user),
+      amount: getCoinBalance(user),
+      avatarUrl: getUserAvatarUrl(user)
     }))
     .filter(user => user.amount > 0)
     .sort((a, b) => b.amount - a.amount || String(a._id).localeCompare(String(b._id)));
 
-  const streakUsers = await User.find({ 'dailyReward.streak': { $gt: 0 } })
+  const streakCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const streakUsers = await User.find({ 'dailyReward.streak': { $gt: 0 }, $or: [{ 'dailyReward.lastClaimDate': { $gte: streakCutoff } }, { lastClaimDate: { $gte: streakCutoff } }] })
     .sort({ 'dailyReward.streak': -1, coins: -1, _id: 1 })
-    .select('robloxUsername robloxDisplayName customDisplayName dailyReward')
+    .select('robloxId robloxUsername robloxDisplayName customDisplayName avatarUrl profile discord dailyReward lastClaimDate streakDay')
     .lean();
-  const streakTotals = streakUsers.map(user => ({
-    _id: user._id,
-    username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername || 'Player',
-    streak: user.dailyReward?.streak || 0
-  }));
+  const streakMap = new Map();
+  for (const user of streakUsers) {
+    const streak = getActiveStreak(user);
+    if (streak <= 0) continue;
+    const key = getLeaderboardIdentityKey(user);
+    const entry = { _id: user._id, username: getUserDisplayName(user), avatarUrl: getUserAvatarUrl(user), streak };
+    const current = streakMap.get(key);
+    if (!current || entry.streak > current.streak) streakMap.set(key, entry);
+  }
+  const streakTotals = [...streakMap.values()].sort((a, b) => b.streak - a.streak || String(a._id).localeCompare(String(b._id)));
 
   res.json({
     receivers: await enrichDonationLeaders(receiverTotals),
     donors: await enrichDonationLeaders(donorTotals),
-    coins: coinTotals.slice(0, 10).map(user => ({ username: user.username, amount: user.amount })),
-    streaks: streakTotals.slice(0, 10).map(user => ({ username: user.username, streak: user.streak })),
+    coins: coinTotals.slice(0, 10).map(user => ({ username: user.username, amount: user.amount, avatarUrl: user.avatarUrl })),
+    streaks: streakTotals.slice(0, 10).map(user => ({ username: user.username, streak: user.streak, avatarUrl: user.avatarUrl })),
     ranks: {
       receivers: leaderboardRankLabel(rankOf(receiverTotals, viewerId)),
       donors: leaderboardRankLabel(rankOf(donorTotals, viewerId)),
