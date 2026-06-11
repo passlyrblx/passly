@@ -1,4 +1,5 @@
 (() => {
+  const PASSLY_LOGO_URL = 'https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png';
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const aliases = new Map([
     ['/', ['/']], ['/dashboard', ['/dashboard']], ['/rooms', ['/rooms']], ['/game-rooms', ['/game-rooms']], ['/leaderboard', ['/leaderboard']],
@@ -63,10 +64,32 @@
   });
 
 
-  const coinIcon = (size = 'small') => `<span class="passly-coin-frame passly-coin-${size}" aria-hidden="true"></span>`;
+  const passlyLogoImg = (className = '') => `<img class="${className}" src="${PASSLY_LOGO_URL}" alt="Passly" loading="lazy" decoding="async">`;
+  const coinIcon = (size = 'small') => `<span class="passly-coin-frame passly-coin-${size}" aria-hidden="true">${passlyLogoImg('passly-coin-logo')}</span>`;
   const renderCoins = (amount = 0, size = 'small') => `<span class="passly-coin-balance" title="Coin balance">${coinIcon(size)}<span>${Number(amount || 0).toLocaleString()}</span></span>`;
   const updateCoinDisplays = (amount = 0) => {
     document.querySelectorAll('[data-passly-coins]').forEach((el) => { el.innerHTML = renderCoins(amount, el.dataset.coinSize || 'small'); });
+  };
+  const ensurePasslyBranding = () => {
+    document.querySelectorAll('.nav-logo, .logo-text').forEach((el) => {
+      if (el.dataset.passlyLogoEnhanced === 'true') return;
+      el.dataset.passlyLogoEnhanced = 'true';
+      el.classList.add('passly-brand-logo');
+      el.innerHTML = `${passlyLogoImg('passly-brand-logo-img')}<span class="passly-brand-logo-text">Passly</span>`;
+    });
+  };
+  const ensureDocumentLogoLinks = () => {
+    const ensureLink = (rel) => {
+      let link = document.head.querySelector(`link[rel="${rel}"]`);
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = rel;
+        document.head.appendChild(link);
+      }
+      link.href = PASSLY_LOGO_URL;
+    };
+    ensureLink('icon');
+    ensureLink('apple-touch-icon');
   };
   const ensureNavbarCoins = async () => {
     const box = document.querySelector('.user-box');
@@ -195,6 +218,7 @@
   };
 
   window.PasslyUI = {
+    logoUrl: PASSLY_LOGO_URL,
     coinIcon,
     renderCoins,
     updateCoinDisplays,
@@ -305,7 +329,9 @@
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && menu.dataset.open === 'true') { closeBtn?.click(); markClosed(); } });
   };
 
+  ensureDocumentLogoLinks();
   buildPasslyMenu().then(() => {
+    ensurePasslyBranding();
     ensureNavbarCoins();
     ensureGlobalRoomDock();
     document.querySelectorAll('.nav-links a, .mobile-menu a').forEach((link) => {
