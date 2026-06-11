@@ -77,14 +77,17 @@
     balance.dataset.passlyNavbarCoins = 'true';
     balance.dataset.coinSize = 'small';
     balance.innerHTML = renderCoins(0);
-    box.insertBefore(balance, box.firstChild);
+    const profileAnchor = box.querySelector('.user-name') || box.querySelector('.user-avatar');
+    if (profileAnchor?.nextSibling) box.insertBefore(balance, profileAnchor.nextSibling);
+    else box.appendChild(balance);
     const notificationLink = document.createElement('a');
     notificationLink.href = '/friends#notifications';
     notificationLink.className = 'passly-notification-link';
     notificationLink.title = 'Open friend notifications';
     notificationLink.setAttribute('aria-label', 'Open friend notifications');
     notificationLink.innerHTML = '<span aria-hidden="true">🔔</span><span class="passly-notification-count" data-passly-notification-count hidden>0</span>';
-    box.insertBefore(notificationLink, balance.nextSibling);
+    if (balance.nextSibling) box.insertBefore(notificationLink, balance.nextSibling);
+    else box.appendChild(notificationLink);
     const token = localStorage.getItem('passly_token');
     if (!token) return;
     try {

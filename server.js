@@ -765,6 +765,7 @@ app.get('/api/user/:userId/stats', authenticateToken, async (req, res) => {
     displayName: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
     username: user.robloxUsername,
     avatarUrl: user.avatarUrl,
+    booth: user.booth || { activeTheme: 'default', ownedThemes: ['default'] },
     displayTag: serializeTag(getPublicTag(user)), displayTags: serializeTags(getPublicTags(user))
   });
 });
@@ -1470,7 +1471,8 @@ io.on('connection', (socket) => {
       userId,
       username: user.customDisplayName || user.robloxDisplayName || user.robloxUsername,
       board: Array.isArray(boardData) ? boardData.slice(0, 50) : [],
-      avatarUrl: user.avatarUrl
+      avatarUrl: user.avatarUrl,
+      booth: user.booth || { activeTheme: 'default', ownedThemes: ['default'] }
     });
   });
 
