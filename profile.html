@@ -363,7 +363,7 @@
     const active = economy.booth?.activeTheme === theme.id;
     const price = window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(theme.price, 'small') : Number(theme.price).toLocaleString();
     const btn = active ? '<button disabled>Equipped</button>' : owned ? `<button onclick="equipBooth('${theme.id}')">Equip</button>` : `<button onclick="purchaseBooth('${theme.id}')">Buy ${price}</button>`;
-    return `<div class="booth-card"><div class="booth-preview booth-theme-${theme.id}">${escapeHtml(theme.name)}</div><h3>${escapeHtml(theme.name)}</h3><p>${escapeHtml(theme.tier)}${theme.animated ? ' · animated glow' : ''}</p>${btn}</div>`;
+    return `<div class="booth-card booth-theme-${theme.id}"><div class="booth-preview booth-theme-${theme.id}">${escapeHtml(theme.name)}</div><h3>${escapeHtml(theme.name)}</h3><p>${escapeHtml(theme.tier)}${theme.animated ? ' · animated glow' : ''}</p>${btn}</div>`;
   }
   async function loadBoothShop() {
     const grid = document.getElementById('boothShopGrid');
