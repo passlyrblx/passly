@@ -1251,7 +1251,27 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join-room', async (roomId) => {
+  socket.on('join-room', async (payload) => {
+    const roomId = typeof payload === 'object' && payload !== null ? payload.roomId : payload;
+    if (!roomId) return;
+    if (typeof payload === 'object' && payload !== null) {
+      if (!socket.userId && payload.token) {
+        try {
+          const decoded = jwt.verify(payload.token, JWT_SECRET);
+          userId = decoded.id;
+          socket.userId = userId;
+          socket.join(userId);
+          isGuest = false;
+          onlineUsers.add(userId);
+        } catch (e) {}
+      }
+      if (!socket.guestId && payload.guestId) {
+        guestId = payload.guestId;
+        socket.guestId = guestId;
+        isGuest = true;
+        onlineUsers.add(guestId);
+      }
+    }
     const previousRoomId = currentRoomId;
     if (previousRoomId) {
       socket.leave(previousRoomId);

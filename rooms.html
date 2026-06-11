@@ -855,7 +855,7 @@ function showRoomView(room) {
   room.players = [...new Set(room.players || [])];
   updateMembersList(room.players.map(pid => ({ userId: pid, username: 'Loading...', avatarUrl: '' })));
   fetchPlayerDetails([...new Set(room.players || [])]);
-  socket.emit('join-room', room._id);
+  socket.emit('join-room', { roomId: room._id, token, guestId: isGuest ? guestData.id : null });
   rememberCurrentRoom(false);
   updateRoomMiniDock();
 }
