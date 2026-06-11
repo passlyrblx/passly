@@ -630,11 +630,12 @@
     if(!currentRoom) return;
     const players = currentRoom.playerDetails || [];
     if(!players.length) { PasslyUI.toast('No players to show yet.'); return; }
+    applyBoothTheme(document.getElementById('playerBoardModal'), { activeTheme: 'default' });
     document.getElementById('playerBoardTitle').innerHTML = '👀 Choose a player booth';
     document.getElementById('playerBoardAvatar').style.backgroundImage = '';
     document.getElementById('playerBoardName').innerText = 'Pick a player below to view their booth.';
     const grid = document.getElementById('playerBoardGrid');
-    grid.innerHTML = players.map(p => `<button class="board-gamepass-btn" onclick="openDonate('${p.userId}')"><span class="board-gamepass-amount">${escapeHtml(p.username)}</span><span class="board-gamepass-name">Tap to view booth</span></button>`).join('');
+    grid.innerHTML = players.map(p => `<button class="board-gamepass-btn passly-booth-surface ${boothThemeClass(p.booth)}" onclick="openDonate('${p.userId}')"><span class="board-gamepass-amount">${escapeHtml(p.username)}</span><span class="board-gamepass-name">Tap to view booth</span></button>`).join('');
     document.getElementById('playerBoardStatus').innerHTML = userData?.board?.length ? '<button class="modal-btn" style="background:#22c55e;" onclick="sendBoardToChat()">📤 Send my board in chat (5 min cooldown)</button>' : '<span style="color:#a0a0b0;">Add gamepasses to your own board before sending it in chat.</span>';
     document.getElementById('playerBoardModal').style.display = 'block';
     document.getElementById('modalOverlay').style.display = 'block';
@@ -642,7 +643,7 @@
   socket.on('chat-board', (data) => {
     const board = Array.isArray(data.board) ? data.board : [];
     const items = board.sort((a,b) => a.price - b.price).map(gp => `<button class="board-chat-pass" onclick="openDonate('${data.userId}')">💰 ${Number(gp.price || 0).toLocaleString()} Robux · 🆔 ${escapeHtml(gp.id)}</button>`).join('');
-    addChatMessage(`🎁 ${data.username}`, `<div class="board-chat-strip">${items || 'No gamepasses.'}</div>`, data.userId, data.avatarUrl);
+    addChatMessage(`🎁 ${data.username}`, `<div class="board-chat-strip passly-booth-surface ${boothThemeClass(data.booth)}">${items || 'No gamepasses.'}</div>`, data.userId, data.avatarUrl);
   });
   if(token) socket.emit('authenticate', token);
   else if(isGuest && guestData.id) socket.emit('guest-auth', guestData.id);
@@ -866,9 +867,9 @@ async function fetchPlayerDetails(playerIds) {
       const res = await fetch(`/api/user/${pid}/stats`, { headers: authHeaders() });
       if(res.ok) {
         const data = await res.json();
-        members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl, displayTag: data.displayTag, displayTags: data.displayTags });
-      } else members.push({ userId: pid, username: pid.startsWith('Guest_') ? 'Guest' : 'Player', avatarUrl: '' });
-    } catch(e) { members.push({ userId: pid, username: 'Unknown', avatarUrl: '' }); }
+        members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl, booth: data.booth, displayTag: data.displayTag, displayTags: data.displayTags });
+      } else members.push({ userId: pid, username: pid.startsWith('Guest_') ? 'Guest' : 'Player', avatarUrl: '', booth: null });
+    } catch(e) { members.push({ userId: pid, username: 'Unknown', avatarUrl: '', booth: null }); }
   }
   if(currentRoom) currentRoom.playerDetails = members;
   updateMembersList(members);
@@ -893,6 +894,7 @@ async function leaveQueue() { await leaveRoom(); }
 // Board (horizontal scroll, sorted)
 window.showBoard = async function() {
   if(!userData) return;
+  applyBoothTheme(document.getElementById('boardModal'), userData.booth);
   const grid = document.getElementById('boardGamepassGrid');
   const board = userData.board || [];
   if(!board.length) { grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses added yet.</p>'; }
@@ -943,9 +945,10 @@ window.removeGamepass = async function(assetId) {
         const res = await fetch(`/api/user/${receiverId}/board`, { headers: authHeaders() });
         const data = await res.json();
         if(data.error) throw new Error(data.error);
-        document.getElementById('playerBoardTitle').innerHTML = `🎁 ${data.displayName}'s Board`;
+        applyBoothTheme(document.getElementById('playerBoardModal'), data.booth);
+        document.getElementById('playerBoardTitle').innerHTML = `🎁 ${escapeHtml(data.displayName)}'s Booth`;
         document.getElementById('playerBoardName').innerText = data.displayName;
-        if(data.avatarUrl) document.getElementById('playerBoardAvatar').style.backgroundImage = `url(${data.avatarUrl})`;
+        document.getElementById('playerBoardAvatar').style.backgroundImage = data.avatarUrl ? `url(${data.avatarUrl})` : '';
         const grid = document.getElementById('playerBoardGrid');
         if(!data.board.length) grid.innerHTML = '<p style="color:#a0a0b0;">No gamepasses.</p>';
         else {
@@ -967,6 +970,8 @@ window.removeGamepass = async function(assetId) {
     };
     function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
     function tagBadgeHtml(tag) { if(Array.isArray(tag)) return tag.map(tagBadgeHtml).join(''); return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : ''; }
+    function boothThemeClass(booth) { const theme = String(booth?.activeTheme || 'default').toLowerCase(); return /^[a-z0-9-]+$/.test(theme) ? `booth-theme-${theme}` : 'booth-theme-default'; }
+    function applyBoothTheme(el, booth) { if(!el) return; el.className = el.className.replace(/\bbooth-theme-[a-z0-9-]+\b/g, '').trim(); el.classList.add('passly-booth-surface', boothThemeClass(booth)); }
     function setAvatarWithFallback(el, url, fallback) {
       if(!el) return;
       const primary = url || fallback;
