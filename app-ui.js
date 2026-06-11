@@ -63,8 +63,7 @@
   });
 
 
-  const PASSLY_COIN_ICON_URL = 'https://i.ibb.co/tMpcZCNh/file-00000000993871f8a74fdfa489ebf218-3.png';
-  const coinIcon = (size = 'small') => `<span class="passly-coin-frame passly-coin-${size}" aria-hidden="true"><img src="${PASSLY_COIN_ICON_URL}" alt="" referrerpolicy="no-referrer"></span>`;
+  const coinIcon = (size = 'small') => `<span class="passly-coin-frame passly-coin-${size}" aria-hidden="true"></span>`;
   const renderCoins = (amount = 0, size = 'small') => `<span class="passly-coin-balance" title="Coin balance">${coinIcon(size)}<span>${Number(amount || 0).toLocaleString()}</span></span>`;
   const updateCoinDisplays = (amount = 0) => {
     document.querySelectorAll('[data-passly-coins]').forEach((el) => { el.innerHTML = renderCoins(amount, el.dataset.coinSize || 'small'); });
@@ -72,22 +71,21 @@
   const ensureNavbarCoins = async () => {
     const box = document.querySelector('.user-box');
     if (!box || box.querySelector('[data-passly-navbar-coins]')) return;
+    const avatar = box.querySelector('.user-avatar');
     const balance = document.createElement('span');
     balance.dataset.passlyCoins = 'true';
     balance.dataset.passlyNavbarCoins = 'true';
     balance.dataset.coinSize = 'small';
     balance.innerHTML = renderCoins(0);
-    const profileAnchor = box.querySelector('.user-name') || box.querySelector('.user-avatar');
-    if (profileAnchor?.nextSibling) box.insertBefore(balance, profileAnchor.nextSibling);
-    else box.appendChild(balance);
     const notificationLink = document.createElement('a');
     notificationLink.href = '/friends#notifications';
     notificationLink.className = 'passly-notification-link';
     notificationLink.title = 'Open friend notifications';
     notificationLink.setAttribute('aria-label', 'Open friend notifications');
     notificationLink.innerHTML = '<span aria-hidden="true">🔔</span><span class="passly-notification-count" data-passly-notification-count hidden>0</span>';
-    if (balance.nextSibling) box.insertBefore(notificationLink, balance.nextSibling);
-    else box.appendChild(notificationLink);
+    box.appendChild(notificationLink);
+    box.appendChild(balance);
+    if (avatar) box.appendChild(avatar);
     const token = localStorage.getItem('passly_token');
     if (!token) return;
     try {

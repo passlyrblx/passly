@@ -543,6 +543,7 @@ body.login-page .btn { margin-top: 10px; }
   white-space: nowrap;
 }
 .passly-coin-frame {
+  position: relative;
   display: inline-grid;
   place-items: center;
   border-radius: 999px;
@@ -552,7 +553,8 @@ body.login-page .btn { margin-top: 10px; }
   overflow: hidden;
   flex: 0 0 auto;
 }
-.passly-coin-frame img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 999px; mix-blend-mode: screen; }
+.passly-coin-frame::before { content: '🪙'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.72em; line-height: 1; }
+.passly-coin-frame img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 999px; mix-blend-mode: screen; }
 .passly-coin-small { width: 24px; height: 24px; }
 .passly-coin-medium { width: 38px; height: 38px; }
 .passly-coin-large { width: 72px; height: 72px; }
@@ -925,6 +927,7 @@ body::before {
   overflow: visible;
 }
 .user-box [data-passly-navbar-coins] {
+  order: 3;
   margin-left: 2px;
   padding: 5px 9px 5px 6px;
   border: 1px solid rgba(250, 204, 21, 0.26);
@@ -933,6 +936,7 @@ body::before {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 10px 24px rgba(139,92,246,0.12);
 }
 .passly-notification-link {
+  order: 2;
   flex: 0 0 38px;
   aspect-ratio: 1 / 1;
   width: 38px;
@@ -949,14 +953,16 @@ body::before {
   line-height: 1;
 }
 .passly-notification-link span[aria-hidden="true"] { transform: translateY(1px); }
+.user-box .user-name { order: 1; }
+.user-box .user-avatar { order: 4; }
 @media (max-width: 760px) {
   .user-box { max-width: min(58vw, 300px); }
   .user-box [data-passly-navbar-coins] { padding-right: 7px; }
   .passly-notification-link { flex-basis: 36px; width: 36px; height: 36px; }
 }
 @media (max-width: 420px) {
-  .user-box [data-passly-navbar-coins] .passly-coin-balance > span:last-child { display:none; }
-  .user-box [data-passly-navbar-coins] { padding: 4px; }
+  .user-box [data-passly-navbar-coins] { padding: 4px 7px 4px 4px; }
+  .user-box [data-passly-navbar-coins] .passly-coin-balance { gap: 3px; }
 }
 
 /* Equipped booth backgrounds for viewed/sent boards */
