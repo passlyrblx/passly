@@ -75,7 +75,7 @@
       if (el.dataset.passlyLogoEnhanced === 'true') return;
       el.dataset.passlyLogoEnhanced = 'true';
       el.classList.add('passly-brand-logo');
-      el.innerHTML = `${passlyLogoImg('passly-brand-logo-img')}<span class="passly-brand-logo-text">Passly</span>`;
+      el.innerHTML = '<span class="passly-brand-logo-text">PASSLY</span>';
     });
   };
   const ensureDocumentLogoLinks = () => {
