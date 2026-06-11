@@ -589,6 +589,31 @@ body.login-page .btn { margin-top: 10px; }
 .booth-theme-energy { background: linear-gradient(135deg, #064e3b, #0891b2, #7c3aed); color:#ecfeff; animation: boothPulse 3.8s ease-in-out infinite; }
 .booth-theme-futuristic { background: linear-gradient(135deg, #111827, #2563eb, #22d3ee); color:#eff6ff; animation: boothPulse 3.4s ease-in-out infinite; }
 .booth-theme-mythic { background: conic-gradient(from 180deg, #7c3aed, #f472b6, #22d3ee, #fbbf24, #7c3aed); color:#fff; animation: boothGlow 3.2s ease-in-out infinite; }
+
+/* Booth shop cards should show the chosen booth background, not a shared panel. */
+.booth-card[class*="booth-theme-"] {
+  color: #fff;
+  border-color: rgba(255,255,255,0.2);
+  isolation: isolate;
+}
+.booth-card.booth-theme-neon { background: linear-gradient(135deg, rgba(6,17,31,.98), rgba(14,116,144,.9) 54%, rgba(34,211,238,.76)); box-shadow: 0 18px 54px rgba(34,211,238,.18), inset 0 1px 0 rgba(255,255,255,.14); }
+.booth-card.booth-theme-cyber { background: linear-gradient(135deg, rgba(8,6,23,.98), rgba(76,29,149,.92) 52%, rgba(219,39,119,.72)); box-shadow: 0 18px 54px rgba(168,85,247,.2), inset 0 1px 0 rgba(255,255,255,.12); }
+.booth-card.booth-theme-galaxy { background: radial-gradient(circle at 18% 14%, rgba(236,72,153,.9), transparent 24%), radial-gradient(circle at 82% 24%, rgba(34,211,238,.64), transparent 24%), linear-gradient(135deg, rgba(9,0,24,.98), rgba(30,27,75,.94)); }
+.booth-card.booth-theme-crystal { background: linear-gradient(135deg, rgba(8,145,178,.82), rgba(224,242,254,.74), rgba(196,181,253,.72)); color:#06233a; }
+.booth-card.booth-theme-gold { background: linear-gradient(135deg, rgba(120,53,15,.96), rgba(245,158,11,.9) 50%, rgba(253,230,138,.82)); color:#1f1300; }
+.booth-card.booth-theme-shadow { background: linear-gradient(135deg, rgba(2,6,23,.98), rgba(17,24,39,.96) 48%, rgba(76,29,149,.78)); }
+.booth-card.booth-theme-royal { background: linear-gradient(135deg, rgba(49,46,129,.96), rgba(126,34,206,.88) 52%, rgba(251,191,36,.78)); }
+.booth-card.booth-theme-energy { background: linear-gradient(135deg, rgba(6,78,59,.96), rgba(8,145,178,.86) 48%, rgba(190,242,100,.72)); }
+.booth-card.booth-theme-futuristic { background: linear-gradient(135deg, rgba(17,24,39,.98), rgba(37,99,235,.88) 50%, rgba(34,211,238,.78)); }
+.booth-card.booth-theme-mythic { background: conic-gradient(from 180deg at 50% 50%, rgba(124,58,237,.96), rgba(244,114,182,.9), rgba(34,211,238,.88), rgba(251,191,36,.82), rgba(124,58,237,.96)); }
+.booth-card.booth-theme-crystal .settings-help,
+.booth-card.booth-theme-gold .settings-help { color: rgba(15,23,42,.78); }
+.booth-card[class*="booth-theme-"] .booth-preview {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255,255,255,0.3);
+  background-blend-mode: screen;
+}
 @keyframes boothFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @keyframes boothGlow { 0%,100% { filter: drop-shadow(0 0 10px rgba(139,92,246,.28)); } 50% { filter: drop-shadow(0 0 22px rgba(34,211,238,.42)); } }
 @keyframes boothPulse { 0%,100% { box-shadow: 0 0 18px rgba(34,211,238,.22); } 50% { box-shadow: 0 0 30px rgba(139,92,246,.38); } }
@@ -995,3 +1020,17 @@ body::before {
 .passly-booth-surface.booth-theme-mythic { background: conic-gradient(from 180deg, #7c3aed, #f472b6, #22d3ee, #fbbf24, #7c3aed) !important; color:#fff; }
 .board-chat-strip.passly-booth-surface { padding: 10px; border: 1px solid rgba(255,255,255,0.18); border-radius: 14px; }
 .player-card.passly-booth-surface, #playerBoardModal.passly-booth-surface, #boardModal.passly-booth-surface { color: #fff; }
+
+/* Final booth shop swatches: make each shop background clearly match its theme name. */
+.booth-card.booth-theme-neon, .booth-card .booth-preview.booth-theme-neon { background: linear-gradient(135deg, #06111f 0%, #0e7490 48%, #22d3ee 100%) !important; }
+.booth-card.booth-theme-cyber, .booth-card .booth-preview.booth-theme-cyber { background: linear-gradient(135deg, #09031f 0%, #4c1d95 48%, #db2777 100%) !important; }
+.booth-card.booth-theme-galaxy, .booth-card .booth-preview.booth-theme-galaxy { background: radial-gradient(circle at 20% 18%, #ec4899 0 12%, transparent 32%), radial-gradient(circle at 80% 24%, #22d3ee 0 10%, transparent 30%), linear-gradient(135deg, #090018 0%, #312e81 100%) !important; }
+.booth-card.booth-theme-crystal, .booth-card .booth-preview.booth-theme-crystal { background: linear-gradient(135deg, #0891b2 0%, #e0f2fe 52%, #c4b5fd 100%) !important; color: #06233a !important; }
+.booth-card.booth-theme-gold, .booth-card .booth-preview.booth-theme-gold { background: linear-gradient(135deg, #78350f 0%, #f59e0b 48%, #fde68a 100%) !important; color: #1f1300 !important; }
+.booth-card.booth-theme-shadow, .booth-card .booth-preview.booth-theme-shadow { background: linear-gradient(135deg, #020617 0%, #111827 52%, #4c1d95 100%) !important; }
+.booth-card.booth-theme-royal, .booth-card .booth-preview.booth-theme-royal { background: linear-gradient(135deg, #312e81 0%, #7e22ce 52%, #fbbf24 100%) !important; }
+.booth-card.booth-theme-energy, .booth-card .booth-preview.booth-theme-energy { background: linear-gradient(135deg, #064e3b 0%, #0891b2 48%, #bef264 100%) !important; }
+.booth-card.booth-theme-futuristic, .booth-card .booth-preview.booth-theme-futuristic { background: linear-gradient(135deg, #111827 0%, #2563eb 48%, #22d3ee 100%) !important; }
+.booth-card.booth-theme-mythic, .booth-card .booth-preview.booth-theme-mythic { background: conic-gradient(from 180deg, #7c3aed, #f472b6, #22d3ee, #fbbf24, #7c3aed) !important; }
+.booth-card.booth-theme-crystal .settings-help,
+.booth-card.booth-theme-gold .settings-help { color: rgba(15,23,42,.82) !important; }
