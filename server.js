@@ -428,6 +428,56 @@ function getLeaderboardIdentityKey(user) {
   if (robloxAccountId) return `roblox:${robloxAccountId}`;
   return `user:${user?._id}`;
 }
+function hasRobloxAccount(user) {
+  return !!getRobloxAccountId(user);
+}
+function getLeaderboardDisplayName(user) {
+  return user?.customDisplayName || user?.robloxDisplayName || user?.robloxUsername || user?.discord?.username || 'Player';
+}
+function getLeaderboardAvatarUrl(user) {
+  const robloxAccountId = getRobloxAccountId(user);
+  if (user?.avatarUrl) return user.avatarUrl;
+  return robloxAccountId ? `https://www.roblox.com/headshot-thumbnail/image?userId=${robloxAccountId}&width=150&height=150&format=png` : (user?.discord?.avatarUrl || '');
+}
+function preferLeaderboardUser(current, candidate) {
+  if (!current) return candidate;
+  if (hasRobloxAccount(candidate) && !hasRobloxAccount(current)) return candidate;
+  if (candidate?.avatarUrl && !current?.avatarUrl) return candidate;
+  return current;
+}
+async function collapseLeaderboardTotals(rawTotals, { valueMode = 'sum' } = {}) {
+  const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+  if (!User || !rawTotals?.length) return [];
+  const ids = rawTotals.map(item => String(item._id)).filter(Boolean);
+  const users = await User.find({ _id: { $in: ids } })
+    .select('robloxId robloxUsername robloxDisplayName customDisplayName avatarUrl profile discord')
+    .lean();
+  const usersById = new Map(users.map(user => [String(user._id), user]));
+  const byIdentity = new Map();
+  for (const item of rawTotals) {
+    const user = usersById.get(String(item._id));
+    const key = user ? getLeaderboardIdentityKey(user) : `user:${item._id}`;
+    const total = Number(item.total || item.amount || 0);
+    const current = byIdentity.get(key);
+    if (!current) {
+      byIdentity.set(key, { _id: user?._id || item._id, total, user });
+      continue;
+    }
+    current.total = valueMode === 'max' ? Math.max(current.total, total) : current.total + total;
+    current.user = preferLeaderboardUser(current.user, user) || current.user;
+    current._id = current.user?._id || current._id;
+  }
+  return [...byIdentity.values()]
+    .map(entry => ({
+      _id: entry._id,
+      identityKey: entry.user ? getLeaderboardIdentityKey(entry.user) : `user:${entry._id}`,
+      username: entry.user ? getLeaderboardDisplayName(entry.user) : 'Unknown',
+      amount: entry.total,
+      avatarUrl: entry.user ? getLeaderboardAvatarUrl(entry.user) : ''
+    }))
+    .filter(entry => entry.amount > 0)
+    .sort((a, b) => b.amount - a.amount || String(a._id).localeCompare(String(b._id)));
+}
 function getActiveStreak(user, now = new Date()) {
   const reward = getRewardState(user);
   const lastClaimAt = parseStoredDate(reward.lastClaimDate);
@@ -829,9 +879,9 @@ app.get('/api/streak-leaderboard', async (req, res) => {
     const streak = getActiveStreak(user);
     if (streak <= 0) continue;
     const key = getLeaderboardIdentityKey(user);
-    const entry = { username: getUserDisplayName(user), streak, avatarUrl: getUserAvatarUrl(user), _id: user._id };
+    const entry = { username: getLeaderboardDisplayName(user), streak, avatarUrl: getLeaderboardAvatarUrl(user), _id: user._id, user };
     const current = byIdentity.get(key);
-    if (!current || entry.streak > current.streak) byIdentity.set(key, entry);
+    if (!current || entry.streak > current.streak || (entry.streak === current.streak && hasRobloxAccount(entry.user) && !hasRobloxAccount(current.user))) byIdentity.set(key, entry);
   }
   res.json([...byIdentity.values()].sort((a, b) => b.streak - a.streak || String(a._id).localeCompare(String(b._id))).slice(0, 10).map(({ username, streak, avatarUrl }) => ({ username, streak, avatarUrl })));
 });
@@ -1515,15 +1565,15 @@ app.get('/api/leaderboard', async (req, res) => {
   else if (period === 'total') startDate = new Date(0);
   const match = period === 'total' ? {} : { timestamp: { $gte: startDate } };
 
-  const rankOf = (arr, id) => id ? arr.findIndex(item => String(item._id) === String(id)) + 1 : 0;
-  const enrichDonationLeaders = async (arr) => {
-    const result = [];
-    for (const item of arr.slice(0, 10)) {
-      const user = await User.findById(item._id).select('robloxId robloxUsername robloxDisplayName customDisplayName avatarUrl profile discord');
-      result.push({ username: user ? getUserDisplayName(user) : 'Unknown', amount: item.total, avatarUrl: user ? getUserAvatarUrl(user) : '' });
-    }
-    return result;
+  const viewer = viewerId ? await User.findById(viewerId).select('robloxId discord').lean() : null;
+  const viewerIdentityKey = viewer ? getLeaderboardIdentityKey(viewer) : null;
+  const rankOf = (arr, id) => {
+    if (!id) return 0;
+    const directRank = arr.findIndex(item => String(item._id) === String(id)) + 1;
+    if (directRank) return directRank;
+    return viewerIdentityKey ? arr.findIndex(item => item.identityKey === viewerIdentityKey) + 1 : 0;
   };
+  const withIdentityKeys = (arr) => arr.map(item => ({ ...item, identityKey: item.identityKey || (item.user ? getLeaderboardIdentityKey(item.user) : `user:${item._id}`) }));
 
   const receiverTotals = await Donation.aggregate([
     { $match: match },
@@ -1539,15 +1589,10 @@ app.get('/api/leaderboard', async (req, res) => {
   const coinUsers = await User.find({ $or: [{ totalCoins: { $gt: 0 } }, { coins: { $gt: 0 } }] })
     .select('robloxId robloxUsername robloxDisplayName customDisplayName avatarUrl profile discord coins totalCoins')
     .lean();
-  const coinTotals = coinUsers
-    .map(user => ({
-      _id: user._id,
-      username: getUserDisplayName(user),
-      amount: getCoinBalance(user),
-      avatarUrl: getUserAvatarUrl(user)
-    }))
-    .filter(user => user.amount > 0)
-    .sort((a, b) => b.amount - a.amount || String(a._id).localeCompare(String(b._id)));
+  const coinTotals = withIdentityKeys(await collapseLeaderboardTotals(
+    coinUsers.map(user => ({ _id: user._id, total: getCoinBalance(user) })),
+    { valueMode: 'max' }
+  ));
 
   const streakCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const streakUsers = await User.find({ 'dailyReward.streak': { $gt: 0 }, $or: [{ 'dailyReward.lastClaimDate': { $gte: streakCutoff } }, { lastClaimDate: { $gte: streakCutoff } }] })
@@ -1559,20 +1604,22 @@ app.get('/api/leaderboard', async (req, res) => {
     const streak = getActiveStreak(user);
     if (streak <= 0) continue;
     const key = getLeaderboardIdentityKey(user);
-    const entry = { _id: user._id, username: getUserDisplayName(user), avatarUrl: getUserAvatarUrl(user), streak };
+    const entry = { _id: user._id, user, username: getLeaderboardDisplayName(user), avatarUrl: getLeaderboardAvatarUrl(user), streak, identityKey: key };
     const current = streakMap.get(key);
-    if (!current || entry.streak > current.streak) streakMap.set(key, entry);
+    if (!current || entry.streak > current.streak || (entry.streak === current.streak && hasRobloxAccount(entry.user) && !hasRobloxAccount(current.user))) streakMap.set(key, entry);
   }
   const streakTotals = [...streakMap.values()].sort((a, b) => b.streak - a.streak || String(a._id).localeCompare(String(b._id)));
+  const receiverLeaders = withIdentityKeys(await collapseLeaderboardTotals(receiverTotals));
+  const donorLeaders = withIdentityKeys(await collapseLeaderboardTotals(donorTotals));
 
   res.json({
-    receivers: await enrichDonationLeaders(receiverTotals),
-    donors: await enrichDonationLeaders(donorTotals),
+    receivers: receiverLeaders.slice(0, 10).map(user => ({ username: user.username, amount: user.amount, avatarUrl: user.avatarUrl })),
+    donors: donorLeaders.slice(0, 10).map(user => ({ username: user.username, amount: user.amount, avatarUrl: user.avatarUrl })),
     coins: coinTotals.slice(0, 10).map(user => ({ username: user.username, amount: user.amount, avatarUrl: user.avatarUrl })),
     streaks: streakTotals.slice(0, 10).map(user => ({ username: user.username, streak: user.streak, avatarUrl: user.avatarUrl })),
     ranks: {
-      receivers: leaderboardRankLabel(rankOf(receiverTotals, viewerId)),
-      donors: leaderboardRankLabel(rankOf(donorTotals, viewerId)),
+      receivers: leaderboardRankLabel(rankOf(receiverLeaders, viewerId)),
+      donors: leaderboardRankLabel(rankOf(donorLeaders, viewerId)),
       coins: leaderboardRankLabel(rankOf(coinTotals, viewerId)),
       streaks: leaderboardRankLabel(rankOf(streakTotals, viewerId))
     }
