@@ -1573,9 +1573,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join-room', async (payload) => {
+  socket.on('join-room', async (payload, ack) => {
     const roomId = typeof payload === 'object' && payload !== null ? payload.roomId : payload;
-    if (!roomId) return;
+    if (!roomId) { if (typeof ack === 'function') ack({ success: false, error: 'Room ID required' }); return; }
     if (typeof payload === 'object' && payload !== null) {
       if (!socket.userId && payload.token) {
         try {
@@ -1601,7 +1601,8 @@ io.on('connection', (socket) => {
     }
     currentRoomId = roomId;
     socket.join(roomId);
-    await reconcileRoomPresence(roomId);
+    const players = await reconcileRoomPresence(roomId);
+    if (typeof ack === 'function') ack({ success: true, roomId, players });
     console.log(`Socket ${socket.id} joined room ${roomId}`);
   });
 
