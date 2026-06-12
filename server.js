@@ -320,13 +320,17 @@ const staticFileOptions = {
     if (fileName === 'robots.txt') res.type('text/plain');
   }
 };
-const crawlerStaticFileOptions = { ...staticFileOptions, fallthrough: false, redirect: false };
-
 // Serve crawler-facing public files before body parsing, auth, rate limits,
 // redirects, and SPA fallbacks so external fetchers get the static assets.
-// Mount sitemap.xml explicitly so missing/misconfigured files never fall
-// through to auth, React/SPA, or the repository-root static middleware.
-app.get('/sitemap.xml', express.static(publicDir, crawlerStaticFileOptions));
+// Send sitemap.xml directly from public/ so it cannot be handled by auth,
+// React/SPA routing, or the repository-root static middleware.
+app.get('/sitemap.xml', (req, res, next) => {
+  res.sendFile(path.join(publicDir, 'sitemap.xml'), {
+    headers: { 'Content-Type': 'application/xml' }
+  }, (err) => {
+    if (err) next(err);
+  });
+});
 app.use(express.static(publicDir, staticFileOptions));
 
 app.use(express.json());
