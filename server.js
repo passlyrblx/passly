@@ -310,6 +310,21 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 8000, socketTimeoutMS: 2
   server.listen(PORT, () => console.log(`Passly running on port ${PORT} (no DB)`));
 });
 app.set('trust proxy', 1);
+
+const publicDir = path.join(__dirname, 'public');
+const staticFileOptions = {
+  index: false,
+  setHeaders(res, filePath) {
+    const fileName = path.basename(filePath);
+    if (fileName === 'sitemap.xml') res.type('application/xml');
+    if (fileName === 'robots.txt') res.type('text/plain');
+  }
+};
+
+// Serve crawler-facing public files before body parsing, auth, rate limits,
+// redirects, and SPA fallbacks so external fetchers get the static assets.
+app.use(express.static(publicDir, staticFileOptions));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -335,7 +350,7 @@ app.get('/api/roblox-game-thumbnail', async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname), staticFileOptions));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { error: 'Too many requests, try again later.' } });

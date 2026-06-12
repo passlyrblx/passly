@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://passly.nxtdev.xyz/</loc>
+  </url>
+  <url>
+    <loc>https://passly.nxtdev.xyz/rooms/</loc>
+  </url>
+  <url>
+    <loc>https://passly.nxtdev.xyz/game-rooms/</loc>
+  </url>
+  <url>
+    <loc>https://passly.nxtdev.xyz/leaderboard/</loc>
+  </url>
+  <url>
+    <loc>https://passly.nxtdev.xyz/privacy/</loc>
+  </url>
+  <url>
+    <loc>https://passly.nxtdev.xyz/terms/</loc>
+  </url>
+</urlset>
