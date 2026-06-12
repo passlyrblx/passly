@@ -441,8 +441,12 @@
     const owned = (economy.booth?.ownedThemes || ['default']).includes(theme.id);
     const active = economy.booth?.activeTheme === theme.id;
     const price = window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(theme.price, 'small') : Number(theme.price).toLocaleString();
+    const status = active ? 'Equipped' : owned ? 'Owned' : 'Shop drop';
+    const samplePrices = { neon: 15, cyber: 25, galaxy: 50, crystal: 75, gold: 100, shadow: 250, royal: 500, energy: 750, futuristic: 1000, mythic: 5000 };
+    const vibe = { neon: 'Arcade lights tuned for quick tips.', cyber: 'Hacker grid for techy flex boards.', galaxy: 'Starfield aura around every pass.', crystal: 'Clean icy shine for rare drops.', gold: 'Luxury spotlight for premium passes.', shadow: 'Dark VIP mood with purple edge.', royal: 'Crown-stage booth for big goals.', energy: 'Charged green boost for active rooms.', futuristic: 'Hologram booth for mega menus.', mythic: 'Rainbow relic built for whales.' };
+    const sample = samplePrices[theme.id] || 25;
     const btn = active ? '<button disabled>Equipped</button>' : owned ? `<button onclick="equipBooth('${theme.id}')">Equip</button>` : `<button onclick="purchaseBooth('${theme.id}')">Buy ${price}</button>`;
-    return `<div class="booth-card booth-theme-${theme.id}"><div class="booth-preview booth-theme-${theme.id}">${escapeHtml(theme.name)}</div><h3>${escapeHtml(theme.name)}</h3><p>${escapeHtml(theme.tier)}${theme.animated ? ' · animated glow' : ''}</p>${btn}</div>`;
+    return `<div class="booth-card booth-theme-${escapeHtml(theme.id)} ${active ? 'is-equipped' : ''}"><div class="booth-preview booth-theme-${escapeHtml(theme.id)}" aria-label="${escapeHtml(theme.name)} booth preview"><span class="booth-preview-status">${status}</span><span class="booth-preview-title">${escapeHtml(theme.name)}</span><span class="booth-pass-stack"><span>Gamepass</span><strong>R$ ${sample.toLocaleString()}</strong></span><span class="booth-pass-stack booth-pass-stack-alt"><span>Tip Jar</span><strong>R$ ${(sample * 2).toLocaleString()}</strong></span></div><div class="booth-card-copy"><span class="booth-tier-pill">${escapeHtml(theme.tier)}${theme.animated ? ' · animated' : ''}</span><h3>${escapeHtml(theme.name)}</h3><p class="settings-help">${escapeHtml(vibe[theme.id] || 'A premium booth skin for your gamepasses.')}</p></div>${btn}</div>`;
   }
   async function loadBoothShop() {
     const grid = document.getElementById('boothShopGrid');
