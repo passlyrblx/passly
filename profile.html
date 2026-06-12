@@ -281,6 +281,7 @@
   function requireLogin(cb) { if(!token) { PasslyUI.toast('Please log in with Roblox to continue.'); window.location.href='/auth/roblox'; return; } cb(); }
   function escapeHtml(str) { if(!str) return ''; return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m])); }
   function boothThemeClass(booth) { const theme = String(booth?.activeTheme || 'default').toLowerCase(); return /^[a-z0-9-]+$/.test(theme) ? `booth-theme-${theme}` : 'booth-theme-default'; }
+  function applyBoothTheme(el, booth) { if(!el) return; el.className = el.className.replace(/\bbooth-theme-[a-z0-9-]+\b/g, '').replace(/\bpassly-booth-surface\b/g, '').trim(); if(booth) el.classList.add('passly-booth-surface', boothThemeClass(booth)); }
   function toggleNotificationPanel() { const panel = document.getElementById('notificationPanel'); panel.classList.toggle('open'); if(panel.classList.contains('open')) loadNotifications(); }
   function applyNotificationPrefs(prefs = {}) { document.getElementById('notifyOfflineDonations').checked = prefs.offlineDonations !== false; document.getElementById('notifyFriendRequests').checked = prefs.friendRequests !== false; document.getElementById('notifyFriendMessages').checked = prefs.friendMessages !== false; document.getElementById('notifyFriendAccepted').checked = prefs.friendAccepted !== false; }
   async function saveNotificationPrefs() { const preferences = { offlineDonations: document.getElementById('notifyOfflineDonations').checked, friendRequests: document.getElementById('notifyFriendRequests').checked, friendMessages: document.getElementById('notifyFriendMessages').checked, friendAccepted: document.getElementById('notifyFriendAccepted').checked }; const res = await fetch('/api/profile/notifications', { method:'POST', headers:authHeaders(), body:JSON.stringify({ preferences }) }); const data = await res.json().catch(() => ({})); if(res.ok) { PasslyUI.success('Notification settings saved.'); userData.notificationPreferences = data.preferences; } else PasslyUI.error(data.error || 'Could not save notification settings.'); }
@@ -386,6 +387,7 @@
   function renderBoardGamepasses(board = []) {
     const grid = document.getElementById('boardGamepassGrid');
     if(!grid) return;
+    applyBoothTheme(grid, null);
     grid.innerHTML = board.length ? board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${escapeHtml(gp.id)}')">✖</button><span class="board-gamepass-amount">💰 ${Number(gp.price || 0).toLocaleString()} Robux</span><span class="board-gamepass-name">${escapeHtml(gp.name || 'Gamepass')}</span></div>`).join('') : '<p>No gamepasses added yet.</p>';
   }
   function boothPassLinks(board = []) {
@@ -393,11 +395,13 @@
   }
   function viewBoardGamepassIds() {
     const grid = document.getElementById('boardGamepassGrid');
+    applyBoothTheme(grid, null);
     const board = [...(userData?.board || [])].sort((a,b) => Number(a.price || 0) - Number(b.price || 0));
     grid.innerHTML = board.length ? `<div class="gp-list">${board.map(gp => `<div class="gp-list-item"><strong>${escapeHtml(gp.name || 'Gamepass')}</strong><span>ID: ${escapeHtml(gp.id)}</span></div>`).join('')}</div>` : '<p>No gamepasses added yet.</p>';
   }
   function viewBoardAsBooth() {
     const grid = document.getElementById('boardGamepassGrid');
+    applyBoothTheme(grid, userData?.booth);
     grid.innerHTML = `<div class="booth-pass-row">${boothPassLinks(userData?.board || [])}</div>`;
   }
   async function addGamepassToBoard() {

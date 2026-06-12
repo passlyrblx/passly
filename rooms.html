@@ -1000,6 +1000,7 @@ window.closeBoardModal = function() {
 };
 
 window.viewMyGamepassIds = function() {
+  applyBoothTheme(document.getElementById('boardModal'), { activeTheme: 'default' });
   const grid = document.getElementById('boardGamepassGrid');
   const board = [...(userData?.board || [])].sort((a,b) => Number(a.price || 0) - Number(b.price || 0));
   grid.innerHTML = board.length ? `<div class="gp-list">${board.map(gp => `<div class="gp-list-item"><strong>${escapeHtml(gp.name || 'Gamepass')}</strong><span>ID: ${escapeHtml(gp.id)}</span></div>`).join('')}</div>` : '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
@@ -1008,6 +1009,7 @@ function boothPassLinks(board = [], receiverId = '', receiverName = '') {
   return [...board].sort((a,b) => Number(a.price || 0) - Number(b.price || 0)).map(gp => receiverId ? `<button class="booth-pass-link" type="button" onclick="quickDonate('${receiverId}', '${escapeHtml(gp.id)}', ${Number(gp.price || 0)}, 'Player')"><span>${Number(gp.price || 0).toLocaleString()} R$</span></button>` : `<a class="booth-pass-link" href="https://www.roblox.com/game-pass/${encodeURIComponent(gp.id)}" target="_blank" rel="noopener"><span>${Number(gp.price || 0).toLocaleString()} R$</span></a>`).join('') || '<p style="color:#a0a0b0;">No gamepasses added yet.</p>';
 }
 window.viewMyBooth = function() {
+  applyBoothTheme(document.getElementById('boardModal'), userData?.booth);
   const grid = document.getElementById('boardGamepassGrid');
   grid.innerHTML = `<div class="booth-pass-row">${boothPassLinks(userData?.board || [])}</div>`;
 };
