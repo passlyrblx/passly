@@ -16,19 +16,240 @@
 <div class="mobile-menu" id="mobileMenu"><button class="close-menu" id="closeMenuBtn">&times;</button><a href="/dashboard">🏠 Home</a><a href="/rooms">🚪 Rooms</a><a href="/leaderboard">🏆 Leaderboard</a><a href="/profile">👤 Profile</a><a href="/livedonations">💸 Live Donations</a></div><div class="menu-overlay" id="menuOverlay"></div>
 <main class="main-content"><h1>🏪 Booths</h1><div class="profile-page-nav"><a href="/profile">Profile</a><a href="/find-player">Find Player</a><a class="active" href="/booths">Booths</a></div>
 <section class="section-card"><h3 style="color:#a78bfa;margin-bottom:12px;">🎁 My Board</h3><p class="settings-help">Add the gamepasses that players can donate to from your booth.</p><div class="add-board-section"><input type="text" id="newGamepassId" placeholder="Gamepass Asset ID"><input type="number" id="newGamepassPrice" placeholder="Robux (auto)" min="1"><button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())">Add</button></div><div id="boardAddStatus" class="settings-help"></div><div class="board-gamepass-grid" id="boardGamepassGrid"><p>No gamepasses added yet.</p></div></section>
-<section class="section-card" id="earn-passly"><h3 style="color:#a78bfa;margin-bottom:12px;">✨ Booth Shop & Earn Passly</h3><p style="margin-bottom:10px;">Buy and equip booth themes with your coin balance: <span data-passly-coins data-coin-size="medium">0</span></p><p class="settings-help">Earn Passly through daily rewards, donations, and coupons. Discord fans get extra Passly on every income. <span class="discord-join-link" onclick="openSupportDiscord()">Click here</span> to join.</p><div class="booth-shop-grid" id="boothShopGrid"><p>Loading booths...</p></div></section></main>
+<section class="section-card" id="earn-passly"><h3 style="color:#a78bfa;margin-bottom:12px;">✨ Booth Shop & Earn Passly</h3><p style="margin-bottom:10px;">Buy and equip booth themes with your coin balance: <span data-passly-coins data-coin-size="medium">0</span></p><p class="settings-help">Earn Passly through daily rewards, donations, and coupons. Discord fans get extra Passly on every income. <span class="discord-join-link" onclick="openSupportDiscord()">Click here</span> to join.</p><p class="booth-carousel-hint">Swipe the booth deck left or right. The centered booth is selected; its price and buy/equip button appear below.</p><div class="booth-shop-grid booth-carousel" id="boothShopGrid" aria-live="polite"><p>Loading booths...</p></div></section></main>
 <script>
-let token=localStorage.getItem('passly_token');let userData=null;(function(){const hash=window.location.hash;if(hash&&hash.includes('token=')){const tokenPart=hash.split('token=')[1].split('&')[0];localStorage.setItem('passly_token',tokenPart);token=tokenPart;history.replaceState(null,null,' ');}})();
-function authHeaders(){const h={'Content-Type':'application/json'};if(token)h.Authorization=`Bearer ${token}`;return h;}function requireLogin(cb){if(!token){PasslyUI.toast('Please log in with Roblox to continue.');window.location.href='/auth/roblox';return;}cb();}function escapeHtml(str){if(!str)return'';return String(str).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}function tagBadgeHtml(tag){if(Array.isArray(tag))return tag.map(tagBadgeHtml).join('');return tag?.label?` <span class="tag-badge tag-${escapeHtml(String(tag.key||'').toLowerCase())}">${escapeHtml(tag.label)}</span>`:'';}function openSupportDiscord(){window.location.href='https://discord.gg/9qNpCGztun';}
-function setAvatarWithFallback(el,url,fallback){if(!el)return;const apply=src=>{el.style.backgroundImage=src?`url("${src}")`:''};const primary=url||fallback;if(!primary)return;const img=new Image();img.onload=()=>apply(primary);img.onerror=()=>apply(fallback&&fallback!==primary?fallback:'');img.src=primary;}
-async function init(){if(!token){document.getElementById('userName').textContent='Guest';document.getElementById('boothShopGrid').innerHTML='<p>Log in to buy and equip booth themes.</p>';return;}const res=await fetch('/api/user',{headers:{Authorization:`Bearer ${token}`}});if(!res.ok){localStorage.removeItem('passly_token');window.location.href='/profile';return;}userData=await res.json();document.getElementById('userName').innerHTML=escapeHtml(userData.displayName||userData.robloxUsername||'Player')+tagBadgeHtml(userData.displayTags || userData.displayTag);setAvatarWithFallback(document.getElementById('userAvatar'),userData.avatarUrl,userData.avatarFallback);window.PasslyUI?.updateCoinDisplays?.(userData.coins||0);renderBoard(userData.board||[]);await loadBoothShop();}
-function renderBoard(board){document.getElementById('boardGamepassGrid').innerHTML=board.length?board.map(gp=>`<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${escapeHtml(gp.id)}')">✖</button><span class="board-gamepass-amount">💰 ${Number(gp.price||0).toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${escapeHtml(gp.id)}</span></div>`).join(''):'<p>No gamepasses added yet.</p>';}
-async function addGamepassToBoard(){const assetId=document.getElementById('newGamepassId').value.trim();const price=parseInt(document.getElementById('newGamepassPrice').value,10);if(!assetId){PasslyUI.toast('Enter a gamepass asset ID.');return;}const res=await fetch('/api/board/add',{method:'POST',headers:authHeaders(),body:JSON.stringify({assetId,price})});const data=await res.json();if(data.error)PasslyUI.toast(data.error);else{userData.board=data.board;renderBoard(data.board);document.getElementById('newGamepassId').value='';document.getElementById('newGamepassPrice').value='';}}
-async function removeGamepass(assetId){if(!await PasslyUI.confirm('Remove this gamepass?',{confirmText:'Remove'}))return;const res=await fetch('/api/board/remove',{method:'POST',headers:authHeaders(),body:JSON.stringify({assetId})});const data=await res.json();if(data.success){userData.board=data.board;renderBoard(data.board);}}
-function boothCard(theme,economy){const owned=(economy.booth?.ownedThemes||['default']).includes(theme.id);const active=economy.booth?.activeTheme===theme.id;const price=window.PasslyUI?.renderCoins?PasslyUI.renderCoins(theme.price,'small'):Number(theme.price).toLocaleString();const status=active?'Equipped':owned?'Owned':'Shop drop';const samplePrices={neon:15,cyber:25,galaxy:50,crystal:75,gold:100,shadow:250,royal:500,energy:750,futuristic:1000,mythic:5000};const vibe={neon:'Arcade lights tuned for quick tips.',cyber:'Hacker grid for techy flex boards.',galaxy:'Starfield aura around every pass.',crystal:'Clean icy shine for rare drops.',gold:'Luxury spotlight for premium passes.',shadow:'Dark VIP mood with purple edge.',royal:'Crown-stage booth for big goals.',energy:'Charged green boost for active rooms.',futuristic:'Hologram booth for mega menus.',mythic:'Rainbow relic built for whales.'};const sample=samplePrices[theme.id]||25;const btn=active?'<button disabled>Equipped</button>':owned?`<button onclick="equipBooth('${theme.id}')">Equip</button>`:`<button onclick="purchaseBooth('${theme.id}')">Buy ${price}</button>`;return`<div class="booth-card booth-theme-${escapeHtml(theme.id)} ${active?'is-equipped':''}"><div class="booth-preview booth-theme-${escapeHtml(theme.id)}" aria-label="${escapeHtml(theme.name)} booth preview"><span class="booth-preview-status">${status}</span><span class="booth-preview-title">${escapeHtml(theme.name)}</span><span class="booth-pass-stack"><span>Gamepass</span><strong>R$ ${sample.toLocaleString()}</strong></span><span class="booth-pass-stack booth-pass-stack-alt"><span>Tip Jar</span><strong>R$ ${(sample*2).toLocaleString()}</strong></span></div><div class="booth-card-copy"><span class="booth-tier-pill">${escapeHtml(theme.tier)}${theme.animated?' · animated':''}</span><h3>${escapeHtml(theme.name)}</h3><p class="settings-help">${escapeHtml(vibe[theme.id]||'A premium booth skin for your gamepasses.')}</p></div>${btn}</div>`;}
-async function loadBoothShop(){const grid=document.getElementById('boothShopGrid');try{const res=await fetch('/api/booths',{headers:authHeaders()});const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load booths.');userData={...userData,...data};window.PasslyUI?.updateCoinDisplays?.(data.coins||0);grid.innerHTML=data.themes.map(theme=>boothCard(theme,data)).join('');}catch(e){grid.innerHTML=`<p style="color:#f87171;">${escapeHtml(e.message)}</p>`;}}
-async function purchaseBooth(themeId){try{const res=await fetch('/api/booths/purchase',{method:'POST',headers:authHeaders(),body:JSON.stringify({themeId})});const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not purchase booth.');PasslyUI.success(`Purchased ${data.purchased.name}!`);await loadBoothShop();}catch(e){PasslyUI.error(e.message);}}
-async function equipBooth(themeId){try{const res=await fetch('/api/booths/equip',{method:'POST',headers:authHeaders(),body:JSON.stringify({themeId})});const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not equip booth.');PasslyUI.success('Booth equipped.');await loadBoothShop();}catch(e){PasslyUI.error(e.message);}}
+let token = localStorage.getItem('passly_token');
+let userData = null;
+let boothShopThemes = [];
+let boothShopEconomy = null;
+let selectedBoothIndex = 0;
+let boothTouchStartX = 0;
+let boothTouchDeltaX = 0;
+
+(function () {
+  const hash = window.location.hash;
+  if (hash && hash.includes('token=')) {
+    const tokenPart = hash.split('token=')[1].split('&')[0];
+    localStorage.setItem('passly_token', tokenPart);
+    token = tokenPart;
+    history.replaceState(null, null, ' ');
+  }
+})();
+
+function authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (token) h.Authorization = `Bearer ${token}`;
+  return h;
+}
+function requireLogin(cb) {
+  if (!token) {
+    PasslyUI.toast('Please log in with Roblox to continue.');
+    window.location.href = '/auth/roblox';
+    return;
+  }
+  cb();
+}
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+function tagBadgeHtml(tag) {
+  if (Array.isArray(tag)) return tag.map(tagBadgeHtml).join('');
+  return tag?.label ? ` <span class="tag-badge tag-${escapeHtml(String(tag.key || '').toLowerCase())}">${escapeHtml(tag.label)}</span>` : '';
+}
+function openSupportDiscord() { window.location.href = 'https://discord.gg/9qNpCGztun'; }
+function setAvatarWithFallback(el, url, fallback) {
+  if (!el) return;
+  const apply = src => { el.style.backgroundImage = src ? `url("${src}")` : ''; };
+  const primary = url || fallback;
+  if (!primary) return;
+  const img = new Image();
+  img.onload = () => apply(primary);
+  img.onerror = () => apply(fallback && fallback !== primary ? fallback : '');
+  img.src = primary;
+}
+
+async function init() {
+  if (!token) {
+    document.getElementById('userName').textContent = 'Guest';
+    document.getElementById('boothShopGrid').innerHTML = '<p>Log in to buy and equip booth themes.</p>';
+    return;
+  }
+  const res = await fetch('/api/user', { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    localStorage.removeItem('passly_token');
+    window.location.href = '/profile';
+    return;
+  }
+  userData = await res.json();
+  document.getElementById('userName').innerHTML = escapeHtml(userData.displayName || userData.robloxUsername || 'Player') + tagBadgeHtml(userData.displayTags || userData.displayTag);
+  setAvatarWithFallback(document.getElementById('userAvatar'), userData.avatarUrl, userData.avatarFallback);
+  window.PasslyUI?.updateCoinDisplays?.(userData.coins || 0);
+  renderBoard(userData.board || []);
+  await loadBoothShop();
+}
+function renderBoard(board) {
+  document.getElementById('boardGamepassGrid').innerHTML = board.length ? board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${escapeHtml(gp.id)}')">✖</button><span class="board-gamepass-amount">💰 ${Number(gp.price || 0).toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${escapeHtml(gp.id)}</span></div>`).join('') : '<p>No gamepasses added yet.</p>';
+}
+async function addGamepassToBoard() {
+  const assetId = document.getElementById('newGamepassId').value.trim();
+  const price = parseInt(document.getElementById('newGamepassPrice').value, 10);
+  if (!assetId) { PasslyUI.toast('Enter a gamepass asset ID.'); return; }
+  const res = await fetch('/api/board/add', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId, price }) });
+  const data = await res.json();
+  if (data.error) PasslyUI.toast(data.error);
+  else {
+    userData.board = data.board;
+    renderBoard(data.board);
+    document.getElementById('newGamepassId').value = '';
+    document.getElementById('newGamepassPrice').value = '';
+  }
+}
+async function removeGamepass(assetId) {
+  if (!await PasslyUI.confirm('Remove this gamepass?', { confirmText: 'Remove' })) return;
+  const res = await fetch('/api/board/remove', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ assetId }) });
+  const data = await res.json();
+  if (data.success) { userData.board = data.board; renderBoard(data.board); }
+}
+
+const samplePrices = { neon: 15, cyber: 25, galaxy: 50, crystal: 75, gold: 100, shadow: 250, royal: 500, energy: 750, futuristic: 1000, mythic: 5000 };
+const boothVibes = { neon: 'Arcade lights tuned for quick tips.', cyber: 'Hacker grid for techy flex boards.', galaxy: 'Starfield aura around every pass.', crystal: 'Clean icy shine for rare drops.', gold: 'Luxury spotlight for premium passes.', shadow: 'Dark VIP mood with purple edge.', royal: 'Crown-stage booth for big goals.', energy: 'Charged green boost for active rooms.', futuristic: 'Hologram booth for mega menus.', mythic: 'Rainbow relic built for whales.' };
+
+function boothPrice(theme) {
+  return window.PasslyUI?.renderCoins ? PasslyUI.renderCoins(theme.price, 'small') : Number(theme.price).toLocaleString();
+}
+function boothState(theme, economy = boothShopEconomy) {
+  const owned = (economy?.booth?.ownedThemes || ['default']).includes(theme.id);
+  const active = economy?.booth?.activeTheme === theme.id;
+  return { owned, active, status: active ? 'Equipped' : owned ? 'Owned' : 'Shop drop' };
+}
+function carouselPosition(index) {
+  const total = boothShopThemes.length;
+  let position = index - selectedBoothIndex;
+  if (total > 2) {
+    if (position > total / 2) position -= total;
+    if (position < -total / 2) position += total;
+  }
+  return Math.max(-3, Math.min(3, position));
+}
+function boothCard(theme, economy, index) {
+  const state = boothState(theme, economy);
+  const sample = samplePrices[theme.id] || 25;
+  const position = carouselPosition(index);
+  const isVisible = Math.abs(position) <= 1;
+  return `<div role="button" class="booth-card booth-theme-${escapeHtml(theme.id)} ${state.active ? 'is-equipped' : ''} ${position === 0 ? 'is-selected' : ''}" data-position="${position}" data-index="${index}" aria-label="Select ${escapeHtml(theme.name)} booth" aria-hidden="${isVisible ? 'false' : 'true'}" tabindex="${isVisible ? '0' : '-1'}" onclick="selectBooth(${index})" onkeydown="handleBoothCardKey(event, ${index})">
+    <div class="booth-preview booth-theme-${escapeHtml(theme.id)}" aria-label="${escapeHtml(theme.name)} booth preview">
+      <span class="booth-preview-status">${state.status}</span>
+      <span class="booth-preview-title">${escapeHtml(theme.name)}</span>
+      <span class="booth-pass-stack"><span>Gamepass</span><strong>R$ ${sample.toLocaleString()}</strong></span>
+      <span class="booth-pass-stack booth-pass-stack-alt"><span>Tip Jar</span><strong>R$ ${(sample * 2).toLocaleString()}</strong></span>
+    </div>
+    <div class="booth-card-copy">
+      <span class="booth-tier-pill">${escapeHtml(theme.tier)}${theme.animated ? ' · animated' : ''}</span>
+      <h3>${escapeHtml(theme.name)}</h3>
+      <p class="settings-help">${escapeHtml(boothVibes[theme.id] || 'A premium booth skin for your gamepasses.')}</p>
+    </div>
+  </div>`;
+}
+function handleBoothCardKey(event, index) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    selectBooth(index);
+  }
+}
+function boothActionHtml(theme) {
+  const state = boothState(theme);
+  if (state.active) return '<button class="booth-carousel-action" disabled>Equipped</button>';
+  if (state.owned) return `<button class="booth-carousel-action" onclick="equipBooth('${theme.id}')">Equip Booth</button>`;
+  return `<button class="booth-carousel-action" onclick="purchaseBooth('${theme.id}')">Buy for ${boothPrice(theme)}</button>`;
+}
+function renderBoothCarousel() {
+  const grid = document.getElementById('boothShopGrid');
+  if (!boothShopThemes.length) {
+    grid.innerHTML = '<p>No booth themes are available yet.</p>';
+    return;
+  }
+  selectedBoothIndex = ((selectedBoothIndex % boothShopThemes.length) + boothShopThemes.length) % boothShopThemes.length;
+  const selected = boothShopThemes[selectedBoothIndex];
+  const state = boothState(selected);
+  grid.innerHTML = `
+    <div class="booth-carousel-stage" role="region" aria-label="Swipeable booth selector">
+      <button type="button" class="booth-carousel-nav booth-carousel-prev" aria-label="Previous booth" onclick="moveBooth(-1)">‹</button>
+      <div class="booth-carousel-track">
+        ${boothShopThemes.map((theme, index) => boothCard(theme, boothShopEconomy, index)).join('')}
+      </div>
+      <button type="button" class="booth-carousel-nav booth-carousel-next" aria-label="Next booth" onclick="moveBooth(1)">›</button>
+    </div>
+    <div class="booth-carousel-dots" aria-hidden="true">${boothShopThemes.map((_, index) => `<span class="${index === selectedBoothIndex ? 'active' : ''}"></span>`).join('')}</div>
+    <div class="booth-carousel-details">
+      <span class="booth-tier-pill">${escapeHtml(selected.tier)}${selected.animated ? ' · animated' : ''}</span>
+      <h3>${escapeHtml(selected.name)} Booth</h3>
+      <p>${escapeHtml(boothVibes[selected.id] || 'A premium booth skin for your gamepasses.')}</p>
+      <div class="booth-carousel-rate"><span>${state.owned ? state.status : 'Rate'}</span><strong>${state.owned ? 'Ready to use' : boothPrice(selected)}</strong></div>
+      ${boothActionHtml(selected)}
+    </div>`;
+  bindBoothSwipe();
+}
+function selectBooth(index) {
+  selectedBoothIndex = index;
+  renderBoothCarousel();
+}
+function moveBooth(direction) {
+  selectedBoothIndex += direction;
+  renderBoothCarousel();
+}
+function bindBoothSwipe() {
+  const stage = document.querySelector('.booth-carousel-stage');
+  if (!stage) return;
+  stage.addEventListener('touchstart', event => { boothTouchStartX = event.touches[0].clientX; boothTouchDeltaX = 0; }, { passive: true });
+  stage.addEventListener('touchmove', event => { boothTouchDeltaX = event.touches[0].clientX - boothTouchStartX; }, { passive: true });
+  stage.addEventListener('touchend', () => {
+    if (Math.abs(boothTouchDeltaX) > 45) moveBooth(boothTouchDeltaX < 0 ? 1 : -1);
+  });
+  stage.addEventListener('keydown', event => {
+    if (event.key === 'ArrowLeft') moveBooth(-1);
+    if (event.key === 'ArrowRight') moveBooth(1);
+  });
+}
+async function loadBoothShop() {
+  const grid = document.getElementById('boothShopGrid');
+  try {
+    const res = await fetch('/api/booths', { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load booths.');
+    userData = { ...userData, ...data };
+    boothShopThemes = data.themes || [];
+    boothShopEconomy = data;
+    const activeIndex = boothShopThemes.findIndex(theme => theme.id === data.booth?.activeTheme);
+    selectedBoothIndex = activeIndex >= 0 ? activeIndex : 0;
+    window.PasslyUI?.updateCoinDisplays?.(data.coins || 0);
+    renderBoothCarousel();
+  } catch (e) {
+    grid.innerHTML = `<p style="color:#f87171;">${escapeHtml(e.message)}</p>`;
+  }
+}
+async function purchaseBooth(themeId) {
+  try {
+    const res = await fetch('/api/booths/purchase', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ themeId }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not purchase booth.');
+    PasslyUI.success(`Purchased ${data.purchased.name}!`);
+    await loadBoothShop();
+    const purchasedIndex = boothShopThemes.findIndex(theme => theme.id === themeId);
+    if (purchasedIndex >= 0) { selectedBoothIndex = purchasedIndex; renderBoothCarousel(); }
+  } catch (e) { PasslyUI.error(e.message); }
+}
+async function equipBooth(themeId) {
+  try {
+    const res = await fetch('/api/booths/equip', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ themeId }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not equip booth.');
+    PasslyUI.success('Booth equipped.');
+    await loadBoothShop();
+    const equippedIndex = boothShopThemes.findIndex(theme => theme.id === themeId);
+    if (equippedIndex >= 0) { selectedBoothIndex = equippedIndex; renderBoothCarousel(); }
+  } catch (e) { PasslyUI.error(e.message); }
+}
 init();
 </script><script>const hamburger=document.getElementById('hamburgerBtn'),mobileMenu=document.getElementById('mobileMenu'),menuOverlay=document.getElementById('menuOverlay'),closeMenuBtn=document.getElementById('closeMenuBtn');function openMenu(){mobileMenu.style.left='0';menuOverlay.style.display='block';document.body.style.overflow='hidden'}function closeMenu(){mobileMenu.style.left='-100%';menuOverlay.style.display='none';document.body.style.overflow=''}hamburger.addEventListener('click',openMenu);closeMenuBtn.addEventListener('click',closeMenu);menuOverlay.addEventListener('click',closeMenu);</script><script src="/app-ui.js" defer></script>
 </body>
