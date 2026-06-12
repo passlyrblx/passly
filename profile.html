@@ -115,6 +115,11 @@
     .remove-gp-btn { position:absolute; top:5px; right:5px; background:rgba(239,68,68,0.8); border:none; color:white; border-radius:50%; width:24px; height:24px; cursor:pointer; }
     .gamepass-list { margin-top:10px; max-height:200px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:8px; padding:10px; }
     .gamepass-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid rgba(139,92,246,0.2); }
+    .board-tools { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+    .board-tools input { flex:1 1 150px; min-width:0; }
+    .fetch-gamepasses-btn { background:linear-gradient(135deg,#06b6d4,#3b82f6); }
+    .fetch-gamepasses-btn:disabled { opacity:.6; cursor:not-allowed; }
+    .fetch-status { color:#bae6fd; font-size:.9rem; margin:6px 0 12px; min-height:20px; }
     .vip-upgrade-card { border-color:rgba(245,158,11,0.45); background:linear-gradient(135deg,rgba(245,158,11,0.18),rgba(20,20,40,0.72)); }
     .vip-upgrade-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
     .vip-upgrade-actions .save-btn { width:auto; display:inline-block; }
@@ -222,6 +227,19 @@
     <div class="settings-group" id="tagSettingsGroup" style="display:none;"><label class="settings-label">Public Tag</label><select class="settings-select" id="displayTagSelect"></select><div class="settings-help">Choose which available badge appears next to your name across Passly.</div><div class="available-tags" id="availableTags"></div></div>
     <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
     <div class="save-message" id="saveMessage">✅ Profile saved!</div>
+  </div>
+
+  <div class="section-card">
+    <h3 style="color:#c4b5fd; margin-bottom:10px;">🎁 Gamepass Board</h3>
+    <p class="settings-help">Add gamepasses manually, or let Passly automatically scan your Roblox experiences and add every on-sale gamepass it can price.</p>
+    <button class="save-btn fetch-gamepasses-btn" id="fetchGamepassesBtn" onclick="requireLogin(() => fetchGamepassesToBoard())">🔄 Fetch Gamepasses</button>
+    <div class="fetch-status" id="fetchGamepassesStatus"></div>
+    <div class="board-tools">
+      <input type="text" class="custom-name-input" id="newGamepassId" placeholder="Gamepass ID">
+      <input type="number" class="custom-name-input" id="newGamepassPrice" placeholder="Robux" min="1">
+      <button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())" style="width:auto; margin:0;">Add Manually</button>
+    </div>
+    <div class="board-gamepass-grid" id="boardGamepassGrid"><p>No gamepasses added yet.</p></div>
   </div>
   <div class="section-card vip-upgrade-card" id="vipUpgradeCard" style="display:none;">
     <h3 style="color:#fbbf24; margin-bottom:12px;">⭐ Buy VIP</h3>
@@ -348,7 +366,7 @@
     renderVipUpgrade();
     applyNotificationPrefs(userData.notificationPreferences || {});
     if(token) loadNotifications();
-    if(userData.board && userData.board.length && document.getElementById('boardGamepassGrid')) { const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = userData.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); }
+    renderBoardGamepasses(userData.board || []);
     window.PasslyUI?.updateCoinDisplays?.(userData.coins || 0);
     if(document.getElementById('boothShopGrid')) await loadBoothShop();
     await checkAdminStatus();
@@ -356,8 +374,44 @@
   }
   async function saveProfile() { if(!token) return; const showBooth = document.getElementById('showBooth').value === 'true'; const statusDot = document.getElementById('statusDotSelect').value; const showRoomId = document.getElementById('showRoomId').value === 'true'; const showDiscordIdentity = document.getElementById('showDiscordIdentity').value === 'true'; const customDisplayName = document.getElementById('customDisplayName').value.trim(); const displayTag = document.getElementById('displayTagSelect')?.value || null; try { const res = await fetch('/api/profile/update', { method:'POST', headers:authHeaders(), body:JSON.stringify({ showBooth, statusDot, showRoomId, showDiscordIdentity, customDisplayName, displayTag }) }); const data = await res.json().catch(() => ({})); if(res.ok) { const msg = document.getElementById('saveMessage'); msg.style.display = 'block'; setTimeout(() => msg.style.display = 'none', 3000); userData.displayName = customDisplayName || userData.robloxDisplayName || userData.username; if(data.displayTag) userData.displayTag = data.displayTag; if(data.displayTags) userData.displayTags = data.displayTags; renderDisplayName(document.getElementById('profileName'), userData); renderDisplayName(document.getElementById('userName'), userData); } else PasslyUI.toast(data.error || 'We could not save your profile. Please try again.'); } catch(e) { PasslyUI.toast('We could not save your profile. Please try again.'); } }
   async function searchPlayer() { const username = document.getElementById('searchUsername').value.trim(); if(!username) return PasslyUI.toast('Enter a Roblox username.'); const res = await fetch(`/api/search?username=${encodeURIComponent(username)}`); const data = await res.json(); const container = document.getElementById('searchResult'); if(data.error) { container.innerHTML = `<p style="color:#ff4444;">${escapeHtml(data.error)}</p>`; return; } let boardHtml = ''; if(data.board && data.board.length) { boardHtml = `<div class="board-gamepass-grid">${data.board.map(gp => `<div class="board-gamepass-btn" onclick="window.open('https://www.roblox.com/game-pass/${gp.id}', '_blank')"><span>💰 ${gp.price} R$</span><span>${escapeHtml(gp.id)}</span></div>`).join('')}</div>`; } else boardHtml = '<p>No gamepasses on board.</p>'; container.innerHTML = `<div style="display:flex; align-items:center; gap:10px;"><div style="width:40px; height:40px; border-radius:50%; background:url(${data.avatarUrl || ''}) center/cover;"></div><div><strong>${escapeHtml(data.displayName || data.robloxUsername)}${tagBadgeHtml(data.displayTags || data.displayTag)}</strong><br><small>@${escapeHtml(data.robloxUsername)}</small></div></div>${boardHtml}`; }
-  async function addGamepassToBoard() { const assetId = document.getElementById('newGamepassId').value.trim(); const price = parseInt(document.getElementById('newGamepassPrice').value); if(!assetId || !price) { PasslyUI.toast('Enter a gamepass asset ID and Robux amount.'); return; } const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) }); const data = await res.json(); if(data.error) PasslyUI.toast(data.error); else { userData.board = data.board; const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = data.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join(''); document.getElementById('newGamepassId').value = ''; document.getElementById('newGamepassPrice').value = ''; } }
-  async function removeGamepass(assetId) { if(!await PasslyUI.confirm('Remove this gamepass?', { confirmText: 'Remove' })) return; const res = await fetch('/api/board/remove', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId }) }); const data = await res.json(); if(data.success) { userData.board = data.board; const grid = document.getElementById('boardGamepassGrid'); grid.innerHTML = data.board.length ? data.board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${gp.id}')">✖</button><span class="board-gamepass-amount">💰 ${gp.price.toLocaleString()} Robux</span><span class="board-gamepass-name">🆔 ${gp.id}</span></div>`).join('') : '<p>No gamepasses added yet.</p>'; } }
+  function renderBoardGamepasses(board = []) {
+    const grid = document.getElementById('boardGamepassGrid');
+    if(!grid) return;
+    grid.innerHTML = board.length ? board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${escapeHtml(gp.id)}')">✖</button><span class="board-gamepass-amount">💰 ${Number(gp.price || 0).toLocaleString()} Robux</span><span class="board-gamepass-name">${escapeHtml(gp.name || 'Gamepass')}<br>🆔 ${escapeHtml(gp.id)}</span></div>`).join('') : '<p>No gamepasses added yet.</p>';
+  }
+  async function addGamepassToBoard() {
+    const assetId = document.getElementById('newGamepassId').value.trim();
+    const price = parseInt(document.getElementById('newGamepassPrice').value, 10);
+    if(!assetId || !price) { PasslyUI.toast('Enter a gamepass ID and Robux amount.'); return; }
+    const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) });
+    const data = await res.json().catch(() => ({}));
+    if(data.error) PasslyUI.toast(data.error);
+    else { userData.board = data.board || []; renderBoardGamepasses(userData.board); document.getElementById('newGamepassId').value = ''; document.getElementById('newGamepassPrice').value = ''; PasslyUI.success('Gamepass added.'); }
+  }
+  async function fetchGamepassesToBoard() {
+    const btn = document.getElementById('fetchGamepassesBtn');
+    const status = document.getElementById('fetchGamepassesStatus');
+    btn.disabled = true;
+    status.textContent = 'Scanning your Roblox experiences and gamepasses...';
+    try {
+      const res = await fetch('/api/board/fetch-gamepasses', { method:'POST', headers:authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || 'Could not fetch gamepasses.');
+      userData.board = data.board || [];
+      renderBoardGamepasses(userData.board);
+      const skipped = data.skipped || {};
+      status.textContent = `Added ${data.added || 0} gamepass(es) from ${data.experiences?.length || 0} experience(s). ${skipped.duplicates || 0} duplicate(s), ${skipped.offsaleOrMissingPrice || 0} off-sale/unpriced skipped.`;
+      (data.added ? PasslyUI.success : PasslyUI.toast)(data.added ? 'Gamepasses fetched and added.' : 'No new on-sale gamepasses found.');
+    } catch(e) { status.textContent = e.message; PasslyUI.error(e.message); }
+    finally { btn.disabled = false; }
+  }
+  async function removeGamepass(assetId) {
+    if(!await PasslyUI.confirm('Remove this gamepass?', { confirmText: 'Remove' })) return;
+    const res = await fetch('/api/board/remove', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId }) });
+    const data = await res.json().catch(() => ({}));
+    if(data.success) { userData.board = data.board || []; renderBoardGamepasses(userData.board); }
+    else PasslyUI.toast(data.error || 'Could not remove gamepass.');
+  }
   function boothCard(theme, economy) {
     const owned = (economy.booth?.ownedThemes || ['default']).includes(theme.id);
     const active = economy.booth?.activeTheme === theme.id;
