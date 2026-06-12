@@ -645,8 +645,8 @@ body.login-page .btn { margin-top: 10px; }
 @keyframes boothFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @keyframes boothGlow { 0%,100% { filter: drop-shadow(0 0 10px rgba(139,92,246,.28)); } 50% { filter: drop-shadow(0 0 22px rgba(34,211,238,.42)); } }
 @keyframes boothPulse { 0%,100% { box-shadow: 0 0 18px rgba(34,211,238,.22); } 50% { box-shadow: 0 0 30px rgba(139,92,246,.38); } }
-.board-gamepass-grid, #playerBoardGrid { display:flex !important; flex-direction:column !important; gap:12px !important; max-height:min(62vh, 520px); overflow-y:auto; overflow-x:hidden; padding-right:4px; }
-.board-gamepass-btn { width:100% !important; min-height:74px; align-items:flex-start !important; justify-content:center; text-align:left; gap:6px; }
+.board-gamepass-grid, #playerBoardGrid { display:flex !important; flex-direction:row !important; gap:12px !important; max-width:100%; overflow-x:auto; overflow-y:hidden; padding:4px 4px 12px; scroll-snap-type:x proximity; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
+.board-gamepass-btn { flex:0 0 150px !important; width:150px !important; min-height:74px; align-items:center !important; justify-content:center; text-align:center; gap:6px; scroll-snap-align:start; }
 @media (max-width: 560px) { .economy-grid, .booth-shop-grid { grid-template-columns: 1fr; } .board-gamepass-btn { min-height:66px; } }
 
 /* Shared Passly section navigation */
@@ -1068,20 +1068,20 @@ body::before {
 .booth-card.booth-theme-crystal .settings-help,
 .booth-card.booth-theme-gold .settings-help { color: rgba(15,23,42,.82) !important; }
 
-/* Donation gamepass buttons: vertical, swipeable booth lists with green price pills. */
+/* Donation gamepass buttons: horizontal, swipeable booth lists with green price pills. */
 .public-booth-board,
 #playerBoardGrid,
 .board-chat-strip {
   display: flex !important;
-  flex-direction: column !important;
+  flex-direction: row !important;
   gap: 12px !important;
-  max-height: min(62vh, 520px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 4px 4px 6px;
-  scroll-snap-type: y proximity;
+  padding: 4px 4px 12px;
+  scroll-snap-type: x proximity;
 }
 .public-booth-card {
   padding-bottom: 18px !important;
@@ -1114,8 +1114,16 @@ body::before {
   transform: translateY(-1px);
   box-shadow: 0 18px 44px rgba(34,197,94,.28), inset 0 1px 0 rgba(255,255,255,.4) !important;
 }
+.board-chat-pass {
+  flex: 0 0 150px !important;
+  width: 150px !important;
+  min-height: 58px;
+  white-space: normal !important;
+  text-align: center !important;
+}
 .public-gamepass-btn {
-  width: 100%;
+  flex: 0 0 150px;
+  width: 150px;
   min-height: 76px;
   border-radius: 16px;
   padding: 14px 16px;

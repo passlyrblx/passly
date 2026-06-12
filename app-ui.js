@@ -185,22 +185,30 @@
   window.PasslyRoomState = { get: getStoredRoom, all: getStoredRooms, set: setStoredRoom, clear: clearStoredRoom, key: CURRENT_ROOM_STORAGE_KEY, multiKey: CURRENT_ROOMS_STORAGE_KEY };
 
   const ensureGlobalRoomDock = async () => {
-    if (document.getElementById('roomMiniDock')) return;
     let rooms = getStoredRooms();
     if (!Object.keys(rooms).length) return;
-    const style = document.createElement('style');
-    style.textContent = `
-      .room-mini-dock.global-room-mini-dock{position:fixed;right:18px;bottom:18px;left:auto;z-index:180;display:flex;flex-direction:column;gap:8px;max-width:min(430px,calc(100vw - 32px));padding:10px;border:1px solid rgba(139,92,246,.35);border-radius:20px;background:rgba(15,15,30,.94);box-shadow:0 16px 40px rgba(0,0,0,.38);backdrop-filter:blur(14px);color:#fff}
-      .global-room-mini-dock .room-mini-row{display:flex;align-items:center;gap:12px;width:100%;padding:4px}.global-room-mini-dock .room-mini-main{min-width:0;flex:1}.global-room-mini-dock .room-mini-title{font-weight:900;color:#fff}.global-room-mini-dock .room-mini-label{color:#c4b5fd;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;margin-right:6px}.global-room-mini-dock .room-mini-message{font-size:.9rem;color:#d7d2ef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.global-room-mini-dock .room-mini-open{width:42px;height:42px;flex:0 0 auto;border-radius:999px;border:none;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:white;font-size:1.2rem;font-weight:900;cursor:pointer}.global-room-mini-dock .room-mini-open:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(139,92,246,.32)}
-      @media(max-width:640px){.room-mini-dock.global-room-mini-dock{right:12px;bottom:12px;left:12px;max-width:none}}
-    `;
-    document.head.appendChild(style);
-    const dock = document.createElement('div');
-    dock.id = 'roomMiniDock';
-    dock.className = 'room-mini-dock global-room-mini-dock';
+    const existing = document.getElementById('passlyGlobalRoomMiniDock');
+    const dock = existing || document.createElement('div');
+    if (!existing) {
+      if (!document.getElementById('passlyGlobalRoomMiniDockStyles')) {
+        const style = document.createElement('style');
+        style.id = 'passlyGlobalRoomMiniDockStyles';
+        style.textContent = `
+          .room-mini-dock.global-room-mini-dock{position:fixed;right:18px;bottom:18px;left:auto;transform:none;width:auto;z-index:180;display:flex;flex-direction:column;gap:8px;max-width:min(430px,calc(100vw - 32px));padding:10px;border:1px solid rgba(139,92,246,.35);border-radius:20px;background:rgba(15,15,30,.94);box-shadow:0 16px 40px rgba(0,0,0,.38);backdrop-filter:blur(14px);color:#fff}
+          .global-room-mini-dock .room-mini-row{display:flex;align-items:center;gap:12px;width:100%;padding:4px}.global-room-mini-dock .room-mini-main{min-width:0;flex:1}.global-room-mini-dock .room-mini-title{font-weight:900;color:#fff}.global-room-mini-dock .room-mini-label{color:#c4b5fd;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;margin-right:6px}.global-room-mini-dock .room-mini-message{font-size:.9rem;color:#d7d2ef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.global-room-mini-dock .room-mini-open{width:42px;height:42px;flex:0 0 auto;border-radius:999px;border:none;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:white;font-size:1.2rem;font-weight:900;cursor:pointer}.global-room-mini-dock .room-mini-open:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(139,92,246,.32)}
+          @media(max-width:640px){.room-mini-dock.global-room-mini-dock{right:12px;bottom:12px;left:12px;max-width:none}}
+        `;
+        document.head.appendChild(style);
+      }
+      dock.id = 'passlyGlobalRoomMiniDock';
+      dock.className = 'room-mini-dock global-room-mini-dock';
+    }
+    const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+    const localRoomCategory = currentPath === '/game-rooms' ? 'game' : currentPath === '/rooms' ? 'passly' : null;
     const render = () => {
       rooms = getStoredRooms();
-      dock.innerHTML = roomCategories.filter(category => rooms[category]).map(category => {
+      const visibleCategories = roomCategories.filter(category => rooms[category] && category !== localRoomCategory);
+      dock.innerHTML = visibleCategories.map(category => {
         const room = rooms[category];
         return `<div class="room-mini-row" data-room-category="${category}"><div class="room-mini-main"><div class="room-mini-title"><span class="room-mini-label">${category === 'game' ? 'Game' : 'Passly'}</span>${escapeHtml(room.name)}</div><div class="room-mini-message">${escapeHtml(room.lastMessage || 'No new messages yet.')}</div></div><button class="room-mini-open" type="button" aria-label="Return to ${escapeHtml(room.name)}">↩</button></div>`;
       }).join('');
@@ -214,7 +222,7 @@
     render();
     window.addEventListener('passly:room-state-changed', render);
     window.addEventListener('storage', (event) => { if ([CURRENT_ROOM_STORAGE_KEY, CURRENT_ROOMS_STORAGE_KEY].includes(event.key)) render(); });
-    document.body.appendChild(dock);
+    if (!existing) document.body.appendChild(dock);
   };
 
   window.PasslyUI = {
