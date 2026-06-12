@@ -25,6 +25,10 @@ let boothShopEconomy = null;
 let selectedBoothIndex = 0;
 let boothTouchStartX = 0;
 let boothTouchDeltaX = 0;
+let boothTouchStartY = 0;
+let boothPointerId = null;
+let boothDragging = false;
+let boothSuppressClick = false;
 
 (function () {
   const hash = window.location.hash;
@@ -198,14 +202,64 @@ function moveBooth(direction) {
   selectedBoothIndex += direction;
   renderBoothCarousel();
 }
+function getBoothSwipeStep(stage) {
+  return Math.max(90, Math.min(180, stage.clientWidth * 0.28));
+}
+function resetBoothDrag(stage) {
+  stage?.classList.remove('is-dragging');
+  stage?.style.setProperty('--booth-drag-x', '0px');
+  boothDragging = false;
+  boothPointerId = null;
+}
+function finishBoothSwipe(stage) {
+  const distance = Math.abs(boothTouchDeltaX);
+  const stepSize = getBoothSwipeStep(stage);
+  const steps = Math.min(boothShopThemes.length - 1, Math.max(distance > 38 ? 1 : 0, Math.round(distance / stepSize)));
+  const direction = boothTouchDeltaX < 0 ? 1 : -1;
+  resetBoothDrag(stage);
+  if (steps > 0) {
+    boothSuppressClick = true;
+    moveBooth(direction * steps);
+    setTimeout(() => { boothSuppressClick = false; }, 0);
+  }
+}
 function bindBoothSwipe() {
   const stage = document.querySelector('.booth-carousel-stage');
   if (!stage) return;
-  stage.addEventListener('touchstart', event => { boothTouchStartX = event.touches[0].clientX; boothTouchDeltaX = 0; }, { passive: true });
-  stage.addEventListener('touchmove', event => { boothTouchDeltaX = event.touches[0].clientX - boothTouchStartX; }, { passive: true });
-  stage.addEventListener('touchend', () => {
-    if (Math.abs(boothTouchDeltaX) > 45) moveBooth(boothTouchDeltaX < 0 ? 1 : -1);
+  resetBoothDrag(stage);
+  stage.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    boothPointerId = event.pointerId;
+    boothTouchStartX = event.clientX;
+    boothTouchStartY = event.clientY;
+    boothTouchDeltaX = 0;
+    boothDragging = false;
+    stage.setPointerCapture?.(event.pointerId);
   });
+  stage.addEventListener('pointermove', event => {
+    if (boothPointerId !== event.pointerId) return;
+    boothTouchDeltaX = event.clientX - boothTouchStartX;
+    const deltaY = event.clientY - boothTouchStartY;
+    if (!boothDragging && Math.abs(boothTouchDeltaX) > 8 && Math.abs(boothTouchDeltaX) > Math.abs(deltaY)) {
+      boothDragging = true;
+      stage.classList.add('is-dragging');
+    }
+    if (!boothDragging) return;
+    const dragLimit = Math.max(120, stage.clientWidth * 0.38);
+    const easedDrag = Math.max(-dragLimit, Math.min(dragLimit, boothTouchDeltaX));
+    stage.style.setProperty('--booth-drag-x', `${easedDrag}px`);
+  });
+  stage.addEventListener('pointerup', event => {
+    if (boothPointerId !== event.pointerId) return;
+    stage.releasePointerCapture?.(event.pointerId);
+    finishBoothSwipe(stage);
+  });
+  stage.addEventListener('pointercancel', () => resetBoothDrag(stage));
+  stage.addEventListener('click', event => {
+    if (!boothSuppressClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
   stage.addEventListener('keydown', event => {
     if (event.key === 'ArrowLeft') moveBooth(-1);
     if (event.key === 'ArrowRight') moveBooth(1);
