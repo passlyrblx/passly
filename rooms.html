@@ -346,7 +346,7 @@
   <h2>🎁 View My Board</h2>
   <div class="add-board-section" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
     <input type="text" id="newGamepassId" placeholder="Gamepass Asset ID" style="flex:2;">
-    <input type="number" id="newGamepassPrice" placeholder="Robux" style="flex:1;" min="1">
+    <input type="number" id="newGamepassPrice" placeholder="Robux (auto)" style="flex:1;" min="1">
     <button class="send-btn" onclick="addGamepassToBoard()">Add</button>
   </div>
   <div id="boardAddStatus" style="margin-top:5px; font-size:0.85rem;"></div>
@@ -918,7 +918,7 @@ window.closeBoardModal = function() {
 window.addGamepassToBoard = async function() {
   const assetId = document.getElementById('newGamepassId').value.trim();
   const price = parseInt(document.getElementById('newGamepassPrice').value);
-  if(!assetId || !price) { PasslyUI.toast('Enter asset ID and price'); return; }
+  if(!assetId) { PasslyUI.toast('Enter asset ID.'); return; }
   const res = await fetch('/api/board/add', { method:'POST', headers:authHeaders(), body:JSON.stringify({ assetId, price }) });
   const data = await res.json();
   if(data.error) PasslyUI.toast(data.error);
