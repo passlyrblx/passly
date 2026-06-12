@@ -400,8 +400,8 @@
       userData.board = data.board || [];
       renderBoardGamepasses(userData.board);
       const skipped = data.skipped || {};
-      status.textContent = `Added ${data.added || 0} gamepass(es) from ${data.experiences?.length || 0} experience(s). ${skipped.duplicates || 0} duplicate(s), ${skipped.offsaleOrMissingPrice || 0} off-sale/unpriced skipped.`;
-      (data.added ? PasslyUI.success : PasslyUI.toast)(data.added ? 'Gamepasses fetched and added.' : 'No new on-sale gamepasses found.');
+      status.textContent = `Added ${data.added || 0} gamepass(es) from ${data.experiences?.length || 0} experience(s). ${skipped.duplicates || 0} duplicate(s). Off-sale/unpriced gamepasses are included.`;
+      (data.added ? PasslyUI.success : PasslyUI.toast)(data.added ? 'Gamepasses fetched and added.' : 'No new gamepasses found.');
     } catch(e) { status.textContent = e.message; PasslyUI.error(e.message); }
     finally { btn.disabled = false; }
   }
