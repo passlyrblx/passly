@@ -1035,7 +1035,7 @@ app.post('/api/board/add', authenticateToken, async (req, res) => {
   if (String(productInfo?.Creator?.CreatorTargetId || productInfo?.Creator?.Id || '') !== String(robloxAccountId)) return res.status(400).json({ error: 'That gamepass does not belong to your Roblox account.' });
   const productPrice = normalizeRobloxPrice(productInfo);
   const finalPrice = productPrice || parseInt(price);
-  if (productInfo?.IsForSale === false || !finalPrice) return res.status(400).json({ error: 'This gamepass is not currently on sale with a Robux price.' });
+  if (!finalPrice) return res.status(400).json({ error: 'Enter a Robux amount for this gamepass.' });
   user.board.push({ id: assetId, name: normalizeGamepassName(productInfo), price: finalPrice });
   await user.save();
   res.json({ success: true, board: user.board });
@@ -1064,7 +1064,7 @@ app.post('/api/board/fetch-gamepasses', authenticateToken, async (req, res) => {
   const existingIds = new Set((user.board || []).map(item => String(item.id)));
   const fetchedIds = new Set();
   const additions = [];
-  const skipped = { duplicates: 0, offsaleOrMissingPrice: 0, failedExperiences: 0 };
+  const skipped = { duplicates: 0, failedExperiences: 0 };
   const experiences = [];
 
   for (const universeId of [...universeIds].slice(0, 100)) {
@@ -1083,7 +1083,7 @@ app.post('/api/board/fetch-gamepasses', authenticateToken, async (req, res) => {
       fetchedIds.add(id);
       if (existingIds.has(id)) { skipped.duplicates += 1; continue; }
       const enriched = await enrichGamepassPrice(pass);
-      if (!enriched) { skipped.offsaleOrMissingPrice += 1; continue; }
+      if (!enriched) continue;
       existingIds.add(enriched.id);
       additions.push(enriched);
       addedForExperience += 1;
@@ -1205,8 +1205,7 @@ async function enrichGamepassPrice(pass) {
       logger.warn('Roblox gamepass product lookup failed', { gamepassId: id, message: error.message, status: error.response?.status });
     }
   }
-  if (forSale === false || !price) return null;
-  return { id, name: normalizeGamepassName(pass), price };
+  return { id, name: normalizeGamepassName(pass), price: price || 0 };
 }
 
 function sanitizeInput(str) { if (!str) return ''; return str.replace(/<[^>]*>/g, '').trim().substring(0, 100); }
