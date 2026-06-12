@@ -111,6 +111,11 @@
     .search-input { width:100%; padding:12px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; margin-bottom:10px; }
     .search-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:12px; color:white; cursor:pointer; }
     .board-gamepass-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px; margin-top:10px; max-height:400px; overflow-y:auto; }
+    .booth-pass-row { display:flex; gap:12px; overflow-x:auto; padding:14px 4px 18px; scrollbar-width:thin; grid-column:1 / -1; }
+    .booth-pass-link { flex:0 0 124px; min-height:94px; display:flex; align-items:center; justify-content:center; text-align:center; text-decoration:none; color:white; background:#22c55e; border:2px solid rgba(220,252,231,.75); border-radius:24px; box-shadow:inset 0 0 0 7px rgba(255,255,255,.13),0 12px 28px rgba(34,197,94,.22); font-weight:900; }
+    .booth-pass-link span { display:inline-flex; align-items:center; justify-content:center; min-width:72px; min-height:42px; padding:8px 12px; border-radius:999px; background:rgba(5,46,22,.28); }
+    .gp-list { display:grid; gap:8px; grid-column:1 / -1; }
+    .gp-list-item { display:flex; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid rgba(139,92,246,.24); border-radius:12px; background:rgba(15,15,30,.65); color:#ddd6fe; }
     .board-gamepass-btn { background:#22c55e; padding:12px; border-radius:14px; display:flex; flex-direction:column; align-items:center; position:relative; cursor:pointer; }
     .remove-gp-btn { position:absolute; top:5px; right:5px; background:rgba(239,68,68,0.8); border:none; color:white; border-radius:50%; width:24px; height:24px; cursor:pointer; }
     .gamepass-list { margin-top:10px; max-height:200px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:8px; padding:10px; }
@@ -238,6 +243,8 @@
       <input type="text" class="custom-name-input" id="newGamepassId" placeholder="Gamepass ID">
       <input type="number" class="custom-name-input" id="newGamepassPrice" placeholder="Robux (auto)" min="1">
       <button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())" style="width:auto; margin:0;">Add Manually</button>
+      <button class="save-btn" onclick="viewBoardGamepassIds()" style="width:auto; margin:0; background:#334155;">🧾 View GP</button>
+      <button class="save-btn" onclick="viewBoardAsBooth()" style="width:auto; margin:0; background:#16a34a;">🏪 View as Booth</button>
     </div>
     <div class="board-gamepass-grid" id="boardGamepassGrid"><p>No gamepasses added yet.</p></div>
   </div>
@@ -379,7 +386,19 @@
   function renderBoardGamepasses(board = []) {
     const grid = document.getElementById('boardGamepassGrid');
     if(!grid) return;
-    grid.innerHTML = board.length ? board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${escapeHtml(gp.id)}')">✖</button><span class="board-gamepass-amount">💰 ${Number(gp.price || 0).toLocaleString()} Robux</span><span class="board-gamepass-name">${escapeHtml(gp.name || 'Gamepass')}<br>🆔 ${escapeHtml(gp.id)}</span></div>`).join('') : '<p>No gamepasses added yet.</p>';
+    grid.innerHTML = board.length ? board.map(gp => `<div class="board-gamepass-btn"><button class="remove-gp-btn" onclick="removeGamepass('${escapeHtml(gp.id)}')">✖</button><span class="board-gamepass-amount">💰 ${Number(gp.price || 0).toLocaleString()} Robux</span><span class="board-gamepass-name">${escapeHtml(gp.name || 'Gamepass')}</span></div>`).join('') : '<p>No gamepasses added yet.</p>';
+  }
+  function boothPassLinks(board = []) {
+    return [...board].sort((a,b) => Number(a.price || 0) - Number(b.price || 0)).map(gp => `<a class="booth-pass-link" href="https://www.roblox.com/game-pass/${encodeURIComponent(gp.id)}" target="_blank" rel="noopener"><span>${Number(gp.price || 0).toLocaleString()} R$</span></a>`).join('') || '<p>No gamepasses added yet.</p>';
+  }
+  function viewBoardGamepassIds() {
+    const grid = document.getElementById('boardGamepassGrid');
+    const board = [...(userData?.board || [])].sort((a,b) => Number(a.price || 0) - Number(b.price || 0));
+    grid.innerHTML = board.length ? `<div class="gp-list">${board.map(gp => `<div class="gp-list-item"><strong>${escapeHtml(gp.name || 'Gamepass')}</strong><span>ID: ${escapeHtml(gp.id)}</span></div>`).join('')}</div>` : '<p>No gamepasses added yet.</p>';
+  }
+  function viewBoardAsBooth() {
+    const grid = document.getElementById('boardGamepassGrid');
+    grid.innerHTML = `<div class="booth-pass-row">${boothPassLinks(userData?.board || [])}</div>`;
   }
   async function addGamepassToBoard() {
     const assetId = document.getElementById('newGamepassId').value.trim();
