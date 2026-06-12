@@ -568,7 +568,7 @@ app.get('/auth/roblox', async (req, res) => {
   await OAuthState.create({ state, provider: 'roblox', linkUserId });
   res.redirect(`${ROBLOX_CONFIG.authUrl}?${new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId, redirect_uri: ROBLOX_CONFIG.redirectUri,
-    response_type: 'code', scope: 'openid', state
+    response_type: 'code', scope: 'openid game-pass:read', state
   })}`);
 });
 app.get('/auth/roblox/callback', async (req, res) => {
@@ -1007,16 +1007,21 @@ app.post('/api/board/add', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const { assetId, price } = req.body;
   if (!assetId || !price) return res.status(400).json({ error: 'Asset ID and Robux amount required' });
+  if (!/^\d+$/.test(String(assetId))) return res.status(400).json({ error: 'Gamepass ID must be numeric' });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.board.some(g => g.id === assetId)) return res.status(400).json({ error: 'Already on board' });
   const robloxAccountId = getRobloxAccountId(user);
   if (!robloxAccountId) return res.status(401).json({ error: 'Please link Roblox before adding gamepasses to your board.' });
+  let productInfo;
   try {
-    const check = await axios.get(`https://inventory.roblox.com/v1/users/${robloxAccountId}/items/GamePass/${assetId}`, { timeout: 5000 });
-    if (!check.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass' });
-  } catch (e) { return res.status(400).json({ error: 'Ownership verification failed' }); }
-  user.board.push({ id: assetId, name: 'Gamepass', price: parseInt(price) });
+    productInfo = (await axios.get(`https://apis.roblox.com/game-passes/v1/game-passes/${assetId}/product-info`, { timeout: 10000 })).data;
+  } catch (e) { return res.status(400).json({ error: 'Gamepass lookup failed. Check the ID and try again.' }); }
+  if (String(productInfo?.Creator?.CreatorTargetId || productInfo?.Creator?.Id || '') !== String(robloxAccountId)) return res.status(400).json({ error: 'That gamepass does not belong to your Roblox account.' });
+  const productPrice = normalizeRobloxPrice(productInfo);
+  const finalPrice = productPrice || parseInt(price);
+  if (productInfo?.IsForSale === false || !finalPrice) return res.status(400).json({ error: 'This gamepass is not currently on sale with a Robux price.' });
+  user.board.push({ id: assetId, name: normalizeGamepassName(productInfo), price: finalPrice });
   await user.save();
   res.json({ success: true, board: user.board });
 });
@@ -1027,6 +1032,168 @@ app.post('/api/board/remove', authenticateToken, async (req, res) => {
   const user = await User.findById(req.user.id);
   res.json({ success: true, board: user.board });
 });
+
+app.post('/api/board/fetch-gamepasses', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const robloxAccountId = getRobloxAccountId(user);
+  if (!robloxAccountId) return res.status(401).json({ error: 'Please link Roblox before fetching gamepasses.' });
+
+  const universeIds = new Set();
+  for (const id of await getOauthResourceUniverseIds(user.robloxAccessToken)) universeIds.add(id);
+  for (const id of await getCreatedExperienceIds(robloxAccountId)) universeIds.add(id);
+  if (!universeIds.size) return res.status(404).json({ error: 'No Roblox experiences were found for your account.' });
+
+  const existingIds = new Set((user.board || []).map(item => String(item.id)));
+  const fetchedIds = new Set();
+  const additions = [];
+  const skipped = { duplicates: 0, offsaleOrMissingPrice: 0, failedExperiences: 0 };
+  const experiences = [];
+
+  for (const universeId of [...universeIds].slice(0, 100)) {
+    let passes = [];
+    try {
+      passes = await fetchUniverseGamepasses(universeId, user.robloxAccessToken);
+    } catch (error) {
+      skipped.failedExperiences += 1;
+      logger.warn('Roblox universe gamepass fetch failed', { universeId, message: error.message, status: error.response?.status });
+      continue;
+    }
+    let addedForExperience = 0;
+    for (const pass of passes) {
+      const id = normalizeGamepassId(pass);
+      if (!id || fetchedIds.has(id)) continue;
+      fetchedIds.add(id);
+      if (existingIds.has(id)) { skipped.duplicates += 1; continue; }
+      const enriched = await enrichGamepassPrice(pass);
+      if (!enriched) { skipped.offsaleOrMissingPrice += 1; continue; }
+      existingIds.add(enriched.id);
+      additions.push(enriched);
+      addedForExperience += 1;
+      if (additions.length >= 500) break;
+    }
+    if (passes.length || addedForExperience) experiences.push({ universeId, fetched: passes.length, added: addedForExperience });
+    if (additions.length >= 500) break;
+  }
+
+  if (additions.length) {
+    user.board.push(...additions);
+    await user.save();
+  }
+  res.json({ success: true, board: user.board || [], added: additions.length, fetched: fetchedIds.size, experiences, skipped });
+});
+
+function normalizeRobloxPrice(value) {
+  const candidates = [
+    value?.price,
+    value?.priceInRobux,
+    value?.defaultPrice,
+    value?.defaultPriceInRobux,
+    value?.robux,
+    value?.amount,
+    value?.priceInformation?.price,
+    value?.priceInformation?.priceInRobux,
+    value?.priceInformation?.defaultPrice,
+    value?.priceInformation?.defaultPriceInRobux,
+    value?.priceInformation?.robux,
+    value?.priceInformation?.amount
+  ];
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object') {
+      const nested = normalizeRobloxPrice(candidate);
+      if (nested) return nested;
+    } else {
+      const parsed = Number(candidate);
+      if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+    }
+  }
+  return null;
+}
+function normalizeGamepassId(pass) {
+  return String(pass?.gamePassId || pass?.id || pass?.targetId || pass?.TargetId || '').trim();
+}
+function normalizeGamepassName(pass) {
+  return String(pass?.displayName || pass?.name || pass?.Name || 'Gamepass').trim().substring(0, 80) || 'Gamepass';
+}
+async function getOauthResourceUniverseIds(accessToken) {
+  if (!accessToken || !ROBLOX_CONFIG.clientId || !ROBLOX_CONFIG.clientSecret) return [];
+  try {
+    const response = await axios.post(
+      'https://apis.roblox.com/oauth/v1/token/resources',
+      new URLSearchParams({ token: accessToken, client_id: ROBLOX_CONFIG.clientId, client_secret: ROBLOX_CONFIG.clientSecret }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+    );
+    const ids = new Set();
+    for (const info of response.data?.resource_infos || []) {
+      for (const id of info?.resources?.universe?.ids || []) {
+        if (/^\d+$/.test(String(id))) ids.add(String(id));
+      }
+    }
+    return [...ids];
+  } catch (error) {
+    logger.warn('Roblox OAuth resource lookup failed', { message: error.message, status: error.response?.status });
+    return [];
+  }
+}
+async function getCreatedExperienceIds(robloxAccountId) {
+  const ids = new Set();
+  let cursor = null;
+  for (let page = 0; page < 10; page++) {
+    const params = new URLSearchParams({ accessFilter: '2', limit: '50', sortOrder: 'Asc' });
+    if (cursor) params.set('cursor', cursor);
+    const response = await axios.get(`https://games.roblox.com/v2/users/${robloxAccountId}/games?${params}`, { timeout: 10000 });
+    for (const game of response.data?.data || []) {
+      if (game?.id) ids.add(String(game.id));
+    }
+    cursor = response.data?.nextPageCursor;
+    if (!cursor || ids.size >= 500) break;
+  }
+  return [...ids];
+}
+async function fetchUniverseGamepasses(universeId, accessToken) {
+  const passes = [];
+  let pageToken = '';
+  for (let page = 0; page < 10; page++) {
+    const params = new URLSearchParams({ pageSize: '100' });
+    if (pageToken) params.set('pageToken', pageToken);
+    const creatorUrl = `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes/creator?${params}`;
+    const publicUrl = `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes?${params}`;
+    let response;
+    try {
+      response = await axios.get(accessToken ? creatorUrl : publicUrl, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        timeout: 10000
+      });
+    } catch (error) {
+      if (!accessToken || ![401, 403, 404].includes(error.response?.status)) throw error;
+      response = await axios.get(publicUrl, { timeout: 10000 });
+    }
+    passes.push(...(response.data?.gamePasses || []));
+    pageToken = response.data?.nextPageToken;
+    if (!pageToken || passes.length >= 500) break;
+  }
+  return passes;
+}
+async function enrichGamepassPrice(pass) {
+  const id = normalizeGamepassId(pass);
+  if (!id) return null;
+  let price = normalizeRobloxPrice(pass);
+  let forSale = pass?.isForSale ?? pass?.IsForSale;
+  if (!price || forSale !== true) {
+    try {
+      const product = await axios.get(`https://apis.roblox.com/game-passes/v1/game-passes/${id}/product-info`, { timeout: 10000 });
+      price = price || normalizeRobloxPrice(product.data);
+      if (forSale !== true) forSale = product.data?.IsForSale ?? product.data?.isForSale;
+    } catch (error) {
+      logger.warn('Roblox gamepass product lookup failed', { gamepassId: id, message: error.message, status: error.response?.status });
+    }
+  }
+  if (forSale === false || !price) return null;
+  return { id, name: normalizeGamepassName(pass), price };
+}
+
 function sanitizeInput(str) { if (!str) return ''; return str.replace(/<[^>]*>/g, '').trim().substring(0, 100); }
 async function canCreateRoom(userId, roomType) {
   const User = getUserModel();
@@ -2191,36 +2358,30 @@ app.post('/api/friends/notifications/read', authenticateToken, async (req, res) 
   res.json({ success: true });
 });
 
-// ========== FETCH USER'S GAMEPASSES FROM ROBLOX (FIXED with OAuth) ==========
+// ========== FETCH USER'S CREATED GAMEPASSES FROM ROBLOX ==========
 app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
+  const User = getUserModel();
+  if (!User) return res.status(503).json({ error: 'Database not ready' });
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const robloxAccountId = getRobloxAccountId(user);
+  if (!robloxAccountId) return res.status(401).json({ error: 'Please link Roblox before using donation features.' });
   try {
-    const userId = req.user.id;
-    const User = mongoose.model('User');
-    const user = await User.findById(userId);
-    if (!user || !user.robloxAccessToken || !getRobloxAccountId(user)) {
-      return res.status(401).json({ error: 'Please link Roblox before using donation features.' });
+    const universeIds = new Set();
+    for (const id of await getOauthResourceUniverseIds(user.robloxAccessToken)) universeIds.add(id);
+    for (const id of await getCreatedExperienceIds(robloxAccountId)) universeIds.add(id);
+    const gamepasses = [];
+    for (const universeId of [...universeIds].slice(0, 100)) {
+      const passes = await fetchUniverseGamepasses(universeId, user.robloxAccessToken);
+      for (const pass of passes) {
+        const enriched = await enrichGamepassPrice(pass);
+        if (enriched) gamepasses.push({ assetId: enriched.id, id: enriched.id, name: enriched.name, price: enriched.price, universeId });
+      }
     }
-
-    const accessToken = user.robloxAccessToken;
-    const robloxAccountId = getRobloxAccountId(user);
-    // Use the v2 inventory API with Authorization header
-    const url = `https://inventory.roblox.com/v2/users/${robloxAccountId}/inventory?assetTypes=GamePass&limit=100`;
-    const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      timeout: 10000
-    });
-    const items = response.data?.data || [];
-    const gamepasses = items.map(item => ({
-      assetId: item.id,
-      name: item.name,
-      created: item.created
-    }));
     res.json({ gamepasses });
   } catch (error) {
-    console.error('Failed to fetch gamepasses:', error.message);
-    if (error.response && error.response.status === 401) {
-      return res.status(401).json({ error: 'Roblox token expired. Please re-login.' });
-    }
+    logger.error('Failed to fetch Roblox gamepasses', { message: error.message, status: error.response?.status });
+    if (error.response && error.response.status === 401) return res.status(401).json({ error: 'Roblox token expired. Please re-login.' });
     res.status(500).json({ error: 'Could not fetch gamepasses from Roblox. ' + error.message });
   }
 });
