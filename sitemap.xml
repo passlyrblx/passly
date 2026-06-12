@@ -4,39 +4,18 @@
     <loc>https://passly.nxtdev.xyz/</loc>
   </url>
   <url>
-    <loc>https://passly.nxtdev.xyz/dashboard</loc>
+    <loc>https://passly.nxtdev.xyz/rooms/</loc>
   </url>
   <url>
-    <loc>https://passly.nxtdev.xyz/rooms</loc>
+    <loc>https://passly.nxtdev.xyz/game-rooms/</loc>
   </url>
   <url>
-    <loc>https://passly.nxtdev.xyz/game-rooms</loc>
+    <loc>https://passly.nxtdev.xyz/leaderboard/</loc>
   </url>
   <url>
-    <loc>https://passly.nxtdev.xyz/leaderboard</loc>
+    <loc>https://passly.nxtdev.xyz/privacy/</loc>
   </url>
   <url>
-    <loc>https://passly.nxtdev.xyz/profile</loc>
-  </url>
-  <url>
-    <loc>https://passly.nxtdev.xyz/booths</loc>
-  </url>
-  <url>
-    <loc>https://passly.nxtdev.xyz/find-player</loc>
-  </url>
-  <url>
-    <loc>https://passly.nxtdev.xyz/livedonations</loc>
-  </url>
-  <url>
-    <loc>https://passly.nxtdev.xyz/friends</loc>
-  </url>
-  <url>
-    <loc>https://passly.nxtdev.xyz/redeem</loc>
-  </url>
-  <url>
-    <loc>https://passly.nxtdev.xyz/privacy</loc>
-  </url>
-  <url>
-    <loc>https://passly.nxtdev.xyz/terms</loc>
+    <loc>https://passly.nxtdev.xyz/terms/</loc>
   </url>
 </urlset>
