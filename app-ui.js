@@ -148,21 +148,20 @@
     updatedAt: room.updatedAt || Date.now()
   } : null;
   const getStoredRooms = () => {
-    const rooms = safeJsonParse(localStorage.getItem(CURRENT_ROOMS_STORAGE_KEY)) || {};
+    const storedRooms = safeJsonParse(localStorage.getItem(CURRENT_ROOMS_STORAGE_KEY)) || {};
     const legacy = normalizeStoredRoom(safeJsonParse(localStorage.getItem(CURRENT_ROOM_STORAGE_KEY)));
-    if (legacy && !rooms[legacy.category]) rooms[legacy.category] = legacy;
-    return roomCategories.reduce((acc, category) => {
-      const room = normalizeStoredRoom(rooms[category]);
-      if (room) acc[category] = room;
-      return acc;
-    }, {});
+    const candidates = roomCategories.map((category) => normalizeStoredRoom(storedRooms[category])).filter(Boolean);
+    if (legacy) candidates.push(legacy);
+    const newest = candidates.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+    return newest ? { [newest.category]: newest } : {};
   };
   const saveStoredRooms = (rooms) => {
-    localStorage.setItem(CURRENT_ROOMS_STORAGE_KEY, JSON.stringify(rooms));
-    const newest = Object.values(rooms).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+    const newest = Object.values(rooms).filter(Boolean).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+    const singleRoomState = newest ? { [newest.category]: newest } : {};
+    localStorage.setItem(CURRENT_ROOMS_STORAGE_KEY, JSON.stringify(singleRoomState));
     if (newest) localStorage.setItem(CURRENT_ROOM_STORAGE_KEY, JSON.stringify(newest));
     else localStorage.removeItem(CURRENT_ROOM_STORAGE_KEY);
-    window.dispatchEvent(new CustomEvent('passly:room-state-changed', { detail: rooms }));
+    window.dispatchEvent(new CustomEvent('passly:room-state-changed', { detail: singleRoomState }));
   };
   const getStoredRoom = (category) => {
     const rooms = getStoredRooms();
@@ -171,10 +170,8 @@
   const setStoredRoom = (room) => {
     const normalized = normalizeStoredRoom({ ...room, updatedAt: Date.now() });
     if (!normalized) return;
-    const rooms = getStoredRooms();
-    const previous = rooms[normalized.category];
-    rooms[normalized.category] = { ...normalized, lastMessage: normalized.lastMessage || previous?.lastMessage || 'No new messages yet.' };
-    saveStoredRooms(rooms);
+    const previous = getStoredRoom(normalized.category);
+    saveStoredRooms({ [normalized.category]: { ...normalized, lastMessage: normalized.lastMessage || previous?.lastMessage || 'No new messages yet.' } });
   };
   const clearStoredRoom = (category) => {
     if (!category) { saveStoredRooms({}); return; }
