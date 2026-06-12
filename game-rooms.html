@@ -17,7 +17,7 @@
     .nav-logo { font-size:1.8rem; font-weight:900; background:linear-gradient(135deg,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .nav-links { display:flex; gap:25px; }
     .nav-links a { color:#b0b0c0; text-decoration:none; font-weight:600; }
-    .user-box { display:none; align-items:center; gap:10px; background:rgba(139,92,246,.1); padding:6px 14px; border-radius:999px; }
+    .user-box { display:flex; align-items:center; gap:10px; background:rgba(139,92,246,.1); padding:6px 14px; border-radius:999px; }
     .user-avatar,.member-avatar,.chat-pfp,.profile-avatar { width:36px; height:36px; min-width:36px; aspect-ratio:1/1; flex:0 0 auto; border-radius:50%; background:#8b5cf6 center/cover no-repeat; }
     .mobile-menu { position:fixed; top:0; left:-100%; width:75%; max-width:300px; height:100%; background:rgba(10,10,20,.98); z-index:40; transition:left .25s; padding:70px 25px 25px; display:flex; flex-direction:column; gap:18px; }
     .mobile-menu a { color:#e5e7eb; text-decoration:none; font-size:1.15rem; padding:10px 0; border-bottom:1px solid rgba(139,92,246,.2); }
@@ -86,7 +86,7 @@
 <nav class="navbar">
   <div class="navbar-left"><button class="hamburger" id="hamburgerBtn" aria-label="Menu"><span></span><span></span><span></span></button><div class="nav-logo">Passly</div></div>
   <div class="nav-links"><a href="/dashboard">🏠 Home</a><a href="/rooms">💜 Passly</a><a href="/game-rooms">🎮 Game Rooms</a><a href="/profile">👤 Profile</a></div>
-  <div class="user-box" aria-hidden="true"><div class="user-avatar" id="userAvatar"></div><span id="userName">Loading...</span></div>
+  <div class="user-box"><div class="user-avatar" id="userAvatar"></div><span class="user-name" id="userName">Loading...</span></div>
 </nav>
 <div class="mobile-menu" id="mobileMenu"><button class="close-menu" id="closeMenuBtn">&times;</button><a href="/dashboard">🏠 Home</a><a href="/rooms">💜 Passly</a><a href="/game-rooms">🎮 Game Rooms</a><a href="/profile">👤 Profile</a></div>
 <div class="menu-overlay" id="menuOverlay"></div>
@@ -126,6 +126,8 @@ let roomMinimized = false;
 let lastRoomMessage = 'No new messages yet.';
 let allRoomsCache = [];
 let guestChatCooldown = false;
+let socketRoomReady = false;
+let pendingSocketJoin = null;
 const socket = io();
 function authHeaders(){ const h={'Content-Type':'application/json'}; if(token) h.Authorization=`Bearer ${token}`; return h; }
 function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -134,6 +136,25 @@ function showError(msg=''){ document.getElementById('errorBox').textContent = ms
 function setAvatar(el,url,fallback){ if(!el) return; const src=url||fallback||''; el.style.backgroundImage = src ? `url(${src})` : ''; }
 function filterMessage(text){ return String(text||'').slice(0,500); }
 function setupMenu(){ const m=document.getElementById('mobileMenu'), o=document.getElementById('menuOverlay'); hamburgerBtn.onclick=()=>{m.style.left='0';o.style.display='block'}; closeMenuBtn.onclick=o.onclick=()=>{m.style.left='-100%';o.style.display='none'}; }
+
+function currentMemberId(){ return isGuest ? guestData.id : userData?.id; }
+function currentMemberDetails(){ return { userId: currentMemberId(), username: userData?.displayName || userData?.username || guestData.displayName || 'You', avatarUrl: userData?.avatarUrl || userData?.avatarFallback || '', displayTag: userData?.displayTag, displayTags: userData?.displayTags }; }
+function joinCurrentRoomSocket(){
+  if(!currentRoomId()) return Promise.resolve(false);
+  if(socketRoomReady) return Promise.resolve(true);
+  if(pendingSocketJoin) return pendingSocketJoin;
+  pendingSocketJoin = new Promise(resolve => {
+    let settled = false;
+    const finish = ok => { if(settled) return; settled = true; socketRoomReady = !!ok; pendingSocketJoin = null; resolve(!!ok); };
+    socket.emit('join-room', { roomId: currentRoomId(), token, guestId: isGuest ? guestData.id : null }, ack => {
+      if(ack?.players?.length && currentRoom){ currentRoom.players = ack.players; updateMembersList(seedMemberPlaceholders(ack.players)); fetchPlayerDetails(ack.players); }
+      finish(!ack || ack.success !== false);
+    });
+    setTimeout(() => finish(true), 5000);
+  });
+  return pendingSocketJoin;
+}
+function seedMemberPlaceholders(players){ const me=currentMemberDetails(); return [...new Set(players||[])].map(pid => pid === me.userId ? me : ({ userId: pid, username: pid?.startsWith?.('Guest_') ? 'Guest' : 'Loading…', avatarUrl: '' })); }
 async function init(){
   if(token){ const res=await fetch('/api/user',{headers:{Authorization:`Bearer ${token}`}}).catch(()=>null); if(res?.ok){ userData=await res.json(); isGuest=false; } else { localStorage.removeItem('passly_token'); token=null; isGuest=true; } }
   if(!userData){ if(!guestData.id){ const res=await fetch('/api/guest-login',{method:'POST'}); guestData=await res.json(); localStorage.setItem('passly_user',JSON.stringify(guestData)); } userData={...guestData,isGuest:true}; }
@@ -160,14 +181,14 @@ async function joinRoomById(id){ if(!id) return; if(currentRoomId()===id) return
 function updateRoomMiniDock(){ const dock=document.getElementById('roomMiniDock'); if(!dock) return; const show=!!currentRoom&&roomMinimized; dock.style.display=show?'flex':'none'; if(show){ roomMiniTitle.textContent=`In ${currentRoom.name||'this game room'}`; roomMiniMessage.textContent=lastRoomMessage||'No new messages yet.'; } }
 function minimizeRoom(){ if(!currentRoom) return; roomMinimized=true; roomsListPage.style.display='block'; roomViewContainer.style.display='none'; membersPanel.style.display='none'; loadRooms(); rememberCurrentRoom(true); updateRoomMiniDock(); }
 function restoreRoom(){ if(!currentRoom) return; roomMinimized=false; roomsListPage.style.display='none'; roomViewContainer.style.display='block'; membersPanel.style.display='block'; rememberCurrentRoom(false); updateRoomMiniDock(); }
-function showRoomView(room){ currentRoom=room; roomMinimized=false; lastRoomMessage='No new messages yet.'; roomsListPage.style.display='none'; roomViewContainer.style.display='block'; membersPanel.style.display='block'; viewRoomName.textContent=room.name; viewRoomDesc.textContent=room.desc||''; roomIdDisplay.innerHTML=`Room ID: <strong>${escapeHtml(room._id)}</strong>`; chatBox.innerHTML='<div class="chat-msg"><div class="chat-pfp"></div><div class="msg-content"><div class="msg-username">System</div><div>Welcome to Game Rooms! Boards and booths are turned off here.</div></div></div>'; const players=[...new Set([...(room.players||[]), isGuest ? guestData.id : userData?.id].filter(Boolean))]; currentRoom.players=players; updateMembersList(players.map(pid=>({userId:pid,username:pid===(isGuest?guestData.id:userData?.id)?(userData.displayName||userData.username||'You'):'Loading…',avatarUrl:pid===(isGuest?guestData.id:userData?.id)?userData.avatarUrl:''}))); fetchPlayerDetails(players); socket.emit('join-room',{roomId:room._id,token,guestId:isGuest?guestData.id:null}); rememberCurrentRoom(false); updateRoomMiniDock(); }
-async function fetchPlayerDetails(ids){ const members=[]; for(const pid of ids){ try{ const res=await fetch(`/api/user/${pid}/stats`,{headers:authHeaders()}); if(res.ok){ const d=await res.json(); members.push({userId:pid,username:d.displayName||d.username||'Player',avatarUrl:d.avatarUrl,displayTag:d.displayTag,displayTags:d.displayTags}); } else members.push({userId:pid,username:pid.startsWith('Guest_')?'Guest':'Player'}); }catch(e){ members.push({userId:pid,username:'Player'}); } } if(currentRoom) currentRoom.playerDetails=members; updateMembersList(members); }
+function showRoomView(room){ currentRoom=room; socketRoomReady=false; pendingSocketJoin=null; roomMinimized=false; lastRoomMessage='No new messages yet.'; roomsListPage.style.display='none'; roomViewContainer.style.display='block'; membersPanel.style.display='block'; viewRoomName.textContent=room.name; viewRoomDesc.textContent=room.desc||''; roomIdDisplay.innerHTML=`Room ID: <strong>${escapeHtml(room._id)}</strong>`; chatBox.innerHTML='<div class="chat-msg"><div class="chat-pfp"></div><div class="msg-content"><div class="msg-username">System</div><div>Welcome to Game Rooms! Boards and booths are turned off here.</div></div></div>'; const players=[...new Set([...(room.players||[]), currentMemberId()].filter(Boolean))]; currentRoom.players=players; updateMembersList(seedMemberPlaceholders(players)); fetchPlayerDetails(players); joinCurrentRoomSocket(); rememberCurrentRoom(false); updateRoomMiniDock(); }
+async function fetchPlayerDetails(ids){ const me=currentMemberDetails(); const members=await Promise.all([...new Set(ids||[])].map(async pid=>{ if(pid===me.userId) return me; if(String(pid||'').startsWith('Guest_')) return {userId:pid,username:'Guest',avatarUrl:''}; try{ const res=await fetch(`/api/user/${pid}/stats`,{headers:authHeaders()}); if(res.ok){ const d=await res.json(); return {userId:pid,username:d.displayName||d.username||'Player',avatarUrl:d.avatarUrl,displayTag:d.displayTag,displayTags:d.displayTags}; } return {userId:pid,username:'Player',avatarUrl:''}; }catch(e){ return {userId:pid,username:'Player',avatarUrl:''}; } })); if(currentRoom) currentRoom.playerDetails=members; updateMembersList(members); }
 function updateMembersList(players){ memberList.innerHTML=(players&&players.length)?players.map(p=>`<div class="member-item" onclick="showMemberProfile('${p.userId}')"><div class="member-avatar" style="background-image:url('${p.avatarUrl||''}')"></div><div class="member-name">${escapeHtml(p.username)}${tagBadgeHtml(p.displayTags||p.displayTag)}</div></div>`).join(''):'<p class="subtitle">No players yet.</p>'; }
 function showMemberProfile(userId){ const p=currentRoom?.playerDetails?.find(x=>x.userId===userId)||{}; profileName.innerHTML=escapeHtml(p.username||'Player')+tagBadgeHtml(p.displayTags||p.displayTag); setAvatar(profileAvatar,p.avatarUrl); modalOverlay.style.display='block'; profileModal.style.display='block'; }
 function closeProfile(){ modalOverlay.style.display='none'; profileModal.style.display='none'; }
 function addChatMessage(username,message,userId,avatarUrl,isAdmin,isOwner,displayTag,displayTags){ if(userId!=='system'){ const plain=String(message||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); lastRoomMessage=`${username||'Player'}: ${plain||'sent an update'}`; rememberCurrentRoom(roomMinimized); updateRoomMiniDock(); } const div=document.createElement('div'); div.className='chat-msg'; const tags=tagBadgeHtml(displayTags||displayTag); div.innerHTML=`<div class="chat-pfp" style="background-image:url('${escapeHtml(avatarUrl||'')}')"></div><div class="msg-content"><div class="msg-username">${escapeHtml(username||'Player')}${tags}</div><div>${escapeHtml(message)}</div></div>`; chatBox.appendChild(div); chatBox.scrollTop=chatBox.scrollHeight; }
-function sendMessage(){ const msg=chatInput.value.trim(); if(!msg||!currentRoom) return; if(isGuest){ if(guestChatCooldown) return showError('Guests can send one message every 25 seconds.'); guestChatCooldown=true; setTimeout(()=>guestChatCooldown=false,25000); socket.emit('chat-message',{text:filterMessage(msg),guestName:guestData.displayName||'Guest'}); } else socket.emit('chat-message',filterMessage(msg)); chatInput.value=''; }
-async function leaveRoom(){ socket.emit('leave-room'); if(isGuest) await fetch('/api/rooms/guest/leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guestId:guestData.id,category:'game'})}); else await fetch('/api/rooms/leave',{method:'POST',headers:authHeaders(),body:JSON.stringify({category:'game'})}); currentRoom=null; window.PasslyRoomState?.clear?.('game'); roomMinimized=false; lastRoomMessage='No new messages yet.'; updateRoomMiniDock(); roomsListPage.style.display='block'; roomViewContainer.style.display='none'; membersPanel.style.display='none'; loadRooms(); }
+async function sendMessage(){ const msg=chatInput.value.trim(); if(!msg||!currentRoom) return; if(!socketRoomReady){ showError('Connecting to room chat…'); const ok=await joinCurrentRoomSocket(); showError(''); if(!ok) return showError('Still connecting to room chat. Try again.'); } if(isGuest){ if(guestChatCooldown) return showError('Guests can send one message every 25 seconds.'); guestChatCooldown=true; setTimeout(()=>guestChatCooldown=false,25000); socket.emit('chat-message',{text:filterMessage(msg),guestName:guestData.displayName||'Guest'}); } else socket.emit('chat-message',filterMessage(msg)); chatInput.value=''; }
+async function leaveRoom(){ socketRoomReady=false; pendingSocketJoin=null; socket.emit('leave-room'); if(isGuest) await fetch('/api/rooms/guest/leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guestId:guestData.id,category:'game'})}); else await fetch('/api/rooms/leave',{method:'POST',headers:authHeaders(),body:JSON.stringify({category:'game'})}); currentRoom=null; window.PasslyRoomState?.clear?.('game'); roomMinimized=false; lastRoomMessage='No new messages yet.'; updateRoomMiniDock(); roomsListPage.style.display='block'; roomViewContainer.style.display='none'; membersPanel.style.display='none'; loadRooms(); }
 socket.on('chat-message',d=>addChatMessage(d.username,d.message,d.userId,d.avatarUrl,d.isAdmin,d.isOwner,d.displayTag,d.displayTags));
 socket.on('chat-error',showError); socket.on('room-closed',leaveRoom); socket.on('force-leave',leaveRoom);
 socket.on('player-left',d=>{ if(currentRoom){ currentRoom.players=(currentRoom.players||[]).filter(pid=>pid!==d.userId); fetchPlayerDetails(currentRoom.players); }});

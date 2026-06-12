@@ -426,6 +426,8 @@
   let guestChatCooldown = false;
   let currentRoomFilter = 'all';
   let allRoomsCache = [];
+  let socketRoomReady = false;
+  let pendingSocketJoin = null;
   const MODERATION_SIGNATURES = new Set([111009209, 131223985, 143668650, 329118256, 386109098, 502535704, 551573376, 555451591, 559076015, 602418012, 641486548, 725389688, 1413536787, 1413787050, 1460770119, 1514452764, 1530439355, 1559734732, 1579344374, 1644392271, 1652072215, 1698156692, 1780401646, 1794766504, 1825958011, 2000021598, 2090526271, 2170560880, 2197349758, 2300720737, 2371240910, 2378842645, 2444789715, 2491017778, 2491417249, 2502654918, 2502990200, 2523928442, 2755324272, 2755618503, 2761596009, 2824268595, 2916843581, 2919109247, 2985822365, 3005511384, 3006755830, 3017509295, 3093067160, 3114006918, 3168946342, 3171316098, 3248370327, 3272027626, 3403702076, 3529674079, 3542999934, 3610473989, 3626884894, 3627576442, 3739672974, 3866578250, 3930762817, 3949966424, 4102686208, 4109682119, 4250961641]);
   function normalizeText(text) {
     return String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -499,6 +501,32 @@
   // Chat display
 
   function currentRoomId() { return currentRoom?._id || currentRoom?.id || null; }
+
+  function currentMemberId() { return isGuest ? guestData.id : userData?.id; }
+  function currentMemberDetails() { return { userId: currentMemberId(), username: userData?.displayName || userData?.username || guestData.displayName || 'You', avatarUrl: userData?.avatarUrl || userData?.avatarFallback || '', booth: userData?.booth, displayTag: userData?.displayTag, displayTags: userData?.displayTags }; }
+  function seedMemberPlaceholders(playerIds) {
+    const me = currentMemberDetails();
+    return [...new Set(playerIds || [])].map(pid => pid === me.userId ? me : ({ userId: pid, username: String(pid || '').startsWith('Guest_') ? 'Guest' : 'Loading...', avatarUrl: '', booth: null }));
+  }
+  function joinCurrentRoomSocket() {
+    if(!currentRoomId()) return Promise.resolve(false);
+    if(socketRoomReady) return Promise.resolve(true);
+    if(pendingSocketJoin) return pendingSocketJoin;
+    pendingSocketJoin = new Promise(resolve => {
+      let settled = false;
+      const finish = ok => { if(settled) return; settled = true; socketRoomReady = !!ok; pendingSocketJoin = null; resolve(!!ok); };
+      socket.emit('join-room', { roomId: currentRoomId(), token, guestId: isGuest ? guestData.id : null }, ack => {
+        if(ack?.players?.length && currentRoom) {
+          currentRoom.players = ack.players;
+          updateMembersList(seedMemberPlaceholders(ack.players));
+          fetchPlayerDetails(ack.players);
+        }
+        finish(!ack || ack.success !== false);
+      });
+      setTimeout(() => finish(true), 5000);
+    });
+    return pendingSocketJoin;
+  }
   function rememberCurrentRoom(minimized = true) {
     if(!currentRoomId()) return;
     window.PasslyRoomState?.set?.({ id: currentRoomId(), name: currentRoom.name || 'this room', category: 'passly', minimized, lastMessage: lastRoomMessage });
@@ -561,10 +589,15 @@
     chatBox.appendChild(msgDiv);
     chatBox.scrollTop = chatBox.scrollHeight;
   }
-  window.sendMessage = function() {
+  window.sendMessage = async function() {
     const input = document.getElementById('chatInput');
     const msg = input.value.trim();
     if(!msg) return;
+    if(!socketRoomReady) {
+      showError('Connecting to room chat…');
+      const ok = await joinCurrentRoomSocket();
+      if(!ok) { showError('Still connecting to room chat. Try again.'); return; }
+    }
     if(isGuest) {
       if(guestChatCooldown) { showError('Guests can send one message every 25 seconds.'); return; }
       guestChatCooldown = true;
@@ -620,6 +653,11 @@
   }
   window.sendBoardToChat = async function() {
     if(!currentRoom || !userData || !userData.board || !userData.board.length) { PasslyUI.toast('No gamepasses on your board.'); return; }
+    if(!socketRoomReady) {
+      PasslyUI.toast('Connecting to room chat…');
+      const ok = await joinCurrentRoomSocket();
+      if(!ok) { PasslyUI.toast('Still connecting to room chat. Try again.'); return; }
+    }
     const remaining = 300000 - (Date.now() - lastBoardSentAt);
     if(boardCooldown || remaining > 0) { PasslyUI.toast(`You can send your board again in ${Math.ceil(Math.max(remaining, 0) / 60000)} minute(s).`); updateSendBoardButton(); return; }
     socket.emit('chat-board', userData.board.map(gp => ({ id:gp.id, price:gp.price })));
@@ -881,6 +919,8 @@ window.createRoom = async function() {
 function showRoomView(room) {
   document.getElementById('chatBox').innerHTML = '<div class="chat-msg"><div class="chat-pfp"></div><div class="msg-content"><div class="msg-username">System</div><div>Welcome to the room! 👋</div></div></div>';
   currentRoom = room;
+  socketRoomReady = false;
+  pendingSocketJoin = null;
   roomMinimized = false;
   lastRoomMessage = 'No new messages yet.';
   document.getElementById('roomsListPage').style.display = 'none';
@@ -891,28 +931,33 @@ function showRoomView(room) {
   document.getElementById('queueBox').style.display = 'none';
   document.getElementById('roomIdDisplay').innerHTML = `🆔 Room ID <strong>${room._id}</strong>`;
   updateSendBoardButton();
-  room.players = [...new Set(room.players || [])];
-  updateMembersList(room.players.map(pid => ({ userId: pid, username: 'Loading...', avatarUrl: '' })));
+  room.players = [...new Set([...(room.players || []), currentMemberId()].filter(Boolean))];
+  updateMembersList(seedMemberPlaceholders(room.players));
   fetchPlayerDetails([...new Set(room.players || [])]);
-  socket.emit('join-room', { roomId: room._id, token, guestId: isGuest ? guestData.id : null });
+  joinCurrentRoomSocket();
   rememberCurrentRoom(false);
   updateRoomMiniDock();
 }
 async function fetchPlayerDetails(playerIds) {
-  const members = [];
-  for(const pid of playerIds) {
+  const me = currentMemberDetails();
+  const members = await Promise.all([...new Set(playerIds || [])].map(async pid => {
+    if(pid === me.userId) return me;
+    if(String(pid || '').startsWith('Guest_')) return { userId: pid, username: 'Guest', avatarUrl: '', booth: null };
     try {
       const res = await fetch(`/api/user/${pid}/stats`, { headers: authHeaders() });
       if(res.ok) {
         const data = await res.json();
-        members.push({ userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl, booth: data.booth, displayTag: data.displayTag, displayTags: data.displayTags });
-      } else members.push({ userId: pid, username: pid.startsWith('Guest_') ? 'Guest' : 'Player', avatarUrl: '', booth: null });
-    } catch(e) { members.push({ userId: pid, username: 'Unknown', avatarUrl: '', booth: null }); }
-  }
+        return { userId: pid, username: data.displayName || data.username, avatarUrl: data.avatarUrl, booth: data.booth, displayTag: data.displayTag, displayTags: data.displayTags };
+      }
+      return { userId: pid, username: 'Player', avatarUrl: '', booth: null };
+    } catch(e) { return { userId: pid, username: 'Unknown', avatarUrl: '', booth: null }; }
+  }));
   if(currentRoom) currentRoom.playerDetails = members;
   updateMembersList(members);
 }
 async function leaveRoom() {
+  socketRoomReady = false;
+  pendingSocketJoin = null;
   socket.emit('leave-room');
   if(isGuest && guestData.id) await fetch('/api/rooms/guest/leave', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ guestId: guestData.id, category:'passly' }) });
   else if(token) await fetch('/api/rooms/leave', { method:'POST', headers:authHeaders(), body:JSON.stringify({ category:'passly' }) });
