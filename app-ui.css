@@ -910,21 +910,24 @@ body::before {
   transform: none !important;
 }
 
-/* Login polish: keep the agreement checkbox compact and shrink the card so more background art remains visible. */
+/* Login polish: keep the agreement checkbox compact and the card small so more background art remains visible. */
 .login-page .container {
-  width: min(88vw, 460px) !important;
-  max-width: 460px !important;
-  padding: 30px 26px !important;
-  margin: 18px auto !important;
+  width: min(84vw, 360px) !important;
+  max-width: 360px !important;
+  padding: 18px 16px !important;
+  margin: 14px auto !important;
 }
-.login-page .logo-text { font-size: clamp(2.45rem, 8vw, 2.85rem) !important; }
+.login-page .tagline {
+  margin-bottom: 14px !important;
+}
 .login-page .description {
-  padding: 16px !important;
-  margin-bottom: 20px !important;
-  line-height: 1.58 !important;
+  padding: 12px !important;
+  margin-bottom: 14px !important;
+  font-size: 0.88rem !important;
+  line-height: 1.45 !important;
 }
 .login-page .checkbox-container {
-  margin: 14px 0 18px !important;
+  margin: 12px 0 14px !important;
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
@@ -959,10 +962,12 @@ body::before {
   font-weight: 900;
 }
 .login-page .checkbox-container input[type="checkbox"]:focus { outline: none !important; }
-.login-page .legal-buttons, .login-page .features { margin-top: 14px !important; }
-.login-page .install-hint { margin-top: 12px !important; }
+.login-page .btn { padding: 13px !important; margin-bottom: 10px !important; font-size: 1rem !important; }
+.login-page .login-note { font-size: 0.78rem !important; margin-bottom: 10px !important; }
+.login-page .legal-buttons, .login-page .features { margin-top: 12px !important; }
+.login-page .install-hint { margin-top: 10px !important; padding: 9px 12px !important; }
 @media (max-width: 600px) {
-  .login-page .container { width: min(92vw, 430px) !important; padding: 24px 18px !important; }
+  .login-page .container { width: min(88vw, 350px) !important; padding: 18px 14px !important; }
 }
 
 /* Game Rooms keep large handmade cards with comfortable join buttons. */
