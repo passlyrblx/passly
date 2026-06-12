@@ -591,7 +591,7 @@ app.get('/auth/roblox', async (req, res) => {
   await OAuthState.create({ state, provider: 'roblox', linkUserId });
   res.redirect(`${ROBLOX_CONFIG.authUrl}?${new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId, redirect_uri: ROBLOX_CONFIG.redirectUri,
-    response_type: 'code', scope: 'openid game-pass:read', state
+    response_type: 'code', scope: 'openid profile game-pass:read', state
   })}`);
 });
 app.get('/auth/roblox/callback', async (req, res) => {
