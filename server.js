@@ -1025,7 +1025,7 @@ app.post('/api/board/add', authenticateToken, async (req, res) => {
   const User = getUserModel();
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const { assetId, price } = req.body;
-  if (!assetId || !price) return res.status(400).json({ error: 'Asset ID and Robux amount required' });
+  if (!assetId) return res.status(400).json({ error: 'Gamepass ID required' });
   if (!/^\d+$/.test(String(assetId))) return res.status(400).json({ error: 'Gamepass ID must be numeric' });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -1039,7 +1039,7 @@ app.post('/api/board/add', authenticateToken, async (req, res) => {
   if (String(productInfo?.Creator?.CreatorTargetId || productInfo?.Creator?.Id || '') !== String(robloxAccountId)) return res.status(400).json({ error: 'That gamepass does not belong to your Roblox account.' });
   const productPrice = normalizeRobloxPrice(productInfo);
   const finalPrice = productPrice || parseInt(price);
-  if (!finalPrice) return res.status(400).json({ error: 'Enter a Robux amount for this gamepass.' });
+  if (!finalPrice) return res.status(400).json({ error: 'Could not read this gamepass price from Roblox. Enter a Robux amount manually.' });
   user.board.push({ id: assetId, name: normalizeGamepassName(productInfo), price: finalPrice });
   await user.save();
   res.json({ success: true, board: user.board });
@@ -1065,10 +1065,13 @@ app.post('/api/board/fetch-gamepasses', authenticateToken, async (req, res) => {
   for (const id of await getCreatedExperienceIds(robloxAccountId)) universeIds.add(id);
   if (!universeIds.size) return res.status(404).json({ error: 'No Roblox experiences were found for your account.' });
 
-  const existingIds = new Set((user.board || []).map(item => String(item.id)));
+  const existingBoard = user.board || [];
+  const existingById = new Map(existingBoard.map(item => [String(item.id), item]));
+  const existingIds = new Set(existingById.keys());
   const fetchedIds = new Set();
   const additions = [];
-  const skipped = { duplicates: 0, failedExperiences: 0 };
+  let updatedPrices = 0;
+  const skipped = { duplicates: 0, failedExperiences: 0, unpriced: 0 };
   const experiences = [];
 
   for (const universeId of [...universeIds].slice(0, 100)) {
@@ -1085,9 +1088,18 @@ app.post('/api/board/fetch-gamepasses', authenticateToken, async (req, res) => {
       const id = normalizeGamepassId(pass);
       if (!id || fetchedIds.has(id)) continue;
       fetchedIds.add(id);
-      if (existingIds.has(id)) { skipped.duplicates += 1; continue; }
       const enriched = await enrichGamepassPrice(pass);
-      if (!enriched) continue;
+      if (!enriched?.price) { skipped.unpriced += 1; continue; }
+      if (existingIds.has(id)) {
+        const existing = existingById.get(id);
+        if (existing && (!Number(existing.price) || Number(existing.price) <= 0)) {
+          existing.price = enriched.price;
+          existing.name = enriched.name || existing.name || 'Gamepass';
+          updatedPrices += 1;
+        }
+        skipped.duplicates += 1;
+        continue;
+      }
       existingIds.add(enriched.id);
       additions.push(enriched);
       addedForExperience += 1;
@@ -1097,35 +1109,40 @@ app.post('/api/board/fetch-gamepasses', authenticateToken, async (req, res) => {
     if (additions.length >= 500) break;
   }
 
-  if (additions.length) {
-    user.board.push(...additions);
-    await user.save();
-  }
-  res.json({ success: true, board: user.board || [], added: additions.length, fetched: fetchedIds.size, experiences, skipped });
+  if (additions.length) user.board.push(...additions);
+  if (additions.length || updatedPrices) await user.save();
+  res.json({ success: true, board: user.board || [], added: additions.length, updated: updatedPrices, fetched: fetchedIds.size, experiences, skipped });
 });
 
-function normalizeRobloxPrice(value) {
-  const candidates = [
-    value?.price,
-    value?.priceInRobux,
-    value?.defaultPrice,
-    value?.defaultPriceInRobux,
-    value?.robux,
-    value?.amount,
-    value?.priceInformation?.price,
-    value?.priceInformation?.priceInRobux,
-    value?.priceInformation?.defaultPrice,
-    value?.priceInformation?.defaultPriceInRobux,
-    value?.priceInformation?.robux,
-    value?.priceInformation?.amount
-  ];
-  for (const candidate of candidates) {
+function normalizeRobloxPrice(value, depth = 0) {
+  if (!value || depth > 6) return null;
+  const priceKeys = new Set([
+    'price',
+    'priceinrobux',
+    'defaultprice',
+    'defaultpriceinrobux',
+    'robux',
+    'robuxprice',
+    'amount',
+    'expectedprice',
+    'expectedpriceinrobux'
+  ]);
+  const parsePrice = (candidate) => {
+    const parsed = Number(candidate);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+  };
+  if (typeof value !== 'object') return parsePrice(value);
+
+  for (const [key, candidate] of Object.entries(value)) {
+    if (priceKeys.has(String(key).toLowerCase())) {
+      const parsed = parsePrice(candidate);
+      if (parsed) return parsed;
+    }
+  }
+  for (const candidate of Object.values(value)) {
     if (candidate && typeof candidate === 'object') {
-      const nested = normalizeRobloxPrice(candidate);
+      const nested = normalizeRobloxPrice(candidate, depth + 1);
       if (nested) return nested;
-    } else {
-      const parsed = Number(candidate);
-      if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
     }
   }
   return null;
@@ -1199,17 +1216,19 @@ async function enrichGamepassPrice(pass) {
   const id = normalizeGamepassId(pass);
   if (!id) return null;
   let price = normalizeRobloxPrice(pass);
+  let name = normalizeGamepassName(pass);
   let forSale = pass?.isForSale ?? pass?.IsForSale;
   if (!price || forSale !== true) {
     try {
       const product = await axios.get(`https://apis.roblox.com/game-passes/v1/game-passes/${id}/product-info`, { timeout: 10000 });
       price = price || normalizeRobloxPrice(product.data);
+      name = normalizeGamepassName(product.data || pass);
       if (forSale !== true) forSale = product.data?.IsForSale ?? product.data?.isForSale;
     } catch (error) {
       logger.warn('Roblox gamepass product lookup failed', { gamepassId: id, message: error.message, status: error.response?.status });
     }
   }
-  return { id, name: normalizeGamepassName(pass), price: price || 0 };
+  return { id, name, price: price || 0 };
 }
 
 function sanitizeInput(str) { if (!str) return ''; return str.replace(/<[^>]*>/g, '').trim().substring(0, 100); }
