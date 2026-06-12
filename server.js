@@ -1314,6 +1314,17 @@ async function leaveExistingRoomsForMember(memberId, emitUpdates = true, categor
   }
 }
 
+
+async function findRoomsForMember(memberId) {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room || !memberId) return [];
+  return Room.find({ $or: [{ players: memberId }, { queue: memberId }] });
+}
+
+function roomCategoryLabel(room) {
+  return room?.category === 'game' ? 'Game' : 'Passly';
+}
+
 async function findRoomsForMemberInCategory(memberId, category) {
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   if (!Room || !memberId) return [];
@@ -1338,8 +1349,8 @@ app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, 
   if (type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
     return res.status(403).json({ error: 'VIP role required to create VIP rooms.' });
   }
-  const existingCategoryRooms = await findRoomsForMemberInCategory(req.user.id, category);
-  if (existingCategoryRooms.length) return res.status(409).json({ error: `You are already in a ${category === 'game' ? 'Game' : 'Passly'} room. Leave it before creating another.` });
+  const existingRooms = await findRoomsForMember(req.user.id);
+  if (existingRooms.length) return res.status(409).json({ error: `You are already in a ${roomCategoryLabel(existingRooms[0])} room. Leave it before creating another room.` });
   const limitCheck = await canCreateRoom(req.user.id, type);
   if (!limitCheck.allowed) return res.status(429).json({ error: limitCheck.error });
   await leaveExistingRoomsForMember(req.user.id, true, category);
@@ -1366,11 +1377,10 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'VIP room – need VIP role.' });
   }
   if (room.players.includes(req.user.id)) return res.json({ success: true, room, alreadyIn: true });
-  const joinCategory = room.category === 'game' ? 'game' : 'passly';
-  const existingCategoryRooms = await findRoomsForMemberInCategory(req.user.id, joinCategory);
-  const otherCategoryRoom = existingCategoryRooms.find(existingRoom => existingRoom._id !== roomId);
-  if (otherCategoryRoom) return res.status(409).json({ error: `You are already in a ${joinCategory === 'game' ? 'Game' : 'Passly'} room. Leave it before joining another.` });
-  await leaveExistingRoomsForMember(req.user.id, true, joinCategory);
+  const existingRooms = await findRoomsForMember(req.user.id);
+  const otherRoom = existingRooms.find(existingRoom => existingRoom._id !== roomId);
+  if (otherRoom) return res.status(409).json({ error: `You are already in a ${roomCategoryLabel(otherRoom)} room. Leave it before joining another room.` });
+  await leaveExistingRoomsForMember(req.user.id, true);
   room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.players.length >= room.maxPlayers) {
@@ -1398,11 +1408,10 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
   room = await reconcileRoomDocument(room) || room;
   if (room.type === 'VIP') return res.status(403).json({ error: 'Guests cannot join VIP rooms.' });
   if (room.players.includes(guestId)) return res.json({ success: true, room, alreadyIn: true });
-  const joinCategory = room.category === 'game' ? 'game' : 'passly';
-  const existingCategoryRooms = await findRoomsForMemberInCategory(guestId, joinCategory);
-  const otherCategoryRoom = existingCategoryRooms.find(existingRoom => existingRoom._id !== roomId);
-  if (otherCategoryRoom) return res.status(409).json({ error: `You are already in a ${joinCategory === 'game' ? 'Game' : 'Passly'} room. Leave it before joining another.` });
-  await leaveExistingRoomsForMember(guestId, true, joinCategory);
+  const existingRooms = await findRoomsForMember(guestId);
+  const otherRoom = existingRooms.find(existingRoom => existingRoom._id !== roomId);
+  if (otherRoom) return res.status(409).json({ error: `You are already in a ${roomCategoryLabel(otherRoom)} room. Leave it before joining another room.` });
+  await leaveExistingRoomsForMember(guestId, true);
   room = await Room.findById(roomId);
   if (!room) return res.status(404).json({ error: 'Room not found' });
   if (room.players.length >= room.maxPlayers) {

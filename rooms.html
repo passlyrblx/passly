@@ -501,6 +501,15 @@
   // Chat display
 
   function currentRoomId() { return currentRoom?._id || currentRoom?.id || null; }
+  function getSavedRoom(category) {
+    const normalize = room => room?.id ? { ...room, category: room.category === 'game' ? 'game' : 'passly' } : null;
+    const fromState = window.PasslyRoomState?.get?.(category);
+    if(fromState?.id) return fromState;
+    const rooms = (() => { try { return JSON.parse(localStorage.getItem('passly_current_rooms') || '{}'); } catch(e) { return {}; } })();
+    const legacy = normalize((() => { try { return JSON.parse(localStorage.getItem('passly_current_room') || 'null'); } catch(e) { return null; } })());
+    if(category) return normalize(rooms[category]) || (legacy?.category === category ? legacy : null);
+    return [normalize(rooms.passly), normalize(rooms.game), legacy].filter(Boolean).sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+  }
 
   function currentMemberId() { return isGuest ? guestData.id : userData?.id; }
   function currentMemberDetails() { return { userId: currentMemberId(), username: userData?.displayName || userData?.username || guestData.displayName || 'You', avatarUrl: userData?.avatarUrl || userData?.avatarFallback || '', booth: userData?.booth, displayTag: userData?.displayTag, displayTags: userData?.displayTags }; }
@@ -861,8 +870,8 @@ window.joinRoomById = async function(id) {
   } else { showError('Login or continue as guest.'); return; }
   try {
     if(currentRoomId() && currentRoomId() !== id) { showError('You are already in a Passly room. Return to it or leave it before joining another Passly room.'); restoreRoom(); return; }
-    const savedPasslyRoom = window.PasslyRoomState?.get?.('passly');
-    if(savedPasslyRoom?.id && savedPasslyRoom.id !== id) { showError('You are already in a Passly room. Leave it before joining another Passly room.'); return; }
+    const savedRoom = getSavedRoom();
+    if(savedRoom?.id && savedRoom.id !== id) { showError(`You are already in a ${savedRoom.category === 'game' ? 'Game' : 'Passly'} room. Leave it before joining another room.`); return; }
     const options = { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) };
     if(token) options.headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(url, options);
@@ -1128,8 +1137,8 @@ window.removeGamepass = async function(assetId) {
         document.getElementById('modalOverlay').style.display = 'block';
         verifyCurrentDonation(true);
       }
-      const storedRoom = (() => { try { return JSON.parse(localStorage.getItem('passly_current_room') || 'null'); } catch(e) { return null; } })();
-      if(storedRoom?.id && (storedRoom.category || 'passly') === 'passly') setTimeout(() => joinRoomById(storedRoom.id), 250);
+      const storedRoom = getSavedRoom('passly');
+      if(storedRoom?.id) setTimeout(() => joinRoomById(storedRoom.id), 250);
       document.getElementById('createRoomBtn').onclick = openCreateModal;
       // Mobile menu toggle
       const hamburger = document.getElementById('hamburgerBtn');
