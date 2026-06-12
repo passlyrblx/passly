@@ -1491,6 +1491,13 @@ body::before {
   position: absolute;
   inset: 0;
 }
+.booth-carousel .booth-card[class*="booth-theme-"],
+.booth-carousel .booth-preview[class*="booth-theme-"] {
+  /* Theme utility classes add float/glow animations that animate transform/filter.
+     The carousel owns those properties for card positioning, so disable inherited
+     theme animations here to keep Crystal centered and Gold visible. */
+  animation: none !important;
+}
 .booth-carousel .booth-card {
   position: absolute !important;
   text-align: left;
