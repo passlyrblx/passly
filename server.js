@@ -827,7 +827,7 @@ app.post('/api/profile/notifications', authenticateToken, async (req, res) => {
 });
 
 // Get user stats for member profile
-app.get('/api/user/:userId/stats', authenticateToken, async (req, res) => {
+app.get('/api/user/:userId/stats', async (req, res) => {
   const User = getUserModel();
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.params.userId);
@@ -1869,7 +1869,14 @@ app.post('/api/donate/initiate', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const donor = await User.findById(donorId);
   if (!donor) return res.status(404).json({ error: 'User not found' });
-  if (!getRobloxAccountId(donor)) return res.status(401).json({ error: 'Please link Roblox before donating.' });
+  const donorRobloxId = getRobloxAccountId(donor);
+  if (!donorRobloxId) return res.status(401).json({ error: 'Please link Roblox before donating.' });
+  try {
+    const inv = await axios.get(`https://inventory.roblox.com/v1/users/${donorRobloxId}/items/GamePass/${gamepassId}`, { timeout: 5000 });
+    if (inv.data?.data?.length) return res.status(400).json({ error: 'You already own this gamepass.' });
+  } catch (err) {
+    logger.warn('Roblox ownership precheck failed', { donorId, gamepassId, message: err.message, status: err.response?.status });
+  }
   if (pendingDonations.has(donorId)) {
     const pending = pendingDonations.get(donorId);
     if (Date.now() - pending.timestamp < 3600000) return res.status(400).json({ error: 'You already have a pending donation. Verify or wait.' });
@@ -1900,14 +1907,14 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   const consumed = await ConsumedPurchase.findById(consumedKey);
   if (consumed) {
     pendingDonations.delete(donorId);
-    return res.status(400).json({ error: 'You have already verified this purchase. Remove it from your inventory and buy it again if you wish to donate again.' });
+    return res.status(400).json({ error: 'You already own this gamepass.' });
   }
   const existing = await Donation.findOne({ donorId, receiverId, gamepassId, amount });
-  if (existing) return res.status(400).json({ error: 'You have already verified this purchase. Remove it from your inventory and buy it again if you wish to donate again.' });
+  if (existing) return res.status(400).json({ error: 'You already own this gamepass.' });
 
   try {
     const inv = await axios.get(`https://inventory.roblox.com/v1/users/${donorRobloxId}/items/GamePass/${gamepassId}`, { timeout: 5000 });
-    if (!inv.data?.data?.length) return res.status(400).json({ error: 'You do not own this gamepass.' });
+    if (!inv.data?.data?.length) return res.status(400).json({ error: "Purchase failed — user didn't buy this gamepass." });
   } catch (err) { return res.status(500).json({ error: 'Failed to verify ownership.' }); }
 
   const receiver = await User.findById(receiverId);
