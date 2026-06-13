@@ -190,7 +190,12 @@ const BOOTH_THEMES = [
   { id: 'royal', name: 'Royal', price: 10000, tier: 'Legendary', animated: true },
   { id: 'energy', name: 'Energy', price: 25000, tier: 'Legendary', animated: true },
   { id: 'futuristic', name: 'Futuristic', price: 50000, tier: 'Mythic', animated: true },
-  { id: 'mythic', name: 'Mythic', price: 100000, tier: 'Mythic', animated: true }
+  { id: 'mythic', name: 'Mythic', price: 100000, tier: 'Mythic', animated: true },
+  { id: 'sunset', name: 'Sunset', price: 750, tier: 'Rare', animated: false },
+  { id: 'ocean', name: 'Ocean', price: 3500, tier: 'Epic', animated: true },
+  { id: 'lava', name: 'Lava', price: 15000, tier: 'Legendary', animated: true },
+  { id: 'matrix', name: 'Matrix', price: 65000, tier: 'Mythic', animated: true },
+  { id: 'void', name: 'Void', price: 90000, tier: 'Mythic', animated: true }
 ];
 function getTodayKey(date = new Date()) { return date.toISOString().slice(0, 10); }
 function getYesterdayKey() { const d = new Date(); d.setUTCDate(d.getUTCDate() - 1); return getTodayKey(d); }
