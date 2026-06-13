@@ -53,6 +53,7 @@ const userSchema = new mongoose.Schema({
   _id: String, robloxId: String, robloxUsername: String, robloxDisplayName: String,
   customDisplayName: String, avatarUrl: String,
   robloxAccessToken: String,
+  robloxScopes: String,
   discord: {
     id: { type: String, index: true, sparse: true },
     username: String,
@@ -390,11 +391,17 @@ function wrapAsyncHandlers(method) {
 const chatLimiter = rateLimit({ windowMs: 10 * 1000, max: 5, message: { error: 'Slow down your messages.' } });
 const roomCreateLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'Too many room creations, wait a minute.' } });
 
+const ROBLOX_LOGIN_SCOPES = (process.env.ROBLOX_LOGIN_SCOPES || 'openid profile')
+  .split(/\s+/)
+  .map(scope => scope.trim())
+  .filter(Boolean)
+  .join(' ');
 const ROBLOX_CONFIG = {
   clientId: process.env.ROBLOX_CLIENT_ID, clientSecret: process.env.ROBLOX_CLIENT_SECRET,
   redirectUri: process.env.ROBLOX_REDIRECT_URI || 'http://localhost:3000/auth/roblox/callback',
   authUrl: 'https://apis.roblox.com/oauth/v1/authorize', tokenUrl: 'https://apis.roblox.com/oauth/v1/token',
-  userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo', usersApi: 'https://users.roblox.com/v1/users'
+  userInfoUrl: 'https://apis.roblox.com/oauth/v1/userinfo', usersApi: 'https://users.roblox.com/v1/users',
+  scopes: ROBLOX_LOGIN_SCOPES
 };
 const DISCORD_CONFIG = {
   clientId: process.env.DISCORD_CLIENT_ID,
@@ -591,7 +598,7 @@ app.get('/auth/roblox', async (req, res) => {
   await OAuthState.create({ state, provider: 'roblox', linkUserId });
   res.redirect(`${ROBLOX_CONFIG.authUrl}?${new URLSearchParams({
     client_id: ROBLOX_CONFIG.clientId, redirect_uri: ROBLOX_CONFIG.redirectUri,
-    response_type: 'code', scope: 'openid profile game-pass:read', state
+    response_type: 'code', scope: ROBLOX_CONFIG.scopes, state
   })}`);
 });
 app.get('/auth/roblox/callback', async (req, res) => {
@@ -606,6 +613,7 @@ app.get('/auth/roblox/callback', async (req, res) => {
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
     );
     const accessToken = tokenRes.data.access_token;
+    const robloxScopes = String(tokenRes.data.scope || ROBLOX_CONFIG.scopes || '');
     const ui = await axios.get(ROBLOX_CONFIG.userInfoUrl, { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 10000 });
     const userId = String(ui.data.sub);
     const profile = (await axios.get(`${ROBLOX_CONFIG.usersApi}/${userId}`, { timeout: 10000 })).data;
@@ -619,7 +627,7 @@ app.get('/auth/roblox/callback', async (req, res) => {
     if (!avatarUrl) avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=150&height=150&format=png`;
 
     let user;
-    const robloxUpdate = { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, isGuest: false };
+    const robloxUpdate = { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, robloxScopes, isGuest: false };
     if (doc.linkUserId) {
       const User = mongoose.model('User');
       user = await User.findByIdAndUpdate(
@@ -1081,7 +1089,7 @@ app.post('/api/board/fetch-gamepasses', authenticateToken, async (req, res) => {
   for (const universeId of [...universeIds].slice(0, 100)) {
     let passes = [];
     try {
-      passes = await fetchUniverseGamepasses(universeId, user.robloxAccessToken);
+      passes = await fetchUniverseGamepasses(universeId, user.robloxAccessToken, user.robloxScopes);
     } catch (error) {
       skipped.failedExperiences += 1;
       logger.warn('Roblox universe gamepass fetch failed', { universeId, message: error.message, status: error.response?.status });
@@ -1192,26 +1200,39 @@ async function getCreatedExperienceIds(robloxAccountId) {
   }
   return [...ids];
 }
-async function fetchUniverseGamepasses(universeId, accessToken) {
+function hasRobloxScope(grantedScopes, scope) {
+  return String(grantedScopes || '')
+    .split(/\s+/)
+    .map(grantedScope => grantedScope.trim())
+    .includes(scope);
+}
+function getRobloxGamepassesFromResponse(data) {
+  return data?.gamePasses || data?.data || [];
+}
+function getRobloxNextPageToken(data) {
+  return data?.nextPageToken || data?.nextPageCursor || '';
+}
+async function fetchUniverseGamepasses(universeId, accessToken, grantedScopes = '') {
   const passes = [];
   let pageToken = '';
+  const canUseCreatorEndpoint = !!accessToken && hasRobloxScope(grantedScopes, 'game-pass:read');
   for (let page = 0; page < 10; page++) {
-    const params = new URLSearchParams({ pageSize: '100' });
+    const params = new URLSearchParams({ pageSize: '100', passView: 'Full' });
     if (pageToken) params.set('pageToken', pageToken);
     const creatorUrl = `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes/creator?${params}`;
     const publicUrl = `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes?${params}`;
     let response;
     try {
-      response = await axios.get(accessToken ? creatorUrl : publicUrl, {
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      response = await axios.get(canUseCreatorEndpoint ? creatorUrl : publicUrl, {
+        headers: canUseCreatorEndpoint ? { Authorization: `Bearer ${accessToken}` } : undefined,
         timeout: 10000
       });
     } catch (error) {
-      if (!accessToken || ![401, 403, 404].includes(error.response?.status)) throw error;
+      if (!canUseCreatorEndpoint || ![401, 403, 404].includes(error.response?.status)) throw error;
       response = await axios.get(publicUrl, { timeout: 10000 });
     }
-    passes.push(...(response.data?.gamePasses || []));
-    pageToken = response.data?.nextPageToken;
+    passes.push(...getRobloxGamepassesFromResponse(response.data));
+    pageToken = getRobloxNextPageToken(response.data);
     if (!pageToken || passes.length >= 500) break;
   }
   return passes;
@@ -2430,7 +2451,7 @@ app.get('/api/user/gamepasses', authenticateToken, async (req, res) => {
     for (const id of await getCreatedExperienceIds(robloxAccountId)) universeIds.add(id);
     const gamepasses = [];
     for (const universeId of [...universeIds].slice(0, 100)) {
-      const passes = await fetchUniverseGamepasses(universeId, user.robloxAccessToken);
+      const passes = await fetchUniverseGamepasses(universeId, user.robloxAccessToken, user.robloxScopes);
       for (const pass of passes) {
         const enriched = await enrichGamepassPrice(pass);
         if (enriched) gamepasses.push({ assetId: enriched.id, id: enriched.id, name: enriched.name, price: enriched.price, universeId });
