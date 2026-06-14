@@ -200,8 +200,8 @@ const BOOTH_THEMES = [
 
 const ADMIN_ROOM_COMMANDS = [
   { command: 'r.close', description: 'Close the current room and remove everyone from it.' },
-  { command: '.effect 10k', description: 'Preview the 10k-100k donation glitch effect in Passly rooms.' },
-  { command: '.effect 100k', description: 'Preview the 100k+ donation jackpot effect in Passly rooms.' }
+  { command: '.effect 10k', description: 'Preview the 10k-100k glitch effect in Passly rooms.' },
+  { command: '.effect 100k', description: 'Preview the 100k+ jackpot effect in Passly rooms.' }
 ];
 function donationEffectTier(amount) {
   const value = Number(amount) || 0;
@@ -1740,7 +1740,6 @@ io.on('connection', (socket) => {
     if (!isGuest && (isAdmin || isOwner) && (adminCommand === '.effect 10k' || adminCommand === '.effect 100k')) {
       const effect = adminCommand.endsWith('100k') ? '100k' : '10k';
       await emitDonationEffectToPasslyRooms(effect, { source: 'admin-command', senderName });
-      socket.emit('chat-message', { userId: 'system', username: '⚡ Passly Effects', message: `${effect === '100k' ? '100k+' : '10k'} donation effect preview sent to Passly rooms.`, avatarUrl: '', isAdmin: false, isOwner: false });
       return;
     }
 
@@ -2004,24 +2003,8 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   amount = donationAmount;
   pendingDonations.delete(donorId);
 
-  // ========== SEND DONATION MESSAGES ==========
-  // Get donor's current room (if any)
-  const donorRoomId = donor.roomId;
   const donorName = donor.customDisplayName || donor.robloxDisplayName || donor.robloxUsername;
   const receiverName = receiver.customDisplayName || receiver.robloxDisplayName || receiver.robloxUsername;
-  if (donorRoomId) {
-    io.to(donorRoomId).emit('room-donation', {
-      donorName, receiverName, amount,
-      donorAvatar: donor.avatarUrl, receiverAvatar: receiver.avatarUrl
-    });
-  }
-  // If donation >= 10,000 Robux, send to all rooms (global message)
-  if (amount >= 10000) {
-    io.emit('global-donation', {
-      donorName, receiverName, amount,
-      donorAvatar: donor.avatarUrl, receiverAvatar: receiver.avatarUrl
-    });
-  }
   await emitDonationEffectToPasslyRooms(donationEffectTier(amount), { donorName, receiverName, amount });
 
   // Also send to live donations page
