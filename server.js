@@ -1480,8 +1480,7 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
 
 async function canManagePrivateRoom(req, room) {
   if (!room || room.type !== 'Private') return false;
-  if (String(room.createdBy) === String(req.user.id)) return true;
-  return isAdminOrOwner(req);
+  return String(room.createdBy) === String(req.user.id);
 }
 
 async function removeMemberFromRoom(room, memberId, reason = 'You were kicked from the private room.') {

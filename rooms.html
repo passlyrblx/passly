@@ -808,7 +808,7 @@ socket.on('room-members-updated', (data) => { if(currentRoom && (currentRoom._id
     container.innerHTML = players.map(p => `
       <div class="member-item" onclick="showMemberProfile('${p.userId}', '${escapeHtml(p.username)}', '${p.avatarUrl || ''}')">
         <div class="member-avatar" style="background-image:url('${p.avatarUrl || ''}'); background-size:cover;"></div>
-        <div class="member-name">${escapeHtml(p.username)}${tagBadgeHtml(p.displayTags || p.displayTag)}${canManageCurrentPrivateRoom()&&p.userId!==currentMemberId()&&p.userId!==currentRoom?.createdBy?`<div style="margin-top:6px;display:flex;gap:6px;"><button class="member-action-btn kick-btn" onclick="event.stopPropagation();privateRoomAction('kick','${p.userId}')">Kick</button><button class="member-action-btn ban-btn" onclick="event.stopPropagation();privateRoomAction('ban','${p.userId}')">Ban</button></div>`:''}</div>
+        <div class="member-name">${escapeHtml(p.username)}${String(p.userId)===String(currentRoom?.createdBy)?' [owner]':''}${tagBadgeHtml(p.displayTags || p.displayTag)}${canManageCurrentPrivateRoom()&&p.userId!==currentMemberId()&&String(p.userId)!==String(currentRoom?.createdBy)?`<div style="margin-top:6px;display:flex;gap:6px;"><button class="member-action-btn kick-btn" onclick="event.stopPropagation();privateRoomAction('kick','${p.userId}')">Kick</button><button class="member-action-btn ban-btn" onclick="event.stopPropagation();privateRoomAction('ban','${p.userId}')">Ban</button></div>`:''}</div>
       </div>
     `).join('');
   }
@@ -1028,7 +1028,7 @@ window.createRoom = async function() {
   } catch(e) { showError('Error creating room.'); }
 };
 
-function canManageCurrentPrivateRoom(){ return !!(currentRoom && currentRoom.type === 'Private' && token && (currentRoom.createdBy === currentMemberId() || ['admin','owner'].includes(userData?.role))); }
+function canManageCurrentPrivateRoom(){ return !!(currentRoom && currentRoom.type === 'Private' && token && String(currentRoom.createdBy) === String(currentMemberId())); }
 function updatePrivateRoomActions(){ const box=document.getElementById('privateRoomActions'); if(box) box.style.display=canManageCurrentPrivateRoom()?'flex':'none'; }
 async function privateRoomAction(action,userId){ if(!currentRoomId()||!userId) return; const label=action==='ban'?'Ban':'Kick'; if(!(await PasslyUI.confirm(`${label} this player?`,{confirmText:label}))) return; const res=await fetch(`/api/rooms/${currentRoomId()}/${action}`,{method:'POST',headers:authHeaders(),body:JSON.stringify({userId})}); const data=await res.json(); if(!res.ok||data.error) return showError(data.error||`Could not ${action} player.`); PasslyUI.toast(`Player ${action}ed.`); }
 async function makeRoomPublic(){ if(!currentRoomId()) return; if(!(await PasslyUI.confirm('Make this private room public? Banned players will be cleared and everyone can find it.',{confirmText:'Make public'}))) return; const res=await fetch(`/api/rooms/${currentRoomId()}/make-public`,{method:'POST',headers:authHeaders()}); const data=await res.json(); if(!res.ok||data.error) return showError(data.error||'Could not make room public.'); currentRoom=data.room||{...currentRoom,type:'Public'}; updatePrivateRoomActions(); PasslyUI.toast('Room is public now.'); loadRooms(); }
