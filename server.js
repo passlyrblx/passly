@@ -147,7 +147,7 @@ const roomSchema = new mongoose.Schema({
   _id: String, name: String, desc: String, type: { type: String, enum: ['Public', 'Private', 'VIP'] },
   category: { type: String, enum: ['passly', 'game'], default: 'passly', index: true },
   backgroundClass: String, robloxPlaceId: String,
-  players: [String], queue: [String], maxPlayers: { type: Number, default: 18 },
+  players: [String], queue: [String], bannedUsers: { type: [String], default: [] }, maxPlayers: { type: Number, default: 18 },
   createdBy: String, createdAt: { type: Date, default: Date.now }
 });
 const donationSchema = new mongoose.Schema({
@@ -1394,7 +1394,6 @@ app.post('/api/rooms/create', authenticateToken, roomCreateLimiter, async (req, 
   if (!name) return res.status(400).json({ error: 'Room name required' });
   if (filterMessageServer(name) !== name || filterMessageServer(desc) !== desc) return res.status(400).json({ error: 'Room name or description contains blocked content.' });
   if (!['Public', 'Private', 'VIP'].includes(type)) type = 'Public';
-  if (category === 'game') type = 'Public';
   const user = await User.findById(req.user.id);
   if (type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
     return res.status(403).json({ error: 'VIP role required to create VIP rooms.' });
@@ -1426,6 +1425,7 @@ app.post('/api/rooms/join/:id', authenticateToken, async (req, res) => {
   if (room.type === 'VIP' && user.role !== 'vip' && user.role !== 'admin' && user.role !== 'owner') {
     return res.status(403).json({ error: 'VIP room – need VIP role.' });
   }
+  if ((room.bannedUsers || []).includes(req.user.id)) return res.status(403).json({ error: 'They banned you from private room.' });
   if (room.players.includes(req.user.id)) return res.json({ success: true, room, alreadyIn: true });
   const existingRooms = await findRoomsForMember(req.user.id);
   const otherRoom = existingRooms.find(existingRoom => existingRoom._id !== roomId);
@@ -1457,6 +1457,7 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
   if (!room) return res.status(404).json({ error: 'Room not found' });
   room = await reconcileRoomDocument(room) || room;
   if (room.type === 'VIP') return res.status(403).json({ error: 'Guests cannot join VIP rooms.' });
+  if ((room.bannedUsers || []).includes(guestId)) return res.status(403).json({ error: 'They banned you from private room.' });
   if (room.players.includes(guestId)) return res.json({ success: true, room, alreadyIn: true });
   const existingRooms = await findRoomsForMember(guestId);
   const otherRoom = existingRooms.find(existingRoom => existingRoom._id !== roomId);
@@ -1473,6 +1474,78 @@ app.post('/api/rooms/guest/join/:id', async (req, res) => {
   room.players.push(guestId);
   await room.save();
   io.to(roomId).emit('player-joined', { userId: guestId, username: guestName || 'Guest' });
+  res.json({ success: true, room });
+});
+
+
+async function canManagePrivateRoom(req, room) {
+  if (!room || room.type !== 'Private') return false;
+  if (String(room.createdBy) === String(req.user.id)) return true;
+  return isAdminOrOwner(req);
+}
+
+async function removeMemberFromRoom(room, memberId, reason = 'You were kicked from the private room.') {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  const User = getUserModel();
+  if (!Room || !room || !memberId) return null;
+  const wasPresent = (room.players || []).includes(memberId) || (room.queue || []).includes(memberId);
+  room.players = (room.players || []).filter(id => id !== memberId);
+  room.queue = (room.queue || []).filter(id => id !== memberId);
+  while ((room.queue || []).length > 0 && (room.players || []).length < room.maxPlayers) {
+    const nextId = room.queue.shift();
+    if (!room.players.includes(nextId)) room.players.push(nextId);
+    if (User && !String(nextId).startsWith('Guest_')) await User.findByIdAndUpdate(nextId, { roomId: room._id, inQueue: false }).catch(() => {});
+    io.to(room._id).emit('player-joined', { userId: nextId });
+  }
+  await room.save();
+  if (User && !String(memberId).startsWith('Guest_')) await User.findByIdAndUpdate(memberId, { roomId: null, inQueue: false }).catch(() => {});
+  const sockets = await io.in(room._id).fetchSockets();
+  for (const sock of sockets) {
+    if (sock.userId === memberId || sock.guestId === memberId) {
+      sock.emit('force-leave', { reason });
+      sock.leave(room._id);
+    }
+  }
+  if (wasPresent) io.to(room._id).emit('player-left', { userId: memberId });
+  io.to(room._id).emit('room-members-updated', { roomId: room._id, players: room.players || [], queue: room.queue || [] });
+  return room;
+}
+
+app.post('/api/rooms/:id/kick', authenticateToken, async (req, res) => {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room) return res.status(503).json({ error: 'Database not ready' });
+  const room = await Room.findById(req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (!(await canManagePrivateRoom(req, room))) return res.status(403).json({ error: 'Only the private room owner can manage this room.' });
+  const targetId = String(req.body.userId || '');
+  if (!targetId || targetId === req.user.id || targetId === String(room.createdBy)) return res.status(400).json({ error: 'Choose another player.' });
+  await removeMemberFromRoom(room, targetId, 'You were kicked from the private room. You can join again.');
+  res.json({ success: true });
+});
+
+app.post('/api/rooms/:id/ban', authenticateToken, async (req, res) => {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room) return res.status(503).json({ error: 'Database not ready' });
+  const room = await Room.findById(req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (!(await canManagePrivateRoom(req, room))) return res.status(403).json({ error: 'Only the private room owner can manage this room.' });
+  const targetId = String(req.body.userId || '');
+  if (!targetId || targetId === req.user.id || targetId === String(room.createdBy)) return res.status(400).json({ error: 'Choose another player.' });
+  if (!room.bannedUsers.includes(targetId)) room.bannedUsers.push(targetId);
+  await removeMemberFromRoom(room, targetId, 'They banned you from private room.');
+  res.json({ success: true });
+});
+
+app.post('/api/rooms/:id/make-public', authenticateToken, async (req, res) => {
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (!Room) return res.status(503).json({ error: 'Database not ready' });
+  const room = await Room.findById(req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+  if (!(await canManagePrivateRoom(req, room))) return res.status(403).json({ error: 'Only the private room owner can publish this room.' });
+  room.type = 'Public';
+  room.bannedUsers = [];
+  await room.save();
+  io.to(room._id).emit('room-made-public', { roomId: room._id });
   res.json({ success: true, room });
 });
 
@@ -2222,7 +2295,7 @@ app.get('/api/admin/rooms', authenticateToken, async (req, res) => {
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   if (!Room) return res.status(503).json({ error: 'Database not ready' });
   const rooms = await Room.find().sort({ createdAt: -1 }).limit(100);
-  res.json({ rooms: rooms.map(room => ({ id: room._id, name: room.name, type: room.type, players: room.players?.length || 0, queue: room.queue?.length || 0, createdBy: room.createdBy })) });
+  res.json({ rooms: rooms.map(room => ({ id: room._id, name: room.name, type: room.type, category: room.category || 'passly', players: room.players?.length || 0, queue: room.queue?.length || 0, banned: room.bannedUsers?.length || 0, createdBy: room.createdBy })) });
 });
 app.post('/api/admin/adjust-coins', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
