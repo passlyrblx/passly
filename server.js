@@ -184,19 +184,43 @@ const BOOTH_THEMES = [
   { id: 'neon', name: 'Neon', price: 100, tier: 'Starter', animated: false },
   { id: 'cyber', name: 'Cyber', price: 250, tier: 'Starter', animated: false },
   { id: 'galaxy', name: 'Galaxy', price: 500, tier: 'Rare', animated: false },
+  { id: 'sunset', name: 'Sunset', price: 750, tier: 'Rare', animated: false },
   { id: 'crystal', name: 'Crystal', price: 1000, tier: 'Rare', animated: true },
   { id: 'gold', name: 'Gold', price: 2500, tier: 'Epic', animated: true },
+  { id: 'ocean', name: 'Ocean', price: 3500, tier: 'Epic', animated: true },
   { id: 'shadow', name: 'Shadow', price: 5000, tier: 'Epic', animated: true },
   { id: 'royal', name: 'Royal', price: 10000, tier: 'Legendary', animated: true },
+  { id: 'lava', name: 'Lava', price: 15000, tier: 'Legendary', animated: true },
   { id: 'energy', name: 'Energy', price: 25000, tier: 'Legendary', animated: true },
   { id: 'futuristic', name: 'Futuristic', price: 50000, tier: 'Mythic', animated: true },
-  { id: 'mythic', name: 'Mythic', price: 100000, tier: 'Mythic', animated: true },
-  { id: 'sunset', name: 'Sunset', price: 750, tier: 'Rare', animated: false },
-  { id: 'ocean', name: 'Ocean', price: 3500, tier: 'Epic', animated: true },
-  { id: 'lava', name: 'Lava', price: 15000, tier: 'Legendary', animated: true },
   { id: 'matrix', name: 'Matrix', price: 65000, tier: 'Mythic', animated: true },
-  { id: 'void', name: 'Void', price: 90000, tier: 'Mythic', animated: true }
+  { id: 'void', name: 'Void', price: 90000, tier: 'Mythic', animated: true },
+  { id: 'mythic', name: 'Mythic', price: 100000, tier: 'Mythic', animated: true }
+].sort((a, b) => a.price - b.price || a.name.localeCompare(b.name));
+
+const ADMIN_ROOM_COMMANDS = [
+  { command: 'r.close', description: 'Close the current room and remove everyone from it.' },
+  { command: '.effect 10k', description: 'Preview the 10k-100k donation glitch effect in Passly rooms.' },
+  { command: '.effect 100k', description: 'Preview the 100k+ donation jackpot effect in Passly rooms.' }
 ];
+function donationEffectTier(amount) {
+  const value = Number(amount) || 0;
+  if (value >= 100000) return '100k';
+  if (value >= 10000) return '10k';
+  return null;
+}
+async function emitDonationEffectToPasslyRooms(effect, payload = {}) {
+  if (!effect) return;
+  const eventPayload = { effect, ...payload, timestamp: new Date() };
+  const roomIds = new Set(FALLBACK_ROOM_IDS);
+  const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
+  if (Room) {
+    const rooms = await Room.find({ $or: [{ category: 'passly' }, { category: { $exists: false } }] }).select('_id').lean();
+    rooms.forEach(room => roomIds.add(String(room._id)));
+  }
+  roomIds.forEach(roomId => io.to(roomId).emit('donation-effect', eventPayload));
+}
+
 function getTodayKey(date = new Date()) { return date.toISOString().slice(0, 10); }
 function getYesterdayKey() { const d = new Date(); d.setUTCDate(d.getUTCDate() - 1); return getTodayKey(d); }
 function parseStoredDate(value) {
@@ -927,7 +951,7 @@ app.get('/api/booths', authenticateToken, async (req, res) => {
   if (!User) return res.status(503).json({ error: 'Database not ready' });
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ themes: BOOTH_THEMES, ...serializeEconomy(user) });
+  res.json({ themes: [...BOOTH_THEMES].sort((a, b) => a.price - b.price || a.name.localeCompare(b.name)), ...serializeEconomy(user) });
 });
 
 app.post('/api/booths/purchase', authenticateToken, async (req, res) => {
@@ -1712,8 +1736,16 @@ io.on('connection', (socket) => {
       }
     }
 
+    const adminCommand = String(messageText || '').trim().toLowerCase();
+    if (!isGuest && (isAdmin || isOwner) && (adminCommand === '.effect 10k' || adminCommand === '.effect 100k')) {
+      const effect = adminCommand.endsWith('100k') ? '100k' : '10k';
+      await emitDonationEffectToPasslyRooms(effect, { source: 'admin-command', senderName });
+      socket.emit('chat-message', { userId: 'system', username: '⚡ Passly Effects', message: `${effect === '100k' ? '100k+' : '10k'} donation effect preview sent to Passly rooms.`, avatarUrl: '', isAdmin: false, isOwner: false });
+      return;
+    }
+
     // Admin command: r.close
-    if (!isGuest && (isAdmin || isOwner) && messageText.trim().toLowerCase() === 'r.close') {
+    if (!isGuest && (isAdmin || isOwner) && adminCommand === 'r.close') {
       const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
       if (Room) {
         const room = await Room.findById(currentRoomId);
@@ -1990,6 +2022,8 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
       donorAvatar: donor.avatarUrl, receiverAvatar: receiver.avatarUrl
     });
   }
+  await emitDonationEffectToPasslyRooms(donationEffectTier(amount), { donorName, receiverName, amount });
+
   // Also send to live donations page
   io.emit('new-donation', {
     donorName, receiverName, amount,
@@ -2117,6 +2151,11 @@ app.post('/api/admin/resolve-report', authenticateToken, async (req, res) => {
   REPORTS = REPORTS.filter(r => r._id !== req.body.reportId);
   res.json({ success: true });
 });
+app.get('/api/admin/commands', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  res.json({ commands: ADMIN_ROOM_COMMANDS });
+});
+
 app.get('/api/admin/search-user', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
   const target = await findAdminTargetUser(req.query.username, { provisionRobloxId: true });
