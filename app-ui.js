@@ -271,21 +271,17 @@
       { label: 'Admin Chat', href: '/admin#admin-chat-card' },
       { label: 'Coupons', href: '/admin#coupon-card' }
     ]});
-    groups.push({ label: '💬 Support', href: '/terms', children: [
+    groups.push({ label: '🛟 Support', href: '/terms', children: [
       { label: 'Terms of Service', href: '/terms' },
       { label: 'Privacy Policy', href: '/privacy' },
       {
         label: 'Discord Support',
-        icon: 'discord',
         href: 'https://discord.gg/9qNpCGztun',
         description: 'Open a support ticket and tell us what you need help with.',
         external: true
       }
     ]});
-    const renderChild = (child) => {
-      const labelIcon = child.icon === 'discord' ? '<svg class="passly-discord-icon" viewBox="0 0 127.14 96.36" aria-hidden="true" focusable="false"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21A105.73 105.73 0 0 0 32.71 96.36a77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69c-6.27 0-11.43-5.76-11.43-12.84s5.05-12.84 11.43-12.84 11.54 5.81 11.43 12.84-5.05 12.84-11.43 12.84Zm42.24 0c-6.27 0-11.43-5.76-11.43-12.84s5.05-12.84 11.43-12.84 11.54 5.81 11.43 12.84-5.05 12.84-11.43 12.84Z"/></svg>' : '';
-      return `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}><span class="passly-submenu-label">${child.label}${labelIcon}</span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
-    };
+    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
     const desktopHtml = groups.map((group) => group.children ? `
       <div class="passly-nav-group">
         <a href="${group.href}" class="passly-nav-parent">${group.label}</a>
