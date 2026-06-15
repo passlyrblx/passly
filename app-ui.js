@@ -249,16 +249,16 @@
       } catch (e) {}
     }
     const groups = [
-      { label: '🏠 Home', href: '/dashboard' },
-      { label: '🚪 Rooms', href: '/rooms' },
-      { label: '🎮 Game Rooms', href: '/game-rooms' },
-      { label: '⛏️ Minecraft (coming soon)', href: '#', disabled: true },
-      { label: '🌐 Community', href: '/leaderboard', children: [
+      { label: 'Home', href: '/dashboard' },
+      { label: 'Rooms', href: '/rooms' },
+      { label: 'Game Rooms', href: '/game-rooms' },
+      { label: 'Minecraft (coming soon)', href: '#', disabled: true },
+      { label: 'Community', href: '/leaderboard', children: [
         { label: 'Leaderboard', href: '/leaderboard' },
         { label: 'Friends', href: '/friends' },
         { label: 'Live donations', href: '/livedonations' }
       ]},
-      { label: '⚙️ Settings', href: '/profile', children: [
+      { label: 'Settings', href: '/profile', children: [
         { label: 'Profile settings', href: '/profile' },
         { label: 'Booth settings', href: '/booths' },
         { label: 'Find player', href: '/find-player' },
@@ -266,22 +266,33 @@
         { label: 'Redeem coupon', href: '/redeem' }
       ]}
     ];
-    if (isAdmin) groups.push({ label: '🔧 Admin', href: '/admin', children: [
+    if (isAdmin) groups.push({ label: 'Admin', href: '/admin', children: [
       { label: 'Dashboard', href: '/admin' },
       { label: 'Admin Chat', href: '/admin#admin-chat-card' },
       { label: 'Coupons', href: '/admin#coupon-card' }
     ]});
-    groups.push({ label: '🛟 Support', href: '/terms', children: [
-      { label: 'Terms of Service', href: '/terms' },
-      { label: 'Privacy Policy', href: '/privacy' },
+    groups.push({ label: 'Support', href: '/terms', children: [
+      {
+        label: 'Terms of Service',
+        href: '/terms',
+        icon: 'gavel',
+        description: 'Read the rules for using Passly safely and responsibly.'
+      },
+      {
+        label: 'Privacy Policy',
+        href: '/privacy',
+        icon: 'shield_lock',
+        description: 'Learn what data Passly collects and how it is protected.'
+      },
       {
         label: 'Discord Support',
         href: 'https://discord.gg/9qNpCGztun',
+        icon: 'support_agent',
         description: 'Open a support ticket and tell us what you need help with.',
         external: true
       }
     ]});
-    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
+    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${child.icon ? `<span class="material-symbols-outlined passly-nav-icon" aria-hidden="true">${child.icon}</span>` : ''}<span class="passly-nav-copy"><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</span></a>`;
     const desktopHtml = groups.map((group) => group.children ? `
       <div class="passly-nav-group">
         <a href="${group.href}" class="passly-nav-parent">${group.label}</a>
