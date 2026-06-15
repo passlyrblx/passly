@@ -1705,3 +1705,53 @@ body::before {
 .passly-booth-surface.booth-theme-lava { background: linear-gradient(135deg, #450a0a, #dc2626 48%, #f97316) !important; color:#fff7ed; }
 .passly-booth-surface.booth-theme-matrix { background: linear-gradient(135deg, #020617, #064e3b 52%, #22c55e) !important; color:#dcfce7; }
 .passly-booth-surface.booth-theme-void { background: radial-gradient(circle at 70% 20%, rgba(168,85,247,.9), transparent 30%), linear-gradient(135deg, #020617, #111827 48%, #581c87) !important; color:#f5f3ff; }
+
+/* Transparent SVG navigation icons for support/legal links */
+.nav-links a,
+.passly-nav-parent,
+.mobile-menu a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.passly-nav-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-grid !important;
+  place-items: center;
+  flex: 0 0 18px;
+  color: #d8ccff;
+  background: transparent;
+}
+.passly-nav-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+  background: transparent;
+  filter: drop-shadow(0 0 10px rgba(167,139,250,.28));
+}
+.passly-nav-copy {
+  display: grid !important;
+  gap: 3px;
+  min-width: 0;
+}
+.nav-links .passly-submenu a,
+.mobile-menu .passly-submenu a {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px;
+}
+.nav-links .passly-submenu a .passly-nav-icon,
+.mobile-menu .passly-submenu a .passly-nav-icon {
+  width: 22px;
+  height: 22px;
+  flex-basis: 22px;
+  margin-top: 1px;
+  color: #a5f3fc;
+}
+.nav-links .passly-submenu a .passly-nav-copy > span,
+.mobile-menu .passly-submenu a .passly-nav-copy > span {
+  font-weight: 900;
+  color: #fff;
+}

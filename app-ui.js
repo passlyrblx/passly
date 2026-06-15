@@ -248,17 +248,30 @@
         if (res.ok) isAdmin = !!(await res.json()).isAdmin;
       } catch (e) {}
     }
+    const navIcons = {
+      home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4l8 7.2V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-8.8Z"/></svg>',
+      rooms: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm2 4v2h10V9H7Zm0 4v2h6v-2H7Z"/></svg>',
+      game: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h10a5 5 0 0 1 4.9 4.1l.7 4A3 3 0 0 1 17.7 19l-2.2-2H8.5l-2.2 2a3 3 0 0 1-4.9-2.9l.7-4A5 5 0 0 1 7 8Zm1 3v2H6v2h2v2h2v-2h2v-2h-2v-2H8Zm8.5 1.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm2.5 2.6a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg>',
+      minecraft: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4V5Zm3 3v3h3V8H7Zm7 0v3h3V8h-3Zm-5 7h2v-2h2v2h2v2H9v-2Z"/></svg>',
+      community: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a4 4 0 1 0-3.7-5.5A5 5 0 0 1 14 9c0 .7-.1 1.4-.4 2H16Zm-8 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-6 1.8-6 4v2h12v-2c0-2.2-2.7-4-6-4Zm8 0c-.5 0-1 .1-1.5.2 1 .9 1.5 2.2 1.5 3.8v2h6v-2c0-2.2-2.7-4-6-4Z"/></svg>',
+      settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 2.5A8 8 0 0 0 7 6L4.6 5l-2 3.5 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5L10 22h4l.4-2.5A8 8 0 0 0 17 18l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>',
+      admin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm1 6v3h3v2h-3v3h-2v-3H8v-2h3V8h2Z"/></svg>',
+      support: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8 8 0 0 0-8 8v3a3 3 0 0 0 3 3h1v-7H6.1A6 6 0 0 1 18 10h-2v7h1.7A5 5 0 0 1 13 20h-2v2h2a7 7 0 0 0 7-7v-4a8 8 0 0 0-8-8Z"/></svg>',
+      terms: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6V2Zm8 1.5V8h4.5L14 3.5ZM9 11v2h8v-2H9Zm0 4v2h8v-2H9Zm0 4h5v-2H9v2Z"/></svg>',
+      privacy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 5 5v6c0 4.5 2.9 8.7 7 10 4.1-1.3 7-5.5 7-10V5l-7-3Zm0 4a3 3 0 0 1 3 3v2h1v6H8v-6h1V9a3 3 0 0 1 3-3Zm-1 5h2V9a1 1 0 0 0-2 0v2Z"/></svg>',
+      discord: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 5.5A16.6 16.6 0 0 0 15.4 4l-.2.4c1.5.4 2.2 1 2.2 1a13.6 13.6 0 0 0-10.8 0s.8-.6 2.3-1L8.6 4a16.6 16.6 0 0 0-4.1 1.5C1.9 9.4 1.2 13.2 1.5 17c1.7 1.3 3.4 2 5 2.5l1.1-1.8c-.6-.2-1.1-.5-1.6-.8l.4-.3c3.1 1.5 6.5 1.5 9.6 0l.4.3c-.5.3-1 .6-1.6.8l1.1 1.8c1.6-.5 3.3-1.2 5-2.5.4-4.4-.7-8.1-3.4-11.5ZM8.6 14.7c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8 1.6.8 1.6 1.8-.7 1.8-1.6 1.8Zm6.8 0c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8 1.6.8 1.6 1.8-.7 1.8-1.6 1.8Z"/></svg>'
+    };
     const groups = [
-      { label: '🏠 Home', href: '/dashboard' },
-      { label: '🚪 Rooms', href: '/rooms' },
-      { label: '🎮 Game Rooms', href: '/game-rooms' },
-      { label: '⛏️ Minecraft (coming soon)', href: '#', disabled: true },
-      { label: '🌐 Community', href: '/leaderboard', children: [
+      { label: 'Home', href: '/dashboard', icon: 'home' },
+      { label: 'Rooms', href: '/rooms', icon: 'rooms' },
+      { label: 'Game Rooms', href: '/game-rooms', icon: 'game' },
+      { label: 'Minecraft (coming soon)', href: '#', icon: 'minecraft', disabled: true },
+      { label: 'Community', href: '/leaderboard', icon: 'community', children: [
         { label: 'Leaderboard', href: '/leaderboard' },
         { label: 'Friends', href: '/friends' },
         { label: 'Live donations', href: '/livedonations' }
       ]},
-      { label: '⚙️ Settings', href: '/profile', children: [
+      { label: 'Settings', href: '/profile', icon: 'settings', children: [
         { label: 'Profile settings', href: '/profile' },
         { label: 'Booth settings', href: '/booths' },
         { label: 'Find player', href: '/find-player' },
@@ -266,33 +279,45 @@
         { label: 'Redeem coupon', href: '/redeem' }
       ]}
     ];
-    if (isAdmin) groups.push({ label: '🔧 Admin', href: '/admin', children: [
+    if (isAdmin) groups.push({ label: 'Admin', href: '/admin', icon: 'admin', children: [
       { label: 'Dashboard', href: '/admin' },
       { label: 'Admin Chat', href: '/admin#admin-chat-card' },
       { label: 'Coupons', href: '/admin#coupon-card' }
     ]});
-    groups.push({ label: '🛟 Support', href: '/terms', children: [
-      { label: 'Terms of Service', href: '/terms' },
-      { label: 'Privacy Policy', href: '/privacy' },
+    groups.push({ label: 'Support', href: '/terms', icon: 'support', children: [
+      {
+        label: 'Terms of Service',
+        href: '/terms',
+        icon: 'terms',
+        description: 'Review the rules for using Passly safely and fairly.'
+      },
+      {
+        label: 'Privacy Policy',
+        href: '/privacy',
+        icon: 'privacy',
+        description: 'See what data Passly collects and how it is protected.'
+      },
       {
         label: 'Discord Support',
         href: 'https://discord.gg/9qNpCGztun',
+        icon: 'discord',
         description: 'Open a support ticket and tell us what you need help with.',
         external: true
       }
     ]});
-    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
+    const iconMarkup = (name) => name && navIcons[name] ? `<span class="passly-nav-icon">${navIcons[name]}</span>` : '';
+    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(child.icon)}<span class="passly-nav-copy"><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</span></a>`;
     const desktopHtml = groups.map((group) => group.children ? `
       <div class="passly-nav-group">
-        <a href="${group.href}" class="passly-nav-parent">${group.label}</a>
+        <a href="${group.href}" class="passly-nav-parent">${iconMarkup(group.icon)}<span>${group.label}</span></a>
         <button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button>
         <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
-      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${group.label}</a>`).join('');
+      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(group.icon)}<span>${group.label}</span></a>`).join('');
     const mobileHtml = `<button class="close-menu" id="closeMenuBtn">&times;</button>` + groups.map((group) => group.children ? `
       <div class="passly-mobile-group">
-        <div class="passly-mobile-row"><a href="${group.href}">${group.label}</a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button></div>
+        <div class="passly-mobile-row"><a href="${group.href}">${iconMarkup(group.icon)}<span>${group.label}</span></a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button></div>
         <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
-      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${group.label}</a>`).join('');
+      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(group.icon)}<span>${group.label}</span></a>`).join('');
     if (desktopNav) desktopNav.innerHTML = desktopHtml;
     if (mobileNav) mobileNav.innerHTML = mobileHtml;
     document.querySelectorAll('[data-passly-disabled="true"]').forEach((link) => {
