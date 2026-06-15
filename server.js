@@ -2137,11 +2137,113 @@ async function isOwnerRequest(req) {
   const user = await User.findById(req.user.id);
   return effectiveRoleFor(user) === 'owner';
 }
+
+function bytesFromMbEnv(...names) {
+  for (const name of names) {
+    const value = Number(process.env[name]);
+    if (Number.isFinite(value) && value > 0) return Math.round(value * 1024 * 1024);
+  }
+  return null;
+}
+function storagePercent(usedBytes, limitBytes) {
+  if (!limitBytes || !Number.isFinite(usedBytes)) return null;
+  return Math.max(0, Math.min(100, (usedBytes / limitBytes) * 100));
+}
+async function getMongoSpaceUsage() {
+  if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) return { connected: false, error: 'MongoDB not connected' };
+  const db = mongoose.connection.db;
+  const stats = await db.stats({ scale: 1 });
+  const collections = await db.listCollections({}, { nameOnly: true }).toArray();
+  const collectionDetails = [];
+  for (const coll of collections) {
+    try {
+      const collStats = await db.command({ collStats: coll.name, scale: 1 });
+      collectionDetails.push({
+        name: coll.name,
+        sizeBytes: Number(collStats.size || 0),
+        storageSizeBytes: Number(collStats.storageSize || 0),
+        indexSizeBytes: Number(collStats.totalIndexSize || collStats.indexSize || 0),
+        count: Number(collStats.count || 0)
+      });
+    } catch (err) {
+      collectionDetails.push({ name: coll.name, sizeBytes: 0, storageSizeBytes: 0, indexSizeBytes: 0, count: 0, error: 'Stats unavailable' });
+    }
+  }
+  const usedBytes = Number(stats.storageSize || stats.dataSize || 0) + Number(stats.indexSize || 0);
+  const limitBytes = bytesFromMbEnv('MONGODB_STORAGE_LIMIT_MB', 'MONGO_STORAGE_LIMIT_MB', 'DB_STORAGE_LIMIT_MB');
+  return {
+    connected: true,
+    databaseName: db.databaseName,
+    totalDatabaseSizeBytes: Number(stats.dataSize || 0),
+    storageSizeBytes: Number(stats.storageSize || 0),
+    indexSizeBytes: Number(stats.indexSize || 0),
+    usedBytes,
+    limitBytes,
+    freeBytes: limitBytes ? Math.max(0, limitBytes - usedBytes) : null,
+    percentUsed: storagePercent(usedBytes, limitBytes),
+    collections: collectionDetails.sort((a, b) => b.storageSizeBytes - a.storageSizeBytes),
+    highlighted: collectionDetails.filter(c => /messages?|rooms?|logs?|chats?/i.test(c.name))
+  };
+}
+async function getPostgresSpaceUsage() {
+  if (!structuredStore?.pool) return { connected: false, error: 'PostgreSQL not connected' };
+  const pool = structuredStore.pool;
+  const [dbSize, tableRows, indexRows] = await Promise.all([
+    pool.query('select current_database() as database_name, pg_database_size(current_database())::bigint as size_bytes'),
+    pool.query(`
+      select schemaname, relname as table_name,
+        pg_total_relation_size(relid)::bigint as total_size_bytes,
+        pg_relation_size(relid)::bigint as table_size_bytes,
+        (pg_total_relation_size(relid) - pg_relation_size(relid))::bigint as index_size_bytes,
+        coalesce(n_live_tup, 0)::bigint as row_count
+      from pg_stat_user_tables
+      order by pg_total_relation_size(relid) desc
+    `),
+    pool.query('select coalesce(sum(pg_relation_size(indexrelid)), 0)::bigint as index_size_bytes from pg_stat_user_indexes')
+  ]);
+  const usedBytes = Number(dbSize.rows[0]?.size_bytes || 0);
+  const limitBytes = bytesFromMbEnv('SUPABASE_STORAGE_LIMIT_MB', 'POSTGRES_STORAGE_LIMIT_MB', 'DB_STORAGE_LIMIT_MB');
+  const tables = tableRows.rows.map(r => ({
+    schema: r.schemaname,
+    name: r.table_name,
+    totalSizeBytes: Number(r.total_size_bytes || 0),
+    tableSizeBytes: Number(r.table_size_bytes || 0),
+    indexSizeBytes: Number(r.index_size_bytes || 0),
+    rowCount: Number(r.row_count || 0)
+  }));
+  return {
+    connected: true,
+    databaseName: dbSize.rows[0]?.database_name || null,
+    totalDatabaseSizeBytes: usedBytes,
+    usedBytes,
+    limitBytes,
+    freeBytes: limitBytes ? Math.max(0, limitBytes - usedBytes) : null,
+    percentUsed: storagePercent(usedBytes, limitBytes),
+    indexSizeBytes: Number(indexRows.rows[0]?.index_size_bytes || 0),
+    tables,
+    highlighted: tables.filter(t => /^(users|balances|donations|purchases|gamepasses|leaderboards|consumed_purchases)$/i.test(t.name))
+  };
+}
+
 function generateCouponCode() {
   return `PASSLY-${crypto.randomBytes(3).toString('hex').toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 }
 app.use((req, res, next) => { if (req.user && BANNED.has(req.user.id)) return res.status(403).json({ error: 'Banned account.' }); next(); });
 app.get('/api/admin/check', authenticateToken, async (req, res) => { res.json({ isAdmin: await isAdminOrOwner(req) }); });
+
+app.get('/api/admin/space', authenticateToken, async (req, res) => {
+  if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
+  try {
+    const [mongodb, supabase] = await Promise.all([
+      getMongoSpaceUsage().catch(() => ({ connected: false, error: 'MongoDB storage stats unavailable' })),
+      getPostgresSpaceUsage().catch(() => ({ connected: false, error: 'PostgreSQL storage stats unavailable' }))
+    ]);
+    res.json({ refreshedAt: new Date().toISOString(), mongodb, supabase });
+  } catch (err) {
+    res.status(500).json({ error: 'Storage usage unavailable' });
+  }
+});
+
 app.get('/api/admin/data', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
   const User = getUserModel();

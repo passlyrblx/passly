@@ -61,6 +61,14 @@
     .muted { color:#a0a0b0; font-size:.9rem; }
     textarea, select { padding:10px; background:#1e1e2e; border:1px solid #8b5cf6; border-radius:8px; color:white; width:100%; margin-bottom:10px; }
     .quick-row { display:grid; grid-template-columns:1fr 120px; gap:8px; align-items:start; }
+    .space-card { grid-column:1 / -1; display:none; }
+    .space-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin:12px 0; }
+    .space-metric { background:rgba(0,0,0,0.22); border:1px solid rgba(139,92,246,0.18); border-radius:14px; padding:12px; }
+    .space-metric strong { display:block; color:#ddd6fe; margin-bottom:4px; }
+    .space-bar { width:100%; height:10px; background:rgba(255,255,255,0.12); border-radius:999px; overflow:hidden; margin:8px 0; }
+    .space-bar-fill { height:100%; background:linear-gradient(90deg,#10b981,#8b5cf6); border-radius:inherit; }
+    .space-section { margin-top:18px; }
+    .space-section h4 { color:#ddd6fe; margin:12px 0 8px; }
     @media (max-width:768px) {
       .hamburger { display:flex; }
       .nav-links { display: none; }
@@ -103,9 +111,10 @@
 </div>
 <div class="menu-overlay" id="menuOverlay"></div>
 <div class="container">
-  <h1>🔧 Admin Dashboard</h1>
+  <h1>🔧 Admin Dashboard <button onclick="toggleSpacePanel()">Space</button></h1>
   <div class="admin-grid">
     <div class="card"><h3>📊 Website Status</h3><div id="statsContainer" class="stats-grid">Loading...</div></div>
+    <div class="card space-card" id="spaceCard"><h3>💾 Database Space <button onclick="loadSpaceUsage(true)">Refresh</button></h3><p class="muted">Auto-refreshes every 45 seconds while open. Storage limits use backend configuration when available.</p><div id="spaceUsageContainer">Click refresh to load storage usage.</div></div>
     <div class="card"><h3>🟢 Online Users <button onclick="loadOnlineUsers()">Refresh</button></h3><div id="onlineUsersList">Loading...</div></div>
     <div class="card"><h3>📢 User Reports</h3><div id="reportsList">Loading...</div></div>
     <div class="card"><h3>👥 User Management</h3><input type="text" id="searchUser" placeholder="Search by Roblox username or ID"><button onclick="searchUser()">Search</button><div id="userResult"></div></div>
@@ -134,6 +143,48 @@
       img.src = src;
     }
     async function loadCurrentUser() { if(!token) return null; try { const res = await fetch('/api/user', { headers: { 'Authorization': `Bearer ${token}` } }); if(!res.ok) return null; const data = await res.json(); document.getElementById('userName').innerHTML = escapeHtml(data.displayName || data.robloxUsername || 'Admin') + tagBadgeHtml(data.displayTags || data.displayTag); setAvatar(document.getElementById('userAvatar'), data.avatarUrl, data.avatarFallback); if(data.role === 'owner') { document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'block'); loadCoupons(); } return data; } catch(e) { document.getElementById('userName').textContent = 'Admin'; return null; } }
+
+    let spaceTimer = null;
+    function formatBytes(bytes) {
+      const n = Number(bytes || 0);
+      if(!Number.isFinite(n)) return 'Unavailable';
+      if(n >= 1024 ** 3) return `${(n / (1024 ** 3)).toFixed(2)} GB`;
+      return `${(n / (1024 ** 2)).toFixed(2)} MB`;
+    }
+    function percentText(value) { return Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)}%` : 'Limit not configured'; }
+    function barHtml(value) { const pct = Number.isFinite(Number(value)) ? Math.max(0, Math.min(100, Number(value))) : 0; return `<div class="space-bar"><div class="space-bar-fill" style="width:${pct}%"></div></div>`; }
+    function metricHtml(label, value) { return `<div class="space-metric"><strong>${escapeHtml(label)}</strong>${escapeHtml(value)}</div>`; }
+    function rowsHtml(items, type) {
+      if(!items || !items.length) return '<p class="muted">No matching records found.</p>';
+      const body = items.map(item => type === 'mongo'
+        ? `<tr><td>${escapeHtml(item.name)}</td><td>${formatBytes(item.sizeBytes)}</td><td>${formatBytes(item.storageSizeBytes)}</td><td>${formatBytes(item.indexSizeBytes)}</td><td>${Number(item.count || 0).toLocaleString()}</td></tr>`
+        : `<tr><td>${escapeHtml(item.name)}</td><td>${formatBytes(item.totalSizeBytes)}</td><td>${formatBytes(item.tableSizeBytes)}</td><td>${formatBytes(item.indexSizeBytes)}</td><td>${Number(item.rowCount || 0).toLocaleString()}</td></tr>`).join('');
+      return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Total/Data</th><th>Storage/Table</th><th>Index</th><th>Count/Rows</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    }
+    function renderSpaceDb(title, db, type) {
+      if(!db || !db.connected) return `<div class="space-section"><h4>${escapeHtml(title)}</h4><p>${escapeHtml(db?.error || 'Not connected')}</p></div>`;
+      const details = type === 'mongo'
+        ? [metricHtml('Total database size', formatBytes(db.totalDatabaseSizeBytes)), metricHtml('Storage size', formatBytes(db.storageSizeBytes)), metricHtml('Index size', formatBytes(db.indexSizeBytes)), metricHtml('Estimated free remaining', db.freeBytes == null ? 'Limit not configured' : formatBytes(db.freeBytes))]
+        : [metricHtml('Total database size', formatBytes(db.totalDatabaseSizeBytes)), metricHtml('Total index size', formatBytes(db.indexSizeBytes)), metricHtml('Estimated free remaining', db.freeBytes == null ? 'Limit not configured' : formatBytes(db.freeBytes)), metricHtml('Used percentage', percentText(db.percentUsed))];
+      return `<div class="space-section"><h4>${escapeHtml(title)} ${db.databaseName ? `· ${escapeHtml(db.databaseName)}` : ''}</h4>${barHtml(db.percentUsed)}<p class="muted">Used ${formatBytes(db.usedBytes)}${db.limitBytes ? ` of ${formatBytes(db.limitBytes)}` : ''} · ${percentText(db.percentUsed)}</p><div class="space-summary">${details.join('')}</div><h4>Highlighted</h4>${rowsHtml(db.highlighted, type)}<h4>${type === 'mongo' ? 'Collection-wise usage' : 'Table-wise usage'}</h4>${rowsHtml(type === 'mongo' ? db.collections : db.tables, type)}</div>`;
+    }
+    async function loadSpaceUsage(showToast) {
+      const box = document.getElementById('spaceUsageContainer');
+      if(!box) return;
+      box.innerHTML = '<p>Loading storage usage...</p>';
+      const data = await authFetch('/api/admin/space');
+      if(data.error) { box.innerHTML = `<p>${escapeHtml(data.error)}</p>`; return; }
+      box.innerHTML = `<p class="muted">Last refreshed: ${new Date(data.refreshedAt).toLocaleString()}</p>${renderSpaceDb('MongoDB', data.mongodb, 'mongo')}${renderSpaceDb('Supabase/PostgreSQL', data.supabase, 'pg')}`;
+      if(showToast) PasslyUI.toast('Space usage refreshed.');
+    }
+    window.toggleSpacePanel = function() {
+      const card = document.getElementById('spaceCard');
+      const opening = card.style.display !== 'block';
+      card.style.display = opening ? 'block' : 'none';
+      if(opening) { loadSpaceUsage(false); if(!spaceTimer) spaceTimer = setInterval(() => loadSpaceUsage(false), 45000); card.scrollIntoView({ behavior:'smooth', block:'start' }); }
+      else if(spaceTimer) { clearInterval(spaceTimer); spaceTimer = null; }
+    };
+
     async function loadStats() { const data = await authFetch('/api/admin/stats'); if(data.error) { document.getElementById('statsContainer').innerHTML = '<p>Could not load stats right now.</p>'; return; } document.getElementById('statsContainer').innerHTML = `<div>Total Users: ${data.totalUsers}</div><div>Guests: ${data.totalGuests}</div><div>Donations: ${data.totalDonations}</div><div>Robux Donated: ${data.totalRobuxDonated.toLocaleString()}</div><div>Online Now: ${data.onlineNow}</div><div>Active Today: ${data.activeToday}</div><div>Active Rooms: ${data.totalRooms}</div><div>Players in Rooms: ${data.activeRoomPlayers}</div>`; }
     async function loadOnlineUsers() { const data = await authFetch('/api/admin/online-users'); if(data.error) { document.getElementById('onlineUsersList').innerHTML = '<p>Could not load online users right now.</p>'; return; } const list = data.onlineUsers || []; if(!list.length) { document.getElementById('onlineUsersList').innerHTML = '<p>No users online.</p>'; return; } document.getElementById('onlineUsersList').innerHTML = list.map(u => `<div>${escapeHtml(u.displayName)} (${escapeHtml(u.username)})<br><small class="muted">${escapeHtml(u.id)}</small> <button onclick="window.open('/profile?userId=${u.id}','_blank')">View</button><button onclick="document.getElementById('toolUserId').value='${u.id}'">Use ID</button></div>`).join(''); }
     async function loadAdminData() { const data = await authFetch('/api/admin/data'); if(data.error) return; renderReports(data.reports); renderBanned(data.banned); }
