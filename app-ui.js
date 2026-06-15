@@ -1,9 +1,11 @@
 (() => {
   const PASSLY_LOGO_URL = 'https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png';
   const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const pageKey = (path.replace(/^\//, '') || 'home').replace(/[^a-z0-9-]/gi, '-');
+  document.body.dataset.passlyPage = pageKey;
   const aliases = new Map([
     ['/', ['/']], ['/dashboard', ['/dashboard']], ['/rooms', ['/rooms']], ['/game-rooms', ['/game-rooms']], ['/leaderboard', ['/leaderboard']],
-    ['/profile', ['/profile']], ['/friends', ['/friends']],
+    ['/profile', ['/profile']], ['/friends', ['/friends']], ['/find-player', ['/find-player']], ['/booths', ['/booths']],
     ['/livedonations', ['/livedonations']], ['/redeem', ['/redeem']], ['/admin', ['/admin']], ['/privacy', ['/privacy']], ['/terms', ['/terms']]
   ]);
 
@@ -252,7 +254,7 @@
       home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4l8 7.2V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-8.8Z"/></svg>',
       rooms: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm2 4v2h10V9H7Zm0 4v2h6v-2H7Z"/></svg>',
       game: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h10a5 5 0 0 1 4.9 4.1l.7 4A3 3 0 0 1 17.7 19l-2.2-2H8.5l-2.2 2a3 3 0 0 1-4.9-2.9l.7-4A5 5 0 0 1 7 8Zm1 3v2H6v2h2v2h2v-2h2v-2h-2v-2H8Zm8.5 1.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm2.5 2.6a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg>',
-      minecraft: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4V5Zm3 3v3h3V8H7Zm7 0v3h3V8h-3Zm-5 7h2v-2h2v2h2v2H9v-2Z"/></svg>',
+      minecraft: '<svg class="minecraft-logo-svg" viewBox="0 0 64 64" aria-hidden="true"><path class="mc-top" d="M8 18 32 6l24 12-24 12L8 18Z"/><path class="mc-left" d="M8 18v28l24 12V30L8 18Z"/><path class="mc-right" d="M56 18v28L32 58V30l24-12Z"/><path class="mc-grass" d="M8 18 32 6l24 12-24 12L8 18Z"/><path class="mc-face" d="M18 30h8v8h-8v-8Zm20 0h8v8h-8v-8Zm-14 16h5v-5h6v5h5v6H24v-6Z"/></svg>',
       community: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a4 4 0 1 0-3.7-5.5A5 5 0 0 1 14 9c0 .7-.1 1.4-.4 2H16Zm-8 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-6 1.8-6 4v2h12v-2c0-2.2-2.7-4-6-4Zm8 0c-.5 0-1 .1-1.5.2 1 .9 1.5 2.2 1.5 3.8v2h6v-2c0-2.2-2.7-4-6-4Z"/></svg>',
       settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 2.5A8 8 0 0 0 7 6L4.6 5l-2 3.5 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5L10 22h4l.4-2.5A8 8 0 0 0 17 18l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>',
       admin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm1 6v3h3v2h-3v3h-2v-3H8v-2h3V8h2Z"/></svg>',
@@ -267,22 +269,22 @@
       { label: 'Game Rooms', href: '/game-rooms', icon: 'game' },
       { label: 'Minecraft (coming soon)', href: '#', icon: 'minecraft', disabled: true },
       { label: 'Community', href: '/leaderboard', icon: 'community', children: [
-        { label: 'Leaderboard', href: '/leaderboard' },
-        { label: 'Friends', href: '/friends' },
-        { label: 'Live donations', href: '/livedonations' }
+        { label: 'Leaderboard', href: '/leaderboard', navTheme: 'trophy' },
+        { label: 'Friends', href: '/friends', navTheme: 'social' },
+        { label: 'Live donations', href: '/livedonations', navTheme: 'live' }
       ]},
       { label: 'Settings', href: '/profile', icon: 'settings', children: [
-        { label: 'Profile settings', href: '/profile' },
-        { label: 'Booth settings', href: '/booths' },
-        { label: 'Find player', href: '/find-player' },
-        { label: 'Passly rewards', href: '/booths#earn-passly' },
-        { label: 'Redeem coupon', href: '/redeem' }
+        { label: 'Profile settings', href: '/profile', navTheme: 'profile' },
+        { label: 'Booth settings', href: '/booths', navTheme: 'booth' },
+        { label: 'Find player', href: '/find-player', navTheme: 'search' },
+        { label: 'Passly rewards', href: '/booths#earn-passly', navTheme: 'rewards' },
+        { label: 'Redeem coupon', href: '/redeem', navTheme: 'redeem' }
       ]}
     ];
     if (isAdmin) groups.push({ label: 'Admin', href: '/admin', icon: 'admin', children: [
-      { label: 'Dashboard', href: '/admin' },
-      { label: 'Admin Chat', href: '/admin#admin-chat-card' },
-      { label: 'Coupons', href: '/admin#coupon-card' }
+      { label: 'Dashboard', href: '/admin', navTheme: 'admin' },
+      { label: 'Admin Chat', href: '/admin#admin-chat-card', navTheme: 'chat' },
+      { label: 'Coupons', href: '/admin#coupon-card', navTheme: 'coupon' }
     ]});
     groups.push({ label: 'Support', href: '/terms', icon: 'support', children: [
       {
@@ -306,7 +308,7 @@
       }
     ]});
     const iconMarkup = (name) => name && navIcons[name] ? `<span class="passly-nav-icon">${navIcons[name]}</span>` : '';
-    const renderChild = (child) => `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(child.icon)}<span class="passly-nav-copy"><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</span></a>`;
+    const renderChild = (child) => `<a href="${child.href}" data-passly-nav-theme="${child.navTheme || 'default'}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(child.icon)}<span class="passly-nav-copy"><span>${child.label}</span>${child.description ? `<small>${child.description}</small>` : ''}</span></a>`;
     const desktopHtml = groups.map((group) => group.children ? `
       <div class="passly-nav-group">
         <a href="${group.href}" class="passly-nav-parent">${iconMarkup(group.icon)}<span>${group.label}</span></a>

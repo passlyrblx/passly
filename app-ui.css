@@ -1755,3 +1755,33 @@ body::before {
   font-weight: 900;
   color: #fff;
 }
+
+/* Minecraft nav branding and topic-specific backgrounds */
+.passly-nav-icon .minecraft-logo-svg { filter: drop-shadow(0 0 8px rgba(74, 222, 128, .42)); }
+.minecraft-logo-svg .mc-top { fill: #5b3a21; }
+.minecraft-logo-svg .mc-left { fill: #7c4a24; }
+.minecraft-logo-svg .mc-right { fill: #9a632f; }
+.minecraft-logo-svg .mc-grass { fill: #55b83f; }
+.minecraft-logo-svg .mc-face { fill: #2b1a10; }
+.passly-nav-disabled .minecraft-logo-svg { opacity: .92; }
+
+[data-passly-nav-theme="trophy"] { background: linear-gradient(135deg, rgba(251,191,36,.22), rgba(139,92,246,.12)) !important; }
+[data-passly-nav-theme="social"] { background: linear-gradient(135deg, rgba(34,197,94,.20), rgba(34,211,238,.10)) !important; }
+[data-passly-nav-theme="live"] { background: linear-gradient(135deg, rgba(244,63,94,.22), rgba(251,113,133,.10)) !important; }
+[data-passly-nav-theme="profile"] { background: linear-gradient(135deg, rgba(99,102,241,.22), rgba(167,139,250,.12)) !important; }
+[data-passly-nav-theme="booth"] { background: linear-gradient(135deg, rgba(236,72,153,.20), rgba(139,92,246,.12)) !important; }
+[data-passly-nav-theme="search"] { background: linear-gradient(135deg, rgba(14,165,233,.22), rgba(45,212,191,.12)) !important; }
+[data-passly-nav-theme="rewards"] { background: linear-gradient(135deg, rgba(250,204,21,.22), rgba(52,211,153,.12)) !important; }
+[data-passly-nav-theme="redeem"] { background: linear-gradient(135deg, rgba(34,211,238,.20), rgba(250,204,21,.12)) !important; }
+[data-passly-nav-theme="admin"] { background: linear-gradient(135deg, rgba(248,113,113,.20), rgba(168,85,247,.12)) !important; }
+[data-passly-nav-theme="chat"] { background: linear-gradient(135deg, rgba(59,130,246,.20), rgba(34,211,238,.12)) !important; }
+[data-passly-nav-theme="coupon"] { background: linear-gradient(135deg, rgba(245,158,11,.22), rgba(244,114,182,.12)) !important; }
+
+body[data-passly-page="leaderboard"] { background: radial-gradient(circle at 18% 4%, rgba(251,191,36,.26), transparent 28rem), radial-gradient(circle at 88% 16%, rgba(139,92,246,.22), transparent 24rem), linear-gradient(145deg, #100b1f, #1b1234 56%, #171006) !important; }
+body[data-passly-page="friends"] { background: radial-gradient(circle at 14% 10%, rgba(52,211,153,.24), transparent 28rem), radial-gradient(circle at 86% 18%, rgba(34,211,238,.20), transparent 26rem), linear-gradient(145deg, #051713, #0d1f2a 58%, #07131f) !important; }
+body[data-passly-page="livedonations"] { background: radial-gradient(circle at 12% 8%, rgba(244,63,94,.24), transparent 28rem), radial-gradient(circle at 84% 18%, rgba(251,113,133,.18), transparent 24rem), linear-gradient(145deg, #190710, #241121 58%, #100914) !important; }
+body[data-passly-page="profile"] { background: radial-gradient(circle at 14% 8%, rgba(99,102,241,.25), transparent 28rem), radial-gradient(circle at 88% 14%, rgba(167,139,250,.18), transparent 24rem), linear-gradient(145deg, #080b1f, #15173a 58%, #0b0a1a) !important; }
+body[data-passly-page="booths"] { background: radial-gradient(circle at 15% 8%, rgba(236,72,153,.24), transparent 27rem), radial-gradient(circle at 88% 18%, rgba(139,92,246,.20), transparent 24rem), linear-gradient(145deg, #170819, #251138 56%, #0d0915) !important; }
+body[data-passly-page="find-player"] { background: radial-gradient(circle at 15% 8%, rgba(14,165,233,.25), transparent 28rem), radial-gradient(circle at 86% 18%, rgba(45,212,191,.18), transparent 24rem), linear-gradient(145deg, #061525, #10243a 58%, #07121c) !important; }
+body[data-passly-page="redeem"] { background: radial-gradient(circle at 12% 8%, rgba(250,204,21,.22), transparent 27rem), radial-gradient(circle at 88% 20%, rgba(34,211,238,.18), transparent 24rem), linear-gradient(145deg, #171105, #1e2332 58%, #07131f) !important; }
+body[data-passly-page="terms"], body[data-passly-page="privacy"] { background: radial-gradient(circle at 14% 8%, rgba(34,211,238,.18), transparent 28rem), radial-gradient(circle at 86% 16%, rgba(167,139,250,.18), transparent 24rem), linear-gradient(145deg, #07111f, #12172d 58%, #0a0a14) !important; }
