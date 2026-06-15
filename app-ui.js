@@ -254,7 +254,6 @@
       home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4l8 7.2V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-8.8Z"/></svg>',
       rooms: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-4.6L12 21l-3.4-3.5H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm2.5 4.2v2.4h2.4V9.2H6.5Zm4.3 0v2.4h6.7V9.2h-6.7Zm-4.3 4v2.3h11v-2.3h-11Z"/></svg>',
       game: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h10a5 5 0 0 1 4.9 4.1l.7 4A3 3 0 0 1 17.7 19l-2.2-2H8.5l-2.2 2a3 3 0 0 1-4.9-2.9l.7-4A5 5 0 0 1 7 8Zm1 3v2H6v2h2v2h2v-2h2v-2h-2v-2H8Zm8.5 1.2a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm2.5 2.6a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/></svg>',
-      minecraft: '<svg class="minecraft-logo-svg minecraft-steve-svg" viewBox="0 0 96 96" aria-hidden="true"><defs><linearGradient id="mcSky" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#8be9ff"/><stop offset="1" stop-color="#2f7d32"/></linearGradient></defs><rect class="mc-scene" x="6" y="6" width="84" height="84" rx="16"/><path class="mc-sun" d="M66 14h12v12H66z"/><path class="mc-hills" d="M10 58h76v25H10zM10 50l15-12 12 10 16-17 20 19h13v13H10z"/><path class="mc-pickaxe" d="M60 22h22v8H68v8h-8v-8H48v-8h12Zm-2 16 7 7-24 24-7-7 24-24Z"/><path class="mc-leg-left" d="M36 62h9v18h-9z"/><path class="mc-leg-right" d="M47 62h9v18h-9z"/><path class="mc-body" d="M32 38h28v26H32z"/><path class="mc-arm-left" d="M24 40h8v23h-8z"/><path class="mc-arm-right" d="M60 40h8v23h-8z"/><path class="mc-head" d="M35 20h22v20H35z"/><path class="mc-hair" d="M35 20h22v7H35z"/><path class="mc-glint" d="M14 14h18v5H14zM14 23h10v4H14z"/></svg>',
       community: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a4 4 0 1 0-3.7-5.5A5 5 0 0 1 14 9c0 .7-.1 1.4-.4 2H16Zm-8 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-6 1.8-6 4v2h12v-2c0-2.2-2.7-4-6-4Zm8 0c-.5 0-1 .1-1.5.2 1 .9 1.5 2.2 1.5 3.8v2h6v-2c0-2.2-2.7-4-6-4Z"/></svg>',
       settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 2.5A8 8 0 0 0 7 6L4.6 5l-2 3.5 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5L10 22h4l.4-2.5A8 8 0 0 0 17 18l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>',
       admin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm1 6v3h3v2h-3v3h-2v-3H8v-2h3V8h2Z"/></svg>',
@@ -267,7 +266,7 @@
       { label: 'Home', href: '/dashboard', icon: 'home' },
       { label: 'Donation Rooms', href: '/rooms', icon: 'rooms' },
       { label: 'Game Rooms', href: '/game-rooms', icon: 'game' },
-      { label: 'Minecraft (coming soon)', href: '#', icon: 'minecraft', disabled: true },
+      { label: 'Minecraft (coming soon)', href: '#', navTheme: 'minecraft', disabled: true },
       { label: 'Community', href: '/leaderboard', icon: 'community', children: [
         { label: 'Leaderboard', href: '/leaderboard', navTheme: 'trophy' },
         { label: 'Friends', href: '/friends', navTheme: 'social' },
@@ -314,12 +313,12 @@
         <a href="${group.href}" class="passly-nav-parent">${iconMarkup(group.icon)}<span>${group.label}</span></a>
         <button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button>
         <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
-      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(group.icon)}<span>${group.label}</span></a>`).join('');
+      </div>` : `<a href="${group.href}" data-passly-nav-theme="${group.navTheme || 'default'}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(group.icon)}<span>${group.label}</span></a>`).join('');
     const mobileHtml = `<button class="close-menu" id="closeMenuBtn">&times;</button>` + groups.map((group) => group.children ? `
       <div class="passly-mobile-group">
         <div class="passly-mobile-row"><a href="${group.href}">${iconMarkup(group.icon)}<span>${group.label}</span></a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button></div>
         <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
-      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(group.icon)}<span>${group.label}</span></a>`).join('');
+      </div>` : `<a href="${group.href}" data-passly-nav-theme="${group.navTheme || 'default'}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${iconMarkup(group.icon)}<span>${group.label}</span></a>`).join('');
     if (desktopNav) desktopNav.innerHTML = desktopHtml;
     if (mobileNav) mobileNav.innerHTML = mobileHtml;
     document.querySelectorAll('[data-passly-disabled="true"]').forEach((link) => {

@@ -1756,19 +1756,36 @@ body::before {
   color: #fff;
 }
 
-/* Minecraft nav branding and topic-specific backgrounds */
-.passly-nav-icon .minecraft-logo-svg { filter: drop-shadow(0 0 8px rgba(74, 222, 128, .42)); }
-.minecraft-logo-svg .mc-scene { fill: url(#mcSky); stroke: rgba(236, 253, 245, .72); stroke-width: 2; }
-.minecraft-logo-svg .mc-sun { fill: #fde047; }
-.minecraft-logo-svg .mc-hills { fill: #2f8f3b; }
-.minecraft-logo-svg .mc-pickaxe { fill: #d1d5db; stroke: #5b3a21; stroke-width: 2; stroke-linejoin: round; }
-.minecraft-logo-svg .mc-head { fill: #c78b5a; }
-.minecraft-logo-svg .mc-hair { fill: #4b2e1f; }
-.minecraft-logo-svg .mc-body { fill: #22c7c9; }
-.minecraft-logo-svg .mc-arm-left, .minecraft-logo-svg .mc-arm-right { fill: #b9784d; }
-.minecraft-logo-svg .mc-leg-left, .minecraft-logo-svg .mc-leg-right { fill: #3046a0; }
-.minecraft-logo-svg .mc-glint { fill: rgba(255,255,255,.55); }
-.passly-nav-disabled .minecraft-logo-svg { opacity: .92; }
+/* Minecraft nav button uses a full-card image background instead of an icon. */
+[data-passly-nav-theme="minecraft"] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 46px;
+  padding: 13px 16px !important;
+  border: 1px solid rgba(236, 253, 245, .72) !important;
+  background-image:
+    linear-gradient(90deg, rgba(3, 7, 18, .78), rgba(3, 7, 18, .28)),
+    url("https://www.minecraft.net/content/dam/games/minecraft/key-art/MC_One-Vanilla_Updates-Carousel-Tricky-Trials_1280x768.jpg") !important;
+  background-position: center !important;
+  background-size: cover !important;
+  color: #fff !important;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .9);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), 0 14px 30px rgba(34, 197, 94, .22) !important;
+}
+[data-passly-nav-theme="minecraft"] span {
+  position: relative;
+  z-index: 1;
+  font-weight: 950;
+}
+[data-passly-nav-theme="minecraft"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.18), transparent 42%, rgba(0,0,0,.38));
+  pointer-events: none;
+}
 
 [data-passly-nav-theme="trophy"] { background: linear-gradient(135deg, rgba(251,191,36,.22), rgba(139,92,246,.12)) !important; }
 [data-passly-nav-theme="social"] { background: linear-gradient(135deg, rgba(34,197,94,.20), rgba(34,211,238,.10)) !important; }
