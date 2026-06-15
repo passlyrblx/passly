@@ -36,3 +36,15 @@ For local development you can use:
 ```text
 http://localhost:3000/auth/discord/callback
 ```
+
+## Database configuration
+
+Passly now keeps MongoDB for chat/room/activity/notification-style data and uses Supabase PostgreSQL for structured account and economy data. Configure these server-side environment variables only; never expose `DATABASE_URL`, `SUPABASE_SECRET_KEY`, or `mongo_URI` in browser code:
+
+- `mongo_URI` (or legacy `MONGO_URI`) — MongoDB connection string for rooms, messages, logs, notifications, and fallback migration reads.
+- `SUPABASE_URL` — Supabase project URL.
+- `SUPABASE_ANON_KEY` — Supabase anon key for server integrations that need it.
+- `SUPABASE_SECRET_KEY` — Supabase service-role key for server-only Supabase SDK operations.
+- `DATABASE_URL` — pooled PostgreSQL connection string used by the server for structured reads/writes.
+
+On startup, when `DATABASE_URL` is present, the server creates the PostgreSQL tables/indexes and copies existing MongoDB users, Roblox profile data, balances, donations, purchases, gamepass boards, coupons, and leaderboard source totals into PostgreSQL without deleting MongoDB records. You can also run the migration explicitly with `npm run migrate:postgres`.

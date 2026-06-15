@@ -10,6 +10,7 @@ const morgan = require('morgan');
 const winston = require('winston');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
+const { initPostgres, migrateMongoToPostgres, redactError } = require('./postgresStore');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -28,7 +29,7 @@ const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } })
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'passly-jwt-secret-2024';
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
+const MONGO_URI = process.env.mongo_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/passly';
 const VIP_GAMEPASS_ID = process.env.VIP_GAMEPASS_ID || '1859054633';
 mongoose.set('bufferCommands', false);
 
@@ -304,9 +305,25 @@ const Coupon = mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);
 const FriendRequest = mongoose.models.FriendRequest || mongoose.model('FriendRequest', friendRequestSchema);
 const PrivateMessage = mongoose.models.PrivateMessage || mongoose.model('PrivateMessage', privateMessageSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+let structuredStore = null;
+
+async function startStructuredStore() {
+  if (!process.env.DATABASE_URL) return null;
+  try {
+    structuredStore = await initPostgres(logger);
+    logger.info('PostgreSQL structured store connected');
+    return structuredStore;
+  } catch (err) {
+    logger.error('PostgreSQL structured store connection failed', redactError(err));
+    return null;
+  }
+}
+function getStructuredModel(name) { return structuredStore?.[name] || (mongoose.connection.readyState === 1 ? mongoose.model(name) : null); }
 
 mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 8000, socketTimeoutMS: 20000 }).then(async () => {
   console.log('MongoDB connected');
+  await startStructuredStore();
+  if (structuredStore) await migrateMongoToPostgres({ User, Donation, ConsumedPurchase, Coupon }, structuredStore, logger).catch(err => logger.error('PostgreSQL migration failed', redactError(err)));
 
   const Room = mongoose.model('Room');
   // Ensure default rooms exist
@@ -335,9 +352,11 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 8000, socketTimeoutMS: 2
   setInterval(deleteInactiveRooms, 60 * 60 * 1000);
   server.listen(PORT, () => console.log(`Passly running on port ${PORT}`));
 }).catch(err => {
-  console.error('MongoDB connection error:', err);
+  console.error('MongoDB connection error:', redactError(err));
+  startStructuredStore().finally(() => {
   console.log('Starting server without MongoDB – using fallback rooms only.');
   server.listen(PORT, () => console.log(`Passly running on port ${PORT} (no DB)`));
+  });
 });
 app.set('trust proxy', 1);
 
@@ -505,7 +524,7 @@ function preferLeaderboardUser(current, candidate) {
   return current;
 }
 async function collapseLeaderboardTotals(rawTotals, { valueMode = 'sum' } = {}) {
-  const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+  const User = getStructuredModel('User');
   if (!User || !rawTotals?.length) return [];
   const ids = rawTotals.map(item => String(item._id)).filter(Boolean);
   const users = await User.find({ _id: { $in: ids } })
@@ -545,7 +564,7 @@ function getActiveStreak(user, now = new Date()) {
 }
 async function mergeUserRecords(targetUser, sourceUser) {
   if (!targetUser || !sourceUser || String(targetUser._id) === String(sourceUser._id)) return targetUser;
-  const Donation = mongoose.models.Donation;
+  const Donation = getStructuredModel('Donation');
   const sourceBalance = getCoinBalance(sourceUser);
   const targetBalance = getCoinBalance(targetUser);
   targetUser.coins = Math.max(targetBalance, sourceBalance);
@@ -565,8 +584,8 @@ async function mergeUserRecords(targetUser, sourceUser) {
   targetUser.authProviders = Array.from(new Set([...(targetUser.authProviders || []), ...(sourceUser.authProviders || [])]));
   await targetUser.save();
   if (Donation) {
-    await Donation.updateMany({ donorId: String(sourceUser._id) }, { $set: { donorId: String(targetUser._id), donorName: getUserDisplayName(targetUser) } });
-    await Donation.updateMany({ receiverId: String(sourceUser._id) }, { $set: { receiverId: String(targetUser._id), receiverName: getUserDisplayName(targetUser) } });
+    await getStructuredModel('Donation').updateMany({ donorId: String(sourceUser._id) }, { $set: { donorId: String(targetUser._id), donorName: getUserDisplayName(targetUser) } });
+    await getStructuredModel('Donation').updateMany({ receiverId: String(sourceUser._id) }, { $set: { receiverId: String(targetUser._id), receiverName: getUserDisplayName(targetUser) } });
   }
   await sourceUser.deleteOne();
   return targetUser;
@@ -594,7 +613,7 @@ app.use('/api', (req, res, next) => {
 // Update lastSeen only for authenticated requests
 app.use('/api', (req, res, next) => {
   if (req.user && req.user.id && mongoose.connection.readyState === 1) {
-    mongoose.model('User').findByIdAndUpdate(req.user.id, { lastSeen: new Date() }).catch(() => {});
+    getStructuredModel('User')?.findByIdAndUpdate(req.user.id, { lastSeen: new Date() }).catch(() => {});
   }
   next();
 });
@@ -658,7 +677,7 @@ app.get('/auth/roblox/callback', async (req, res) => {
     let user;
     const robloxUpdate = { robloxId: userId, robloxUsername, robloxDisplayName, avatarUrl, robloxAccessToken: accessToken, robloxScopes, isGuest: false };
     if (doc.linkUserId) {
-      const User = mongoose.model('User');
+      const User = getStructuredModel('User');
       user = await User.findByIdAndUpdate(
         doc.linkUserId,
         { $set: robloxUpdate, $addToSet: { authProviders: 'roblox' } },
@@ -668,7 +687,7 @@ app.get('/auth/roblox/callback', async (req, res) => {
       const existingRobloxUser = await User.findOne({ robloxId: userId, _id: { $ne: user._id } });
       if (existingRobloxUser) user = await mergeUserRecords(user, existingRobloxUser);
     } else {
-      const User = mongoose.model('User');
+      const User = getStructuredModel('User');
       const existingLinkedUser = await User.findOne({ robloxId: userId });
       if (existingLinkedUser) {
         user = await User.findByIdAndUpdate(
@@ -737,7 +756,7 @@ app.get('/auth/discord/callback', async (req, res) => {
     };
     let user;
     if (doc.linkUserId) {
-      const User = mongoose.model('User');
+      const User = getStructuredModel('User');
       user = await User.findByIdAndUpdate(
         doc.linkUserId,
         { $set: { discord: discordUpdate, isGuest: false }, $addToSet: { authProviders: 'discord' } },
@@ -747,9 +766,9 @@ app.get('/auth/discord/callback', async (req, res) => {
       const existingDiscordUser = await User.findOne({ 'discord.id': discordId, _id: { $ne: user._id } });
       if (existingDiscordUser) user = await mergeUserRecords(user, existingDiscordUser);
     } else {
-      user = await mongoose.model('User').findOne({ 'discord.id': discordId });
+      user = await getStructuredModel('User').findOne({ 'discord.id': discordId });
       if (!user) {
-        user = await mongoose.model('User').findOneAndUpdate(
+        user = await getStructuredModel('User').findOneAndUpdate(
           { _id: `discord:${discordId}` },
           { $set: { discord: discordUpdate, customDisplayName: username, avatarUrl: avatarUrl || '', isGuest: false, acceptedTos: true }, $addToSet: { authProviders: 'discord' }, $setOnInsert: { donations: { received: 0, given: 0 }, board: [], role: 'user' } },
           { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -771,7 +790,7 @@ app.get('/logout', (req, res) => {
 });
 // Helper to get User model (may be undefined if DB not connected)
 function getUserModel() {
-  return mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+  return getStructuredModel('User');
 }
 function escapeRegex(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1639,7 +1658,7 @@ function getSocketMemberId(sock) {
 async function reconcileRoomPresence(roomId, emitUpdate = true) {
   if (!roomId || mongoose.connection.readyState !== 1) return [];
   const Room = mongoose.model('Room');
-  const User = mongoose.model('User');
+  const User = getStructuredModel('User');
   const sockets = await io.in(roomId).fetchSockets().catch(() => []);
   const activeIds = [...new Set(sockets.map(getSocketMemberId).filter(Boolean))];
   const room = await Room.findById(roomId).catch(() => null);
@@ -1689,7 +1708,7 @@ io.on('connection', (socket) => {
       isGuest = false;
       onlineUsers.add(userId);
       if (mongoose.connection.readyState === 1) {
-        const authUser = await mongoose.model('User').findByIdAndUpdate(userId, { lastSeen: new Date() }, { new: true }).catch(()=>null);
+        const authUser = await getStructuredModel('User').findByIdAndUpdate(userId, { lastSeen: new Date() }, { new: true }).catch(()=>null);
         if (effectiveRoleFor(authUser) === 'owner' || effectiveRoleFor(authUser) === 'admin' || ADMINS.has(userId)) socket.join('passly-admins');
       }
     } catch (e) {}
@@ -1739,7 +1758,7 @@ io.on('connection', (socket) => {
 
   socket.on('admin-chat-message', async (message) => {
     if (!userId || mongoose.connection.readyState !== 1) return;
-    const user = await mongoose.model('User').findById(userId).catch(() => null);
+    const user = await getStructuredModel('User').findById(userId).catch(() => null);
     const role = effectiveRoleFor(user);
     if (role !== 'owner' && role !== 'admin' && !ADMINS.has(userId)) return socket.emit('admin-chat-error', 'Admin only');
     const cleanMessage = filterMessageServer(String(message || '').slice(0, 500).trim());
@@ -1794,7 +1813,7 @@ io.on('connection', (socket) => {
         senderName = 'Guest';
       }
     } else if (userId) {
-      const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+      const User = getStructuredModel('User');
       const user = User ? await User.findById(userId) : null;
       if (user) {
         senderName = user.customDisplayName || user.robloxDisplayName || user.robloxUsername;
@@ -1828,7 +1847,7 @@ io.on('connection', (socket) => {
             sock.leave(currentRoomId);
           }
           await Room.deleteOne({ _id: currentRoomId });
-          const UserModel = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+          const UserModel = getStructuredModel('User');
           if (UserModel) await UserModel.updateMany({ roomId: currentRoomId }, { $unset: { roomId: "", inQueue: "" } });
         }
       }
@@ -1860,7 +1879,7 @@ io.on('connection', (socket) => {
     const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
     const activeRoom = Room ? await Room.findById(currentRoomId) : null;
     if (activeRoom?.category === 'game') return socket.emit('chat-error', 'Boards and booths are not available in Game Rooms.');
-    const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+    const User = getStructuredModel('User');
     const user = User ? await User.findById(userId) : null;
     if (!user) return;
     boardChatCooldowns.set(cooldownKey, Date.now());
@@ -1900,8 +1919,8 @@ function leaderboardRankLabel(rank) {
 }
 
 app.get('/api/leaderboard', async (req, res) => {
-  const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
-  const User = mongoose.connection.readyState === 1 ? mongoose.model('User') : null;
+  const Donation = getStructuredModel('Donation');
+  const User = getStructuredModel('User');
   if (!Donation || !User) return res.json({ receivers: [], donors: [], coins: [], streaks: [], ranks: {} });
 
   const viewerId = getOptionalRequestUserId(req);
@@ -1922,12 +1941,12 @@ app.get('/api/leaderboard', async (req, res) => {
   };
   const withIdentityKeys = (arr) => arr.map(item => ({ ...item, identityKey: item.identityKey || (item.user ? getLeaderboardIdentityKey(item.user) : `user:${item._id}`) }));
 
-  const receiverTotals = await Donation.aggregate([
+  const receiverTotals = await getStructuredModel('Donation').aggregate([
     { $match: match },
     { $group: { _id: '$receiverId', total: { $sum: '$amount' } } },
     { $sort: { total: -1, _id: 1 } }
   ]);
-  const donorTotals = await Donation.aggregate([
+  const donorTotals = await getStructuredModel('Donation').aggregate([
     { $match: match },
     { $group: { _id: '$donorId', total: { $sum: '$amount' } } },
     { $sort: { total: -1, _id: 1 } }
@@ -1974,9 +1993,9 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 app.get('/api/live-donations', async (req, res) => {
-  const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
+  const Donation = getStructuredModel('Donation');
   if (!Donation) return res.json({ donations: [] });
-  const donations = await Donation.find({ verified: true })
+  const donations = await getStructuredModel('Donation').find({ verified: true })
     .sort({ timestamp: -1 })
     .select('donorName receiverName amount timestamp')
     .lean();
@@ -1993,8 +2012,7 @@ app.post('/api/guest-login', async (req, res) => {
   const guestId = crypto.randomBytes(8).toString('hex');
   const username = `Guest_${guestId.slice(0,6)}`;
   if (User) {
-    const user = new User({ _id: guestId, robloxUsername: username, robloxDisplayName: username, customDisplayName: username, avatarUrl: '', donations: { received: 0, given: 0 }, board: [], role: 'guest', isGuest: true, acceptedTos: false });
-    await user.save();
+    await User.create({ _id: guestId, robloxUsername: username, robloxDisplayName: username, customDisplayName: username, avatarUrl: '', donations: { received: 0, given: 0 }, board: [], role: 'guest', isGuest: true, acceptedTos: false });
   }
   res.json({ id: guestId, username, displayName: username, isGuest: true });
 });
@@ -2034,8 +2052,8 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   if (!receiverId || !gamepassId || !amount) return res.status(400).json({ error: 'Missing donation details' });
 
   const User = getUserModel();
-  const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
-  const ConsumedPurchase = mongoose.connection.readyState === 1 ? mongoose.model('ConsumedPurchase') : null;
+  const Donation = getStructuredModel('Donation');
+  const ConsumedPurchase = getStructuredModel('ConsumedPurchase');
   if (!User || !Donation || !ConsumedPurchase) return res.status(503).json({ error: 'Database not ready' });
   const donor = await User.findById(donorId);
   if (!donor) return res.status(404).json({ error: 'User not found' });
@@ -2043,12 +2061,12 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   if (!donorRobloxId) return res.status(401).json({ error: 'Please link Roblox before verifying donations.' });
 
   const consumedKey = `${donorId}:${gamepassId}`;
-  const consumed = await ConsumedPurchase.findById(consumedKey);
+  const consumed = await getStructuredModel('ConsumedPurchase').findById(consumedKey);
   if (consumed) {
     pendingDonations.delete(donorId);
     return res.status(400).json({ error: 'You already own this gamepass.' });
   }
-  const existing = await Donation.findOne({ donorId, receiverId, gamepassId, amount });
+  const existing = await getStructuredModel('Donation').findOne({ donorId, receiverId, gamepassId, amount });
   if (existing) return res.status(400).json({ error: 'You already own this gamepass.' });
 
   try {
@@ -2069,7 +2087,7 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
     coinRewards: { donor: donorCoins, receiver: receiverCoins }, consumedPurchaseKey: consumedKey, timestamp: new Date()
   });
   await donation.save();
-  await ConsumedPurchase.create({ _id: consumedKey, donorId, gamepassId, receiverId, amount: donationAmount, donationId: donation._id });
+  await getStructuredModel('ConsumedPurchase').create({ _id: consumedKey, donorId, gamepassId, receiverId, amount: donationAmount, donationId: donation._id });
   await User.findByIdAndUpdate(donorId, { $inc: { 'donations.given': donationAmount, coins: donorCoins, totalCoins: donorCoins } });
   await User.findByIdAndUpdate(receiverId, { $inc: { 'donations.received': donationAmount, coins: receiverCoins, totalCoins: receiverCoins } });
   amount = donationAmount;
@@ -2136,7 +2154,7 @@ app.get('/api/admin/coupons', authenticateToken, async (req, res) => {
   if (!(await isOwnerRequest(req))) return res.status(403).json({ error: 'Owner only' });
   const Coupon = mongoose.connection.readyState === 1 ? mongoose.model('Coupon') : null;
   if (!Coupon) return res.status(503).json({ error: 'Database not ready' });
-  const coupons = await Coupon.find().sort({ createdAt: -1 }).limit(100);
+  const coupons = await getStructuredModel('Coupon').find({}).sort({ createdAt: -1 }).limit(100);
   res.json({ coupons });
 });
 app.post('/api/admin/coupons/create', authenticateToken, async (req, res) => {
@@ -2146,8 +2164,8 @@ app.post('/api/admin/coupons/create', authenticateToken, async (req, res) => {
   const passlyAmount = Math.floor(Number(req.body.passlyAmount || 0));
   if (!Number.isFinite(passlyAmount) || passlyAmount < 1 || passlyAmount > 1000000) return res.status(400).json({ error: 'Enter Passly amount from 1 to 1,000,000.' });
   let code = generateCouponCode();
-  while (await Coupon.findOne({ code })) code = generateCouponCode();
-  const coupon = await Coupon.create({ _id: crypto.randomBytes(12).toString('hex'), code, passlyAmount, createdBy: req.user.id });
+  while (await getStructuredModel('Coupon').findOne({ code })) code = generateCouponCode();
+  const coupon = await getStructuredModel('Coupon').create({ _id: crypto.randomBytes(12).toString('hex'), code, passlyAmount, createdBy: req.user.id });
   res.json({ success: true, coupon });
 });
 app.post('/api/coupons/redeem', authenticateToken, async (req, res) => {
@@ -2158,13 +2176,13 @@ app.post('/api/coupons/redeem', authenticateToken, async (req, res) => {
   if (!code) return res.status(400).json({ error: 'Coupon code required.' });
   const user = await User.findById(req.user.id);
   if (!user || isGuestRecord(user)) return res.status(403).json({ error: 'Guests cannot redeem coupons. Please log in with Roblox.' });
-  const coupon = await Coupon.findOneAndUpdate(
+  const coupon = await getStructuredModel('Coupon').findOneAndUpdate(
     { code, redeemedBy: null },
     { redeemedBy: user._id, redeemedUsername: user.robloxUsername, redeemedAt: new Date() },
     { new: true }
   );
   if (!coupon) {
-    const existing = await Coupon.findOne({ code });
+    const existing = await getStructuredModel('Coupon').findOne({ code });
     return res.status(400).json({ error: existing ? 'This coupon has already been redeemed.' : 'Coupon not found.' });
   }
   const basePasslyAmount = coupon.passlyAmount;
@@ -2243,12 +2261,12 @@ app.post('/api/admin/close-room', authenticateToken, async (req, res) => {
 app.get('/api/admin/stats', authenticateToken, async (req, res) => {
   if (!(await isAdminOrOwner(req))) return res.status(403).json({ error: 'Admin only' });
   const User = getUserModel();
-  const Donation = mongoose.connection.readyState === 1 ? mongoose.model('Donation') : null;
+  const Donation = getStructuredModel('Donation');
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
   const totalUsers = User ? await User.countDocuments({ role: { $ne: 'guest' } }) : 0;
   const totalGuests = User ? await User.countDocuments({ robloxUsername: /^Guest_/ }) : 0;
-  const totalDonations = Donation ? await Donation.countDocuments() : 0;
-  const totalRobuxDonated = Donation ? (await Donation.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]).then(r => r[0]?.total || 0)) : 0;
+  const totalDonations = getStructuredModel('Donation') ? await getStructuredModel('Donation').countDocuments() : 0;
+  const totalRobuxDonated = getStructuredModel('Donation') ? (await getStructuredModel('Donation').aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]).then(r => r[0]?.total || 0)) : 0;
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const activeToday = User ? await User.countDocuments({ lastSeen: { $gte: oneDayAgo } }) : 0;
   const totalRooms = Room ? await Room.countDocuments() : 0;
@@ -2332,7 +2350,7 @@ app.get('/api/health', (req, res) => { res.status(200).send('ok'); });
 // ========== FRIEND & MESSAGE ENDPOINTS (guest‑disabled) ==========
 // Helper to check if user is a guest
 async function isGuestUser(userId) {
-  const User = mongoose.model('User');
+  const User = getStructuredModel('User');
   const user = await User.findById(userId);
   return isGuestRecord(user);
 }
@@ -2400,7 +2418,7 @@ app.post('/api/friends/respond', authenticateToken, async (req, res) => {
 app.get('/api/friends/list', authenticateToken, async (req, res) => {
   if (await isGuestUser(req.user.id)) return res.json({ friends: [] });
   const FriendRequest = mongoose.model('FriendRequest');
-  const User = mongoose.model('User');
+  const User = getStructuredModel('User');
   const requests = await FriendRequest.find({
     $or: [{ from: req.user.id }, { to: req.user.id }],
     status: 'accepted'
@@ -2428,7 +2446,7 @@ app.get('/api/friends/list', authenticateToken, async (req, res) => {
 app.get('/api/friends/requests', authenticateToken, async (req, res) => {
   if (await isGuestUser(req.user.id)) return res.json({ requests: [] });
   const FriendRequest = mongoose.model('FriendRequest');
-  const User = mongoose.model('User');
+  const User = getStructuredModel('User');
   const requests = await FriendRequest.find({ to: req.user.id, status: 'pending' });
   const result = [];
   for (const req of requests) {
@@ -2510,7 +2528,7 @@ app.get('/api/friends/notifications', authenticateToken, async (req, res) => {
   if (await isGuestUser(req.user.id)) return res.json({ notifications: [] });
   const Notification = mongoose.model('Notification');
   const notifications = await Notification.find({ userId: req.user.id, read: false }).sort({ timestamp: -1 });
-  const User = mongoose.model('User');
+  const User = getStructuredModel('User');
   const enriched = [];
   for (const notif of notifications) {
     const sender = await User.findById(notif.fromUserId);
