@@ -64,6 +64,14 @@
   });
 
 
+
+  const supportIconSvgs = {
+    support: '<svg class="passly-menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2a8 8 0 0 0-8 8v3.5A2.5 2.5 0 0 0 6.5 16H8v-6H6.5A5.5 5.5 0 0 1 12 4.5 5.5 5.5 0 0 1 17.5 10H16v6h1.2a4.8 4.8 0 0 1-4.2 2.5h-1.25a1.25 1.25 0 1 0 0 2.5H13a7.3 7.3 0 0 0 7-5.25 2.5 2.5 0 0 0 0-2.25V10a8 8 0 0 0-8-8Z"/></svg>',
+    terms: '<svg class="passly-menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6.75 2h7.4L20 7.85v11.4A2.75 2.75 0 0 1 17.25 22H6.75A2.75 2.75 0 0 1 4 19.25V4.75A2.75 2.75 0 0 1 6.75 2Zm6.75 1.9V8.5h4.6L13.5 3.9ZM8 12.25a1 1 0 1 0 0 2h8a1 1 0 1 0 0-2H8Zm0 4a1 1 0 1 0 0 2h5.5a1 1 0 1 0 0-2H8Z"/></svg>',
+    privacy: '<svg class="passly-menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.25 5 5.35v5.35c0 4.75 2.98 9.18 7 10.8 4.02-1.62 7-6.05 7-10.8V5.35l-7-3.1Zm0 2.2 5 2.22v4.03c0 3.62-2.05 7.03-5 8.57-2.95-1.54-5-4.95-5-8.57V6.67l5-2.22Zm0 4.05a2.25 2.25 0 0 0-1 4.27V16a1 1 0 1 0 2 0v-3.23a2.25 2.25 0 0 0-1-4.27Z"/></svg>'
+  };
+  const renderMenuLabel = (label, icon) => `<span class="passly-menu-label">${icon ? supportIconSvgs[icon] || '' : ''}<span>${label}</span></span>`;
+
   const passlyLogoImg = (className = '') => `<img class="${className}" src="${PASSLY_LOGO_URL}" alt="Passly" loading="lazy" decoding="async">`;
   const coinIcon = (size = 'small') => `<span class="passly-coin-frame passly-coin-${size}" aria-hidden="true">${passlyLogoImg('passly-coin-logo')}</span>`;
   const renderCoins = (amount = 0, size = 'small') => `<span class="passly-coin-balance" title="Coin balance">${coinIcon(size)}<span>${Number(amount || 0).toLocaleString()}</span></span>`;
@@ -271,9 +279,9 @@
       { label: 'Admin Chat', href: '/admin#admin-chat-card' },
       { label: 'Coupons', href: '/admin#coupon-card' }
     ]});
-    groups.push({ label: '💬 Support', href: '/terms', children: [
-      { label: 'Terms of Service', href: '/terms' },
-      { label: 'Privacy Policy', href: '/privacy' },
+    groups.push({ label: 'Support', icon: 'support', href: '/terms', children: [
+      { label: 'Terms of Service', icon: 'terms', href: '/terms' },
+      { label: 'Privacy Policy', icon: 'privacy', href: '/privacy' },
       {
         label: 'Discord Support',
         icon: 'discord',
@@ -283,20 +291,20 @@
       }
     ]});
     const renderChild = (child) => {
-      const labelIcon = child.icon === 'discord' ? '<svg class="passly-discord-icon" viewBox="0 0 127.14 96.36" aria-hidden="true" focusable="false"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21A105.73 105.73 0 0 0 32.71 96.36a77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69c-6.27 0-11.43-5.76-11.43-12.84s5.05-12.84 11.43-12.84 11.54 5.81 11.43 12.84-5.05 12.84-11.43 12.84Zm42.24 0c-6.27 0-11.43-5.76-11.43-12.84s5.05-12.84 11.43-12.84 11.54 5.81 11.43 12.84-5.05 12.84-11.43 12.84Z"/></svg>' : '';
-      return `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}><span class="passly-submenu-label">${child.label}${labelIcon}</span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
+      const labelIcon = child.icon === 'discord' ? '<svg class="passly-discord-icon" viewBox="0 0 127.14 96.36" aria-hidden="true" focusable="false"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21A105.73 105.73 0 0 0 32.71 96.36a77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69c-6.27 0-11.43-5.76-11.43-12.84s5.05-12.84 11.43-12.84 11.54 5.81 11.43 12.84-5.05 12.84-11.43 12.84Zm42.24 0c-6.27 0-11.43-5.76-11.43-12.84s5.05-12.84 11.43-12.84 11.54 5.81 11.43 12.84-5.05 12.84-11.43 12.84Z"/></svg>' : supportIconSvgs[child.icon] || '';
+      return `<a href="${child.href}"${child.external ? ' target="_blank" rel="noopener noreferrer"' : ''}${child.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}><span class="passly-submenu-label">${labelIcon}<span>${child.label}</span></span>${child.description ? `<small>${child.description}</small>` : ''}</a>`;
     };
     const desktopHtml = groups.map((group) => group.children ? `
       <div class="passly-nav-group">
-        <a href="${group.href}" class="passly-nav-parent">${group.label}</a>
+        <a href="${group.href}" class="passly-nav-parent">${renderMenuLabel(group.label, group.icon)}</a>
         <button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button>
         <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
-      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${group.label}</a>`).join('');
+      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${renderMenuLabel(group.label, group.icon)}</a>`).join('');
     const mobileHtml = `<button class="close-menu" id="closeMenuBtn">&times;</button>` + groups.map((group) => group.children ? `
       <div class="passly-mobile-group">
-        <div class="passly-mobile-row"><a href="${group.href}">${group.label}</a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button></div>
+        <div class="passly-mobile-row"><a href="${group.href}">${renderMenuLabel(group.label, group.icon)}</a><button type="button" class="passly-submenu-toggle" aria-expanded="false" aria-label="Show ${group.label} options">›</button></div>
         <div class="passly-submenu">${group.children.map(renderChild).join('')}</div>
-      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${group.label}</a>`).join('');
+      </div>` : `<a href="${group.href}"${group.disabled ? ' class="passly-nav-disabled" data-passly-disabled="true" aria-disabled="true" tabindex="-1"' : ''}>${renderMenuLabel(group.label, group.icon)}</a>`).join('');
     if (desktopNav) desktopNav.innerHTML = desktopHtml;
     if (mobileNav) mobileNav.innerHTML = mobileHtml;
     document.querySelectorAll('[data-passly-disabled="true"]').forEach((link) => {

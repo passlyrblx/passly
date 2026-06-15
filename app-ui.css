@@ -1713,3 +1713,23 @@ body::before {
 .passly-booth-surface.booth-theme-lava { background: linear-gradient(135deg, #450a0a, #dc2626 48%, #f97316) !important; color:#fff7ed; }
 .passly-booth-surface.booth-theme-matrix { background: linear-gradient(135deg, #020617, #064e3b 52%, #22c55e) !important; color:#dcfce7; }
 .passly-booth-surface.booth-theme-void { background: radial-gradient(circle at 70% 20%, rgba(168,85,247,.9), transparent 30%), linear-gradient(135deg, #020617, #111827 48%, #581c87) !important; color:#f5f3ff; }
+
+.passly-menu-label,
+.passly-submenu-label,
+.legal-btn,
+.footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.passly-menu-icon,
+.legal-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: #a78bfa;
+  filter: drop-shadow(0 0 8px rgba(167,139,250,.28));
+}
+.passly-nav-parent .passly-menu-icon {
+  color: #67e8f9;
+}
