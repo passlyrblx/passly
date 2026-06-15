@@ -171,7 +171,8 @@
     .modal textarea { height:80px; resize:none; }
     .type-btns { display:flex; gap:10px; margin-bottom:15px; }
     .type-btn { flex:1; padding:10px; background:rgba(30,30,50,0.8); border:1px solid rgba(139,92,246,0.2); border-radius:10px; color:white; cursor:pointer; transition:all 0.3s; }
-    .type-btn.active { background:rgba(139,92,246,0.3); border-color:#8b5cf6; }
+    .type-btn.active { background:linear-gradient(135deg,#8b5cf6,#22d3ee); border-color:#e9d5ff; box-shadow:0 0 0 3px rgba(139,92,246,.25),0 10px 24px rgba(34,211,238,.18); transform:translateY(-1px); }
+    .selected-room-type-note { display:none; margin:-5px 0 15px; padding:10px 12px; border-radius:12px; background:rgba(34,211,238,.12); border:1px solid rgba(34,211,238,.28); color:#cffafe; font-weight:800; text-align:center; }
     .modal-btn { width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); border:none; border-radius:10px; color:white; font-size:1rem; font-weight:600; cursor:pointer; }
     .room-view { background:rgba(20,20,40,0.6); border-radius:16px; padding:25px; border:1px solid rgba(139,92,246,0.2); }
     .room-view-top { display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:start; margin-bottom:18px; }
@@ -239,7 +240,7 @@
       .user-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .page-header h1 { font-size:1.8rem; }
     }
-  .private-room-actions{display:none;gap:8px;flex-wrap:wrap;margin:10px 0}.private-room-actions button,.member-action-btn{padding:8px 12px;border:none;border-radius:10px;color:white;cursor:pointer;font-weight:700}.kick-btn{background:#f59e0b}.ban-btn{background:#ef4444}.make-public-btn{background:#10b981}.robux-room-icon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin-right:8px;border-radius:50%;background:#00a65a;color:white;font-weight:900;font-size:.8rem;vertical-align:middle;box-shadow:0 0 14px rgba(16,185,129,.35)}.robux-room-icon::before{content:"R$"}</style>
+  .private-room-actions{display:none;gap:8px;flex-wrap:wrap;margin:10px 0}.private-room-actions button,.member-action-btn{padding:8px 12px;border:none;border-radius:10px;color:white;cursor:pointer;font-weight:700}.kick-btn{background:#f59e0b}.ban-btn{background:#ef4444}.make-public-btn{background:#10b981}.member-owner-badge{display:inline-flex;margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(250,204,21,.18);border:1px solid rgba(250,204,21,.35);color:#fde68a;font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.04em}</style>
   <link rel="stylesheet" href="/app-ui.css">
 </head>
 <body>
@@ -302,7 +303,7 @@
   <div class="room-view-container" id="roomViewContainer">
     <div class="room-view" id="roomView">
       <div class="room-view-top">
-        <div class="room-browse-actions"><button class="browse-rooms-btn" onclick="minimizeRoom()">↓ Browse Rooms</button><button class="leave-room-btn" onclick="leaveRoom()">Leave Room</button></div><div class="private-room-actions" id="privateRoomActions"><button class="make-public-btn" onclick="makeRoomPublic()">Make Public</button></div>
+        <div class="room-browse-actions"><button class="browse-rooms-btn" onclick="minimizeRoom()">↓ Browse Rooms</button><button class="leave-room-btn" onclick="leaveRoom()">Leave Room</button></div><div class="private-room-actions" id="privateRoomActions"><span style="color:#c4b5fd;font-weight:800;align-self:center;">Owner tools: Kick/Ban members below</span><button class="make-public-btn" onclick="makeRoomPublic()">Make Public</button></div>
         <div class="room-hero">
           <div class="room-title-row">
             <h2 id="viewRoomName"></h2>
@@ -359,8 +360,9 @@
     <button class="type-btn active" data-type="Public" onclick="setCreateRoomType('Public')">Public</button>
     <button class="type-btn" data-type="Private" onclick="setCreateRoomType('Private')">Private</button>
   </div>
+  <div id="selectedRoomTypeNote" class="selected-room-type-note">Selected: Public room</div>
   <div id="vipRoomWarning" style="color:#ffd700; font-size:0.85rem; margin-bottom:10px; display:none;">VIP role required to create VIP rooms.</div>
-  <button class="modal-btn" onclick="createRoom()">Create Room</button>
+  <button class="modal-btn" id="createRoomSubmitBtn" onclick="createRoom()">Create Public Room</button>
   <button class="modal-btn" style="background:#333; margin-top:10px;" onclick="closeModal()">Cancel</button>
 </div>
 <!-- Board Modal (horizontal scroll) -->
@@ -808,7 +810,7 @@ socket.on('room-members-updated', (data) => { if(currentRoom && (currentRoom._id
     container.innerHTML = players.map(p => `
       <div class="member-item" onclick="showMemberProfile('${p.userId}', '${escapeHtml(p.username)}', '${p.avatarUrl || ''}')">
         <div class="member-avatar" style="background-image:url('${p.avatarUrl || ''}'); background-size:cover;"></div>
-        <div class="member-name">${escapeHtml(p.username)}${String(p.userId)===String(currentRoom?.createdBy)?' [owner]':''}${tagBadgeHtml(p.displayTags || p.displayTag)}${canManageCurrentPrivateRoom()&&p.userId!==currentMemberId()&&String(p.userId)!==String(currentRoom?.createdBy)?`<div style="margin-top:6px;display:flex;gap:6px;"><button class="member-action-btn kick-btn" onclick="event.stopPropagation();privateRoomAction('kick','${p.userId}')">Kick</button><button class="member-action-btn ban-btn" onclick="event.stopPropagation();privateRoomAction('ban','${p.userId}')">Ban</button></div>`:''}</div>
+        <div class="member-name">${escapeHtml(p.username)}${String(p.userId)===String(currentRoom?.createdBy)?' <span class="member-owner-badge">Owner</span>':''}${tagBadgeHtml(p.displayTags || p.displayTag)}${canManageCurrentPrivateRoom()&&p.userId!==currentMemberId()&&String(p.userId)!==String(currentRoom?.createdBy)?`<div style="margin-top:6px;display:flex;gap:6px;"><button class="member-action-btn kick-btn" onclick="event.stopPropagation();privateRoomAction('kick','${p.userId}')">Kick</button><button class="member-action-btn ban-btn" onclick="event.stopPropagation();privateRoomAction('ban','${p.userId}')">Ban</button></div>`:''}</div>
       </div>
     `).join('');
   }
@@ -932,7 +934,7 @@ function renderRooms(rooms) {
   if(!filtered.length) { grid.innerHTML = '<p>No rooms found.</p>'; return; }
   grid.innerHTML = filtered.map(room => `
     <div class="room-card passly-room-card ${roomDesignFor(room)}">
-      <div class="room-name"><span class="robux-room-icon" aria-label="Robux"></span>${escapeHtml(room.name)}</div>
+      <div class="room-name">${escapeHtml(room.name)}</div>
       <div class="room-type ${room.type === 'VIP' ? 'vip' : ''}">${room.type}</div>
       <div class="room-desc">${escapeHtml(room.desc || 'No description')}</div>
       <div class="room-stats">
@@ -996,7 +998,18 @@ window.joinRoomById = async function(id) {
 };
 window.setCreateRoomType = function(type) {
   roomTypeForCreate = type;
-  document.querySelectorAll('#roomTypeBtns .type-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.type === type));
+  document.querySelectorAll('#roomTypeBtns .type-btn').forEach(btn => {
+    const selected = btn.dataset.type === type;
+    btn.classList.toggle('active', selected);
+    btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  const selectedNote = document.getElementById('selectedRoomTypeNote');
+  if(selectedNote) {
+    selectedNote.style.display = 'block';
+    selectedNote.textContent = `Selected: ${type} room`;
+  }
+  const submitBtn = document.getElementById('createRoomSubmitBtn');
+  if(submitBtn) submitBtn.textContent = `Create ${type} Room`;
   const vipWarning = document.getElementById('vipRoomWarning');
   if(type === 'VIP' && userData && !['vip','admin','owner'].includes(userData.role)) vipWarning.style.display = 'block';
   else if(vipWarning) vipWarning.style.display = 'none';
