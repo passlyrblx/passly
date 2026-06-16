@@ -406,7 +406,9 @@
   <h2>User Info</h2>
   <div id="modalAvatar" style="width:80px; height:80px; border-radius:50%; margin:0 auto; background-size:cover;"></div>
   <p id="modalUsername" style="text-align:center; margin-top:10px;"></p>
-  <div style="display:flex; justify-content:center; gap:10px; margin-top:15px;">
+  <div style="display:flex; justify-content:center; gap:10px; margin-top:15px; flex-wrap:wrap;">
+    <button class="action-btn" id="sendFriendRequestBtn" style="display:none;">➕ Send Friend Request</button>
+    <button class="action-btn" id="messageFriendBtn" style="display:none; background:#22c55e;">💬 Message</button>
     <button class="action-btn" id="reportUserBtn" style="display:none;">🚩 Report User</button>
     <button class="modal-btn" style="background:#333;" onclick="closeUserModal()">Close</button>
   </div>
@@ -418,6 +420,7 @@
   <p id="memberProfileName" style="text-align:center; margin-top:10px;"></p>
   <p>💰 Total Received: <strong id="memberReceived">0</strong> Robux</p>
   <p>💸 Total Given: <strong id="memberGiven">0</strong> Robux</p>
+  <div id="memberFriendActions" style="display:flex;justify-content:center;margin-top:12px;"></div>
   <button class="modal-btn" style="background:#333; margin-top:15px;" onclick="closeMemberProfileModal()">Close</button>
 </div>
 <script>
@@ -499,16 +502,48 @@
   }
   // User report modal
   let currentReportUserId = null;
-  function openUserModal(userId, username, avatarUrl) {
+  async function openUserModal(userId, username, avatarUrl) {
+    if(!userId || userId === 'system') return;
     if(userId === userData?.id || (isGuest && userId === guestData.id)) { PasslyUI.toast('This is you!'); return; }
     currentReportUserId = userId;
     document.getElementById('modalUsername').innerText = username;
-    if(avatarUrl) document.getElementById('modalAvatar').style.backgroundImage = `url(${avatarUrl})`;
-    document.getElementById('reportUserBtn').style.display = 'inline-block';
+    document.getElementById('modalAvatar').style.backgroundImage = avatarUrl ? `url(${avatarUrl})` : '';
+    document.getElementById('reportUserBtn').style.display = token ? 'inline-block' : 'none';
     document.getElementById('reportUserBtn').onclick = () => reportUser();
+    const friendBtn = document.getElementById('sendFriendRequestBtn');
+    const messageBtn = document.getElementById('messageFriendBtn');
+    friendBtn.style.display = 'none';
+    messageBtn.style.display = 'none';
+    messageBtn.onclick = () => { window.location.href = `/friends?user=${encodeURIComponent(userId)}`; };
+    if(token) {
+      try {
+        const res = await fetch(`/api/friends/status/${encodeURIComponent(userId)}`, { headers: authHeaders() });
+        const status = res.ok ? (await res.json()).status : 'none';
+        if(status === 'friends') messageBtn.style.display = 'inline-block';
+        else if(status === 'pending_sent') { friendBtn.style.display = 'inline-block'; friendBtn.disabled = true; friendBtn.textContent = '⏳ Request Sent'; }
+        else if(status === 'pending_received') { friendBtn.style.display = 'inline-block'; friendBtn.disabled = true; friendBtn.textContent = '🔔 Check Requests'; }
+        else if(status === 'none') {
+          friendBtn.disabled = false;
+          friendBtn.textContent = '➕ Send Friend Request';
+          friendBtn.style.display = 'inline-block';
+          friendBtn.onclick = () => sendFriendRequest(userId);
+        }
+      } catch(e) {}
+    }
     document.getElementById('userModal').style.display = 'block';
+    document.getElementById('modalOverlay').style.display = 'block';
   }
-  function closeUserModal() { document.getElementById('userModal').style.display = 'none'; currentReportUserId = null; }
+  function closeUserModal() { document.getElementById('userModal').style.display = 'none'; document.getElementById('modalOverlay').style.display = 'none'; currentReportUserId = null; }
+  async function sendFriendRequest(userId) {
+    try {
+      const res = await fetch('/api/friends/request', { method:'POST', headers:authHeaders(), body:JSON.stringify({ toUserId:userId }) });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok || data.error) return PasslyUI.toast(data.error || 'Could not send friend request.');
+      PasslyUI.toast('Friend request sent.');
+      const btn = document.getElementById('sendFriendRequestBtn');
+      btn.disabled = true; btn.textContent = '⏳ Request Sent';
+    } catch(e) { PasslyUI.toast('Could not send friend request.'); }
+  }
   async function reportUser() {
     if(!currentReportUserId) return;
     const reason = await PasslyUI.prompt('Reason for report:', { placeholder: 'Briefly describe what happened' });
@@ -610,7 +645,12 @@
     const ownerLabel = String(userId) === String(currentRoom?.createdBy) ? '[Owner]' : '';
     usernameSpan.innerHTML = escapeHtml(username || 'Player') + ownerLabel + tagBadgeHtml(displayTags || displayTag);
     const messageDiv = document.createElement('div');
-    messageDiv.innerHTML = filterMessage(message);
+    let renderedMessage = filterMessage(message);
+    try {
+      const donationPayload = JSON.parse(message);
+      if(donationPayload?.type === 'donation') renderedMessage = donationChatHtml(donationPayload);
+    } catch(e) {}
+    messageDiv.innerHTML = renderedMessage;
     contentDiv.appendChild(usernameSpan);
     contentDiv.appendChild(messageDiv);
     if(canManageCurrentPrivateRoom() && userId && userId !== 'system' && String(userId) !== String(currentMemberId()) && String(userId) !== String(currentRoom?.createdBy)) {
@@ -815,7 +855,7 @@ socket.on('room-members-updated', (data) => { if(currentRoom && (currentRoom._id
     const container = document.getElementById('memberList');
     if(!players || !players.length) { container.innerHTML = '<p>No members.</p>'; return; }
     container.innerHTML = players.map(p => `
-      <div class="member-item" onclick="showMemberProfile('${p.userId}', '${escapeHtml(p.username)}', '${p.avatarUrl || ''}')">
+      <div class="member-item" onclick="showMemberProfile('${p.userId}', '${escapeHtml(p.username)}', '${escapeHtml(p.avatarUrl || '')}')">
         <div class="member-avatar" style="background-image:url('${p.avatarUrl || ''}'); background-size:cover;"></div>
         <div class="member-name">${escapeHtml(p.username)}${String(p.userId)===String(currentRoom?.createdBy)?'<span class="member-owner-badge">[Owner]</span>':''}${tagBadgeHtml(p.displayTags || p.displayTag)}${canManageCurrentPrivateRoom()&&p.userId!==currentMemberId()&&String(p.userId)!==String(currentRoom?.createdBy)?`<div style="margin-top:6px;display:flex;gap:6px;"><button class="member-action-btn kick-btn" onclick="event.stopPropagation();privateRoomAction('kick','${p.userId}')">Kick</button><button class="member-action-btn ban-btn" onclick="event.stopPropagation();privateRoomAction('ban','${p.userId}')">Ban</button></div>`:''}</div>
       </div>
@@ -829,6 +869,8 @@ socket.on('room-members-updated', (data) => { if(currentRoom && (currentRoom._id
       if(avatarUrl) document.getElementById('memberProfileAvatar').style.backgroundImage = `url(${avatarUrl})`;
       document.getElementById('memberReceived').innerText = data.received || 0;
       document.getElementById('memberGiven').innerText = data.given || 0;
+      const friendActions = document.getElementById('memberFriendActions');
+      if(friendActions) friendActions.innerHTML = token && String(userId) !== String(currentMemberId()) ? '<button class="modal-btn" onclick="openUserModal(\'' + String(userId).replace(/'/g, '&#39;') + '\', \'' + escapeHtml(username).replace(/'/g, '&#39;') + '\', \'' + escapeHtml(avatarUrl).replace(/'/g, '&#39;') + '\')">Friend / Message</button>' : '';
       document.getElementById('memberProfileModal').style.display = 'block';
       document.getElementById('modalOverlay').style.display = 'block';
     } catch(e) { PasslyUI.toast('Could not load member stats.'); }

@@ -152,8 +152,8 @@ const roomSchema = new mongoose.Schema({
   createdBy: String, createdAt: { type: Date, default: Date.now }
 });
 const donationSchema = new mongoose.Schema({
-  _id: String, donorId: String, donorName: String, receiverId: String,
-  receiverName: String, gamepassId: String, amount: Number,
+  _id: String, donorId: String, donorName: String, donorAvatar: String, receiverId: String,
+  receiverName: String, receiverAvatar: String, gamepassId: String, amount: Number,
   roomId: String, verified: { type: Boolean, default: true },
   coinRewards: { donor: { type: Number, default: 0 }, receiver: { type: Number, default: 0 } },
   consumedPurchaseKey: String,
@@ -211,7 +211,6 @@ function donationEffectTier(amount) {
   return null;
 }
 async function emitDonationEffectToPasslyRooms(effect, payload = {}) {
-  if (!effect) return;
   const eventPayload = { effect, ...payload, timestamp: new Date() };
   const roomIds = new Set(FALLBACK_ROOM_IDS);
   const Room = mongoose.connection.readyState === 1 ? mongoose.model('Room') : null;
@@ -219,7 +218,20 @@ async function emitDonationEffectToPasslyRooms(effect, payload = {}) {
     const rooms = await Room.find({ $or: [{ category: 'passly' }, { category: { $exists: false } }] }).select('_id').lean();
     rooms.forEach(room => roomIds.add(String(room._id)));
   }
-  roomIds.forEach(roomId => io.to(roomId).emit('donation-effect', eventPayload));
+  roomIds.forEach(roomId => {
+    if (effect) io.to(roomId).emit('donation-effect', eventPayload);
+    io.to(roomId).emit('chat-message', {
+      userId: 'system',
+      username: 'Passly Donations',
+      message: JSON.stringify({ type: 'donation', ...eventPayload }),
+      avatarUrl: payload.donorAvatar || payload.receiverAvatar || '',
+      timestamp: Date.now(),
+      isAdmin: false,
+      isOwner: false,
+      displayTag: null,
+      displayTags: []
+    });
+  });
 }
 
 function getTodayKey(date = new Date()) { return date.toISOString().slice(0, 10); }
@@ -1997,12 +2009,14 @@ app.get('/api/live-donations', async (req, res) => {
   if (!Donation) return res.json({ donations: [] });
   const donations = await getStructuredModel('Donation').find({ verified: true })
     .sort({ timestamp: -1 })
-    .select('donorName receiverName amount timestamp')
+    .select('donorName receiverName donorAvatar receiverAvatar amount timestamp')
     .lean();
   res.json({ donations: donations.map(donation => ({
     donorName: donation.donorName || 'Unknown',
     receiverName: donation.receiverName || 'Unknown',
     amount: donation.amount || 0,
+    donorAvatar: donation.donorAvatar || '',
+    receiverAvatar: donation.receiverAvatar || '',
     timestamp: donation.timestamp
   })) });
 });
@@ -2081,9 +2095,13 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   const receiverBaseCoins = Math.floor(donationAmount / 20);
   const donorCoins = applyFanBonus(donorBaseCoins, donor);
   const receiverCoins = applyFanBonus(receiverBaseCoins, receiver);
+  const donorName = donor.customDisplayName || donor.robloxDisplayName || donor.robloxUsername || donor.discord?.username || 'Player';
+  const receiverName = receiver.customDisplayName || receiver.robloxDisplayName || receiver.robloxUsername || receiver.discord?.username || 'Player';
+  const donorAvatar = getUserAvatarUrl(donor);
+  const receiverAvatar = getUserAvatarUrl(receiver);
   const donation = new Donation({
-    _id: crypto.randomBytes(8).toString('hex'), donorId, donorName: donor.robloxUsername || donor.discord?.username || 'Player',
-    receiverId, receiverName: receiver.robloxUsername || receiver.discord?.username || 'Player', gamepassId, amount: donationAmount, roomId: null, verified: true,
+    _id: crypto.randomBytes(8).toString('hex'), donorId, donorName, donorAvatar,
+    receiverId, receiverName, receiverAvatar, gamepassId, amount: donationAmount, roomId: null, verified: true,
     coinRewards: { donor: donorCoins, receiver: receiverCoins }, consumedPurchaseKey: consumedKey, timestamp: new Date()
   });
   await donation.save();
@@ -2093,14 +2111,12 @@ app.post('/api/donate/verify', authenticateToken, async (req, res) => {
   amount = donationAmount;
   pendingDonations.delete(donorId);
 
-  const donorName = donor.customDisplayName || donor.robloxDisplayName || donor.robloxUsername;
-  const receiverName = receiver.customDisplayName || receiver.robloxDisplayName || receiver.robloxUsername;
-  await emitDonationEffectToPasslyRooms(donationEffectTier(amount), { donorName, receiverName, amount });
+  await emitDonationEffectToPasslyRooms(donationEffectTier(amount), { donorName, receiverName, amount, donorAvatar, receiverAvatar });
 
   // Also send to live donations page
   io.emit('new-donation', {
     donorName, receiverName, amount,
-    donorAvatar: donor.avatarUrl, receiverAvatar: receiver.avatarUrl,
+    donorAvatar, receiverAvatar,
     timestamp: new Date()
   });
   if (!onlineUsers.has(receiverId) && receiver.notificationPreferences?.offlineDonations !== false) {
@@ -2462,6 +2478,25 @@ async function wantsNotification(userId, key) {
   const user = User ? await User.findById(userId) : null;
   return user?.notificationPreferences?.[key] !== false;
 }
+
+app.get('/api/friends/status/:userId', authenticateToken, async (req, res) => {
+  if (await isGuestUser(req.user.id)) return res.json({ status: 'guest' });
+  const otherUserId = String(req.params.userId || '');
+  if (!otherUserId) return res.status(400).json({ error: 'User ID required' });
+  if (otherUserId === String(req.user.id)) return res.json({ status: 'self' });
+  const FriendRequest = mongoose.model('FriendRequest');
+  const request = await FriendRequest.findOne({
+    $or: [
+      { from: req.user.id, to: otherUserId },
+      { from: otherUserId, to: req.user.id }
+    ],
+    status: { $in: ['pending', 'accepted'] }
+  }).sort({ timestamp: -1 });
+  if (!request) return res.json({ status: 'none' });
+  if (request.status === 'accepted') return res.json({ status: 'friends' });
+  return res.json({ status: request.from === req.user.id ? 'pending_sent' : 'pending_received', requestId: request._id });
+});
+
 // Send friend request
 app.post('/api/friends/request', authenticateToken, async (req, res) => {
   if (await isGuestUser(req.user.id)) return res.status(403).json({ error: 'Guests cannot use friends features.' });
@@ -2469,8 +2504,9 @@ app.post('/api/friends/request', authenticateToken, async (req, res) => {
   if (!toUserId) return res.status(400).json({ error: 'User ID required' });
   if (toUserId === req.user.id) return res.status(400).json({ error: 'Cannot send request to yourself' });
   const FriendRequest = mongoose.model('FriendRequest');
-  const existing = await FriendRequest.findOne({ from: req.user.id, to: toUserId, status: 'pending' });
-  if (existing) return res.status(400).json({ error: 'Request already sent' });
+  const existing = await FriendRequest.findOne({ $or: [{ from: req.user.id, to: toUserId }, { from: toUserId, to: req.user.id }], status: { $in: ['pending', 'accepted'] } });
+  if (existing?.status === 'accepted') return res.status(400).json({ error: 'You are already friends' });
+  if (existing) return res.status(400).json({ error: existing.from === req.user.id ? 'Request already sent' : 'This player already sent you a request' });
   const request = new FriendRequest({
     _id: crypto.randomBytes(8).toString('hex'),
     from: req.user.id,

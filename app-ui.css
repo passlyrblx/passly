@@ -1809,3 +1809,14 @@ body[data-passly-page="redeem"] { background: radial-gradient(circle at 12% 8%, 
 body[data-passly-page="terms"], body[data-passly-page="privacy"] { background: radial-gradient(circle at 14% 8%, rgba(34,211,238,.18), transparent 28rem), radial-gradient(circle at 86% 16%, rgba(167,139,250,.18), transparent 24rem), linear-gradient(145deg, #07111f, #12172d 58%, #0a0a14) !important; }
 
 .nav-links > a[href="/rooms"], .mobile-menu > a[href="/rooms"] { white-space: nowrap; }
+
+/* Desktop nav correction: keep the compact drawer available and prevent beta overlap. */
+@media (min-width: 901px) {
+  .navbar { gap: 14px; }
+  .hamburger { display: flex !important; flex: 0 0 44px; }
+  .nav-links { display: none !important; }
+  .mobile-menu { width: min(430px, 34vw) !important; max-width: 430px !important; }
+  .nav-logo, .logo-text, .passly-brand-logo { letter-spacing: -0.02em !important; padding-right: 58px; position: relative; }
+  .nav-logo::after { position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin-left: 0; }
+  .passly-brand-logo::after { content: "beta"; position: absolute; right: 0; top: 50%; transform: translateY(-50%); display:inline-flex; padding:3px 7px; border-radius:999px; border:1px solid rgba(34,211,238,.26); background:rgba(34,211,238,.1); color:#a5f3fc; -webkit-text-fill-color:#a5f3fc; font-size:.58rem; font-weight:800; letter-spacing:.03em; }
+}
