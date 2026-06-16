@@ -145,6 +145,8 @@
                 else if (tab === 'notifications') loadNotifications();
               });
             });
+            const targetFriendId = new URLSearchParams(window.location.search).get('user');
+            if (targetFriendId) openChatFromQuery(targetFriendId);
           }
         } else {
           isGuest = true;
@@ -236,6 +238,19 @@
           </div>
         `).join('');
       } catch(e) { container.innerHTML = '<p>Error loading friends.</p>'; }
+    }
+
+    async function openChatFromQuery(friendId) {
+      try {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'messages'));
+        document.querySelectorAll('.tab-content').forEach(div => div.style.display = 'none');
+        document.getElementById('messagesTab').style.display = 'block';
+        await loadFriendsForChat();
+        const res = await fetch('/api/friends/list', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        const friend = (data.friends || []).find(f => String(f.id) === String(friendId));
+        if (friend) openChat(friend.id, friend.displayName || friend.username || 'Friend');
+      } catch(e) {}
     }
 
     window.openChat = async function(friendId, friendName) {
