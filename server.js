@@ -66,7 +66,7 @@ const userSchema = new mongoose.Schema({
   authProviders: { type: [String], default: [] },
   role: { type: String, default: 'user', enum: ['guest', 'user', 'vip', 'admin', 'owner'] },
   isGuest: { type: Boolean, default: false },
-  profile: { showBooth: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null }, showDiscordIdentity: { type: Boolean, default: false } },
+  profile: { showBooth: { type: Boolean, default: true }, showFindPlayerDetails: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null }, showDiscordIdentity: { type: Boolean, default: false } },
   notificationPreferences: { offlineDonations: { type: Boolean, default: true }, friendRequests: { type: Boolean, default: true }, friendMessages: { type: Boolean, default: true }, friendAccepted: { type: Boolean, default: true } },
   roomId: String, inQueue: Boolean,
   donations: { received: Number, given: Number },
@@ -1056,11 +1056,12 @@ app.post('/api/vip/verify', authenticateToken, async (req, res) => {
 app.post('/api/profile/update', authenticateToken, async (req, res) => {
   const User = getUserModel();
   if (!User) return res.status(503).json({ error: 'Database not ready' });
-  const { showBooth, statusDot, showRoomId, showDiscordIdentity, customDisplayName, displayTag } = req.body;
+  const { showBooth, showFindPlayerDetails, statusDot, showRoomId, showDiscordIdentity, customDisplayName, displayTag } = req.body;
   const user = await User.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const update = {};
   if (showBooth !== undefined) update['profile.showBooth'] = showBooth;
+  if (showFindPlayerDetails !== undefined) update['profile.showFindPlayerDetails'] = !!showFindPlayerDetails;
   if (statusDot) update['profile.statusDot'] = statusDot;
   if (showRoomId !== undefined) update['profile.showRoomId'] = showRoomId;
   if (showDiscordIdentity !== undefined) update['profile.showDiscordIdentity'] = !!showDiscordIdentity && !!user.discord?.id;
@@ -1082,7 +1083,16 @@ app.get('/api/search', async (req, res) => {
   if (!q) return res.status(400).json({ error: 'Username required' });
   const found = await User.findOne({ robloxUsername: new RegExp(`^${q}$`, 'i') });
   if (!found) return res.json({ error: 'User not found' });
-  res.json({ id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl, displayTag: serializeTag(getPublicTag(found)), displayTags: serializeTags(getPublicTags(found)), booth: found.booth || { activeTheme: 'default', ownedThemes: ['default'] }, board: found.profile?.showBooth !== false ? (found.board || []) : [] });
+  const showFindPlayerDetails = found.profile?.showFindPlayerDetails !== false;
+  const FriendRequest = mongoose.models.FriendRequest;
+  const friendCount = showFindPlayerDetails && FriendRequest ? await FriendRequest.countDocuments({ $or: [{ from: found._id }, { to: found._id }], status: 'accepted' }) : 0;
+  res.json({
+    id: found._id, robloxUsername: found.robloxUsername, displayName: found.customDisplayName || found.robloxDisplayName, avatarUrl: found.avatarUrl,
+    displayTag: serializeTag(getPublicTag(found)), displayTags: serializeTags(getPublicTags(found)), booth: found.booth || { activeTheme: 'default', ownedThemes: ['default'] },
+    board: found.profile?.showBooth !== false ? (found.board || []) : [],
+    publicDetailsVisible: showFindPlayerDetails,
+    stats: showFindPlayerDetails ? { raised: found.donations?.received || 0, donated: found.donations?.given || 0, friends: friendCount } : null
+  });
 });
 
 app.get('/api/user/:userId/board', authenticateToken, async (req, res) => {
