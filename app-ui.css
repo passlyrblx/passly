@@ -2181,3 +2181,254 @@ body[data-passly-theme="roblox"] .donation-avatar {
   body[data-passly-theme="roblox"] .rooms-container,
   body[data-passly-theme="roblox"] .leaderboard-container { margin-left: auto !important; }
 }
+
+/* Roblox theme completeness pass: make every shared page visibly switch, including pages with inline CSS. */
+html[data-passly-theme="roblox"] { color-scheme: light; background: #f2f4f5 !important; }
+html[data-passly-theme="roblox"] body[data-passly-theme="roblox"] {
+  --rbx-topbar: #191b1f;
+  --rbx-sidebar: #232527;
+  --rbx-panel: #ffffff;
+  --rbx-panel-alt: #f9f9f9;
+  --rbx-page: #f2f4f5;
+  --rbx-border: #d4d4d4;
+  --rbx-border-strong: #b8b8b8;
+  --rbx-text: #393b3d;
+  --rbx-muted: #606162;
+  --rbx-blue: #006db4;
+  --rbx-green: #00a845;
+  --rbx-red: #e2231a;
+  --rbx-yellow: #ffb000;
+  background:
+    linear-gradient(90deg, var(--rbx-sidebar) 0 76px, transparent 76px),
+    radial-gradient(circle at 14% 10%, rgba(0,109,180,.12), transparent 30rem),
+    radial-gradient(circle at 88% 16%, rgba(226,35,26,.08), transparent 28rem),
+    repeating-linear-gradient(0deg, rgba(25,27,31,.035) 0 1px, transparent 1px 38px),
+    repeating-linear-gradient(90deg, rgba(25,27,31,.035) 0 1px, transparent 1px 38px),
+    linear-gradient(#f6f7f8, #e9ecef 62%, #dfe3e6) !important;
+  color: var(--rbx-text) !important;
+  text-shadow: none !important;
+}
+body[data-passly-theme="roblox"] *,
+body[data-passly-theme="roblox"] *::before,
+body[data-passly-theme="roblox"] *::after { text-shadow: none !important; }
+body[data-passly-theme="roblox"] .main-content,
+body[data-passly-theme="roblox"] .container,
+body[data-passly-theme="roblox"] .hero,
+body[data-passly-theme="roblox"] .hero-section,
+body[data-passly-theme="roblox"] .dashboard-container,
+body[data-passly-theme="roblox"] .profile-container,
+body[data-passly-theme="roblox"] .rooms-container,
+body[data-passly-theme="roblox"] .leaderboard-container,
+body[data-passly-theme="roblox"] .admin-container,
+body[data-passly-theme="roblox"] .content,
+body[data-passly-theme="roblox"] .page-content {
+  position: relative;
+  z-index: 2;
+}
+body[data-passly-theme="roblox"] h1,
+body[data-passly-theme="roblox"] h2,
+body[data-passly-theme="roblox"] h3,
+body[data-passly-theme="roblox"] h4,
+body[data-passly-theme="roblox"] h5,
+body[data-passly-theme="roblox"] h6,
+body[data-passly-theme="roblox"] p,
+body[data-passly-theme="roblox"] span,
+body[data-passly-theme="roblox"] label,
+body[data-passly-theme="roblox"] small,
+body[data-passly-theme="roblox"] li,
+body[data-passly-theme="roblox"] td,
+body[data-passly-theme="roblox"] th,
+body[data-passly-theme="roblox"] strong,
+body[data-passly-theme="roblox"] .settings-help,
+body[data-passly-theme="roblox"] .subtitle,
+body[data-passly-theme="roblox"] .description,
+body[data-passly-theme="roblox"] .empty-state,
+body[data-passly-theme="roblox"] .profile-info,
+body[data-passly-theme="roblox"] .leaderboard-name,
+body[data-passly-theme="roblox"] .friend-name,
+body[data-passly-theme="roblox"] .donation-text { color: var(--rbx-text) !important; }
+body[data-passly-theme="roblox"] a:not(.nav-links a):not(.mobile-menu a):not(.passly-nav-parent) { color: var(--rbx-blue) !important; font-weight: 800; }
+body[data-passly-theme="roblox"] .navbar { z-index: 120 !important; }
+body[data-passly-theme="roblox"] .hamburger span { background: #fff !important; border-radius: 0 !important; }
+body[data-passly-theme="roblox"] .menu-overlay { background: rgba(25,27,31,.62) !important; backdrop-filter: blur(2px); }
+body[data-passly-theme="roblox"] .mobile-menu { background: var(--rbx-sidebar) !important; border-right: 1px solid #111 !important; border-radius: 0 !important; }
+body[data-passly-theme="roblox"] .close-menu { color: #fff !important; background: transparent !important; box-shadow: none !important; }
+body[data-passly-theme="roblox"] .card,
+body[data-passly-theme="roblox"] .section-card,
+body[data-passly-theme="roblox"] .feature-card,
+body[data-passly-theme="roblox"] .hero-card,
+body[data-passly-theme="roblox"] .stat-card,
+body[data-passly-theme="roblox"] .profile-card,
+body[data-passly-theme="roblox"] .board-section,
+body[data-passly-theme="roblox"] .settings-section,
+body[data-passly-theme="roblox"] .settings-group,
+body[data-passly-theme="roblox"] .leaderboard-card,
+body[data-passly-theme="roblox"] .leaderboard-item,
+body[data-passly-theme="roblox"] .friend-card,
+body[data-passly-theme="roblox"] .friend-item,
+body[data-passly-theme="roblox"] .room-card,
+body[data-passly-theme="roblox"] .room-item,
+body[data-passly-theme="roblox"] .game-room-card,
+body[data-passly-theme="roblox"] .passly-room-card,
+body[data-passly-theme="roblox"] .current-room,
+body[data-passly-theme="roblox"] .chat-container,
+body[data-passly-theme="roblox"] .members-panel,
+body[data-passly-theme="roblox"] .message,
+body[data-passly-theme="roblox"] .member-item,
+body[data-passly-theme="roblox"] .login-prompt,
+body[data-passly-theme="roblox"] .modal,
+body[data-passly-theme="roblox"] .passly-dialog,
+body[data-passly-theme="roblox"] .donation-list,
+body[data-passly-theme="roblox"] .donation-item,
+body[data-passly-theme="roblox"] .history-item,
+body[data-passly-theme="roblox"] .economy-card,
+body[data-passly-theme="roblox"] .booth-card,
+body[data-passly-theme="roblox"] .streak-card,
+body[data-passly-theme="roblox"] .profile-page-nav a,
+body[data-passly-theme="roblox"] .board-gamepass-btn,
+body[data-passly-theme="roblox"] .admin-card,
+body[data-passly-theme="roblox"] table,
+body[data-passly-theme="roblox"] .table,
+body[data-passly-theme="roblox"] .toast,
+body[data-passly-theme="roblox"] .passly-toast {
+  background: var(--rbx-panel) !important;
+  background-image: none !important;
+  border: 1px solid var(--rbx-border) !important;
+  border-radius: 0 !important;
+  color: var(--rbx-text) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12) !important;
+  backdrop-filter: none !important;
+}
+body[data-passly-theme="roblox"] .hero,
+body[data-passly-theme="roblox"] .hero-section,
+body[data-passly-theme="roblox"] .landing-hero {
+  background: linear-gradient(135deg, #fff 0 58%, #e9ecef 58% 100%) !important;
+  border: 1px solid var(--rbx-border) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,.12) !important;
+}
+body[data-passly-theme="roblox"] .hero::before,
+body[data-passly-theme="roblox"] .hero-section::before,
+body[data-passly-theme="roblox"] .landing-hero::before {
+  content: "";
+  display: block !important;
+  position: absolute;
+  right: 28px;
+  top: 28px;
+  width: 58px;
+  height: 58px;
+  background: #393b3d;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  opacity: .18;
+}
+body[data-passly-theme="roblox"] button,
+body[data-passly-theme="roblox"] .btn,
+body[data-passly-theme="roblox"] .btn-roblox,
+body[data-passly-theme="roblox"] .modal-btn,
+body[data-passly-theme="roblox"] .save-btn,
+body[data-passly-theme="roblox"] .search-btn,
+body[data-passly-theme="roblox"] .join-btn,
+body[data-passly-theme="roblox"] .create-room-btn,
+body[data-passly-theme="roblox"] .fetch-gamepasses-btn,
+body[data-passly-theme="roblox"] .booth-carousel-action,
+body[data-passly-theme="roblox"] .cta-button {
+  background: var(--rbx-green) !important;
+  background-image: none !important;
+  border: 1px solid #028a3a !important;
+  border-radius: 0 !important;
+  color: #fff !important;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.24) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+  transform: none;
+}
+body[data-passly-theme="roblox"] button:disabled,
+body[data-passly-theme="roblox"] .btn:disabled { background: #b8b8b8 !important; border-color: #9b9b9b !important; color: #fff !important; }
+body[data-passly-theme="roblox"] .remove-gp-btn,
+body[data-passly-theme="roblox"] .danger,
+body[data-passly-theme="roblox"] .delete-btn,
+body[data-passly-theme="roblox"] .logout-btn { background: var(--rbx-red) !important; border-color: #b91c1c !important; }
+body[data-passly-theme="roblox"] input,
+body[data-passly-theme="roblox"] select,
+body[data-passly-theme="roblox"] textarea,
+body[data-passly-theme="roblox"] .settings-select,
+body[data-passly-theme="roblox"] .custom-name-input {
+  background: #fff !important;
+  background-image: none !important;
+  border: 1px solid var(--rbx-border-strong) !important;
+  border-radius: 0 !important;
+  color: var(--rbx-text) !important;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.08) !important;
+}
+body[data-passly-theme="roblox"] input::placeholder,
+body[data-passly-theme="roblox"] textarea::placeholder { color: #777 !important; }
+body[data-passly-theme="roblox"] .profile-avatar,
+body[data-passly-theme="roblox"] .user-avatar,
+body[data-passly-theme="roblox"] .donation-avatar,
+body[data-passly-theme="roblox"] .friend-avatar,
+body[data-passly-theme="roblox"] .member-avatar,
+body[data-passly-theme="roblox"] .avatar {
+  border-radius: 0 !important;
+  border: 2px solid var(--rbx-border-strong) !important;
+  background-color: #e3e5e7 !important;
+  box-shadow: none !important;
+}
+body[data-passly-theme="roblox"] .tag-badge,
+body[data-passly-theme="roblox"] .booth-tier-pill,
+body[data-passly-theme="roblox"] .status-badge,
+body[data-passly-theme="roblox"] .room-type,
+body[data-passly-theme="roblox"] .badge {
+  background: #e9ecef !important;
+  border: 1px solid var(--rbx-border) !important;
+  border-radius: 0 !important;
+  color: var(--rbx-text) !important;
+  box-shadow: none !important;
+}
+body[data-passly-theme="roblox"] .booth-preview,
+body[data-passly-theme="roblox"] .passly-booth-surface {
+  background: linear-gradient(135deg, #f9f9f9, #dfe3e6) !important;
+  border: 1px solid var(--rbx-border) !important;
+  border-radius: 0 !important;
+  color: var(--rbx-text) !important;
+  animation: none !important;
+}
+body[data-passly-theme="roblox"] .booth-card.is-equipped,
+body[data-passly-theme="roblox"] .profile-page-nav a.active,
+body[data-passly-theme="roblox"] .booth-card.is-selected {
+  border-color: var(--rbx-blue) !important;
+  box-shadow: 0 0 0 3px rgba(0,109,180,.18), 0 1px 2px rgba(0,0,0,.12) !important;
+}
+body[data-passly-theme="roblox"] .profile-page-nav a.active { background: var(--rbx-blue) !important; color: #fff !important; }
+body[data-passly-theme="roblox"] .donation-amount,
+body[data-passly-theme="roblox"] .amount,
+body[data-passly-theme="roblox"] [data-passly-coins] { color: var(--rbx-green) !important; font-weight: 900 !important; }
+body[data-passly-theme="roblox"] .passly-coin-icon { border-radius: 50% !important; filter: grayscale(.12) contrast(1.08); }
+body[data-passly-theme="roblox"] .passly-modal-overlay { background: rgba(25,27,31,.62) !important; backdrop-filter: blur(2px) !important; }
+body[data-passly-theme="roblox"] tr:nth-child(even),
+body[data-passly-theme="roblox"] .leaderboard-item:nth-child(even),
+body[data-passly-theme="roblox"] .friend-item:nth-child(even),
+body[data-passly-theme="roblox"] .donation-item:nth-child(even) { background: var(--rbx-panel-alt) !important; }
+body[data-passly-theme="roblox"] hr { border-color: var(--rbx-border) !important; }
+body[data-passly-theme="roblox"] ::selection { background: rgba(0,109,180,.22); color: var(--rbx-text); }
+body[data-passly-theme="roblox"][data-passly-page="leaderboard"] .leaderboard-card,
+body[data-passly-theme="roblox"][data-passly-page="livedonations"] .donation-list,
+body[data-passly-theme="roblox"][data-passly-page="friends"] .friend-card,
+body[data-passly-theme="roblox"][data-passly-page="find-player"] .profile-card,
+body[data-passly-theme="roblox"][data-passly-page="redeem"] .section-card,
+body[data-passly-theme="roblox"][data-passly-page="booths"] .section-card,
+body[data-passly-theme="roblox"][data-passly-page="profile"] .profile-card,
+body[data-passly-theme="roblox"][data-passly-page="dashboard"] .stat-card,
+body[data-passly-theme="roblox"][data-passly-page="rooms"] .room-card,
+body[data-passly-theme="roblox"][data-passly-page="game-rooms"] .room-card {
+  border-top: 5px solid var(--rbx-blue) !important;
+}
+@media (max-width: 780px) {
+  html[data-passly-theme="roblox"] body[data-passly-theme="roblox"] { background: linear-gradient(#f6f7f8, #e9ecef) !important; }
+  body[data-passly-theme="roblox"] .main-content,
+  body[data-passly-theme="roblox"] .container,
+  body[data-passly-theme="roblox"] main,
+  body[data-passly-theme="roblox"] .dashboard-container,
+  body[data-passly-theme="roblox"] .profile-container,
+  body[data-passly-theme="roblox"] .rooms-container,
+  body[data-passly-theme="roblox"] .leaderboard-container { margin-left: auto !important; }
+}
