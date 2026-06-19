@@ -16,6 +16,7 @@
     const normalized = theme === 'roblox' ? 'roblox' : 'passly';
     document.documentElement.dataset.passlyTheme = normalized;
     document.body.dataset.passlyTheme = normalized;
+    document.querySelectorAll('meta[name=\"theme-color\"]').forEach((meta) => { meta.content = normalized === 'roblox' ? '#191b1f' : '#8b5cf6'; });
     localStorage.setItem(THEME_STORAGE_KEY, normalized);
     if (loading) {
       document.body.dataset.passlyThemeLoading = 'true';
@@ -24,6 +25,9 @@
     window.dispatchEvent(new CustomEvent('passly:theme-changed', { detail: { theme: normalized } }));
   };
   applyAppTheme(localStorage.getItem(THEME_STORAGE_KEY) || 'passly');
+  window.addEventListener('storage', (event) => {
+    if (event.key === THEME_STORAGE_KEY) applyAppTheme(event.newValue || 'passly');
+  });
   const syncAppThemeFromProfile = async () => {
     const token = localStorage.getItem('passly_token');
     if (!token) return;
