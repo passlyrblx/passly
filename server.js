@@ -196,7 +196,12 @@ const BOOTH_THEMES = [
   { id: 'futuristic', name: 'Futuristic', price: 50000, tier: 'Mythic', animated: true },
   { id: 'matrix', name: 'Matrix', price: 65000, tier: 'Mythic', animated: true },
   { id: 'void', name: 'Void', price: 90000, tier: 'Mythic', animated: true },
-  { id: 'mythic', name: 'Mythic', price: 100000, tier: 'Mythic', animated: true }
+  { id: 'obsidian', name: 'Obsidian', price: 110000, tier: 'Mythic', animated: true },
+  { id: 'noir', name: 'Noir', price: 125000, tier: 'Mythic', animated: true },
+  { id: 'bloxy', name: 'Bloxy Blocks', price: 150000, tier: 'Mythic', animated: true },
+  { id: 'builder', name: 'Builder Grid', price: 175000, tier: 'Mythic', animated: true },
+  { id: 'pixel', name: 'Pixel Plaza', price: 200000, tier: 'Mythic', animated: true },
+  { id: 'mythic', name: 'Mythic', price: 250000, tier: 'Mythic', animated: true }
 ].sort((a, b) => a.price - b.price || a.name.localeCompare(b.name));
 
 const ADMIN_ROOM_COMMANDS = [
