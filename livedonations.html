@@ -125,14 +125,15 @@
     .main-content { padding:30px; max-width:800px; margin:0 auto; }
     h1 { font-size:2.5rem; margin-bottom:30px; text-align:center; }
     .donation-list { background:rgba(20,20,40,0.6); border-radius:16px; padding:20px; border:1px solid rgba(139,92,246,0.2); }
-    .donation-item { padding:15px; border-bottom:1px solid rgba(139,92,246,0.1); display:flex; align-items:center; gap:15px; }
+    .donation-item { padding:16px; border-bottom:1px solid rgba(139,92,246,0.1); display:flex; align-items:center; gap:15px; }
     .donation-avatar { width:46px; height:46px; border-radius:50%; background:#8b5cf6; background-size:cover; background-position:center; border:2px solid rgba(167,139,250,0.45); }
     .donation-details { flex:1; }
     .donation-party { display:inline-flex; flex-direction:column; align-items:center; gap:7px; min-width:88px; padding:8px; border-radius:14px; background:rgba(255,255,255,0.045); border:1px solid rgba(255,255,255,0.07); vertical-align:middle; }
     .donation-line { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
     .donation-verb { color:#d8b4fe; font-weight:800; text-align:center; }
     .donor-name { font-weight:bold; color:#c4b5fd; text-align:center; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .amount { color:#ffd700; font-weight:bold; }
+    .amount { color:#ffd700; font-weight:bold; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+    .robux-inline-icon { width:19px; height:19px; object-fit:contain; filter:drop-shadow(0 2px 6px rgba(0,0,0,.35)); vertical-align:-4px; }
     .empty-state { text-align:center; padding:40px; color:#a0a0b0; }
     @media (max-width: 768px) {
       .hamburger { display: flex; }
@@ -247,7 +248,7 @@
               <span class="donor-name">${escapeHtml(donation.donorName)}</span>
               <div class="donation-avatar" style="background-image:url('${donorAvatar}');"></div>
             </div>
-            <div class="donation-verb">donated<br><span class="amount">${Number(donation.amount || 0).toLocaleString()} Robux</span><br>to</div>
+            <div class="donation-verb">donated<br><span class="amount">${Number(donation.amount || 0).toLocaleString()} <img class="robux-inline-icon" src="https://i.ibb.co/fYdkfkYY/Robux-2019-Logo.png" alt="Robux" loading="lazy" decoding="async"></span><br>to</div>
             <div class="donation-party" title="${escapeHtml(donation.receiverName)}">
               <span class="donor-name">${escapeHtml(donation.receiverName)}</span>
               <div class="donation-avatar" style="background-image:url('${receiverAvatar}');"></div>

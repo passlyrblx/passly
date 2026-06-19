@@ -1,5 +1,7 @@
 (() => {
   const PASSLY_LOGO_URL = 'https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png';
+  const ROBUX_LOGO_URL = 'https://i.ibb.co/fYdkfkYY/Robux-2019-Logo.png';
+  const THEME_STORAGE_KEY = 'passly_app_theme';
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const pageKey = (path.replace(/^\//, '') || 'home').replace(/[^a-z0-9-]/gi, '-');
   document.body.dataset.passlyPage = pageKey;
@@ -8,6 +10,30 @@
     ['/profile', ['/profile']], ['/friends', ['/friends']], ['/find-player', ['/find-player']], ['/booths', ['/booths']],
     ['/livedonations', ['/livedonations']], ['/redeem', ['/redeem']], ['/admin', ['/admin']], ['/privacy', ['/privacy']], ['/terms', ['/terms']]
   ]);
+
+
+  const applyAppTheme = (theme = 'passly', { loading = false } = {}) => {
+    const normalized = theme === 'roblox' ? 'roblox' : 'passly';
+    document.documentElement.dataset.passlyTheme = normalized;
+    document.body.dataset.passlyTheme = normalized;
+    localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    if (loading) {
+      document.body.dataset.passlyThemeLoading = 'true';
+      setTimeout(() => { delete document.body.dataset.passlyThemeLoading; }, 520);
+    }
+    window.dispatchEvent(new CustomEvent('passly:theme-changed', { detail: { theme: normalized } }));
+  };
+  applyAppTheme(localStorage.getItem(THEME_STORAGE_KEY) || 'passly');
+  const syncAppThemeFromProfile = async () => {
+    const token = localStorage.getItem('passly_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/user', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.profile?.appTheme) applyAppTheme(data.profile.appTheme);
+    } catch (e) {}
+  };
 
   const ensureToastHost = () => {
     let host = document.getElementById('passlyToastHost');
@@ -226,6 +252,8 @@
 
   window.PasslyUI = {
     logoUrl: PASSLY_LOGO_URL,
+    robuxLogoUrl: ROBUX_LOGO_URL,
+    applyAppTheme,
     coinIcon,
     renderCoins,
     updateCoinDisplays,
@@ -360,6 +388,7 @@
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && menu.dataset.open === 'true') { closeBtn?.click(); markClosed(); } });
   };
 
+  syncAppThemeFromProfile();
   ensureDocumentLogoLinks();
   buildPasslyMenu().then(() => {
     ensurePasslyBranding();

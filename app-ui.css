@@ -1820,3 +1820,138 @@ body[data-passly-page="terms"], body[data-passly-page="privacy"] { background: r
   .nav-logo::after { position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin-left: 0; }
   .passly-brand-logo::after { content: "beta"; position: absolute; right: 0; top: 50%; transform: translateY(-50%); display:inline-flex; padding:3px 7px; border-radius:999px; border:1px solid rgba(34,211,238,.26); background:rgba(34,211,238,.1); color:#a5f3fc; -webkit-text-fill-color:#a5f3fc; font-size:.58rem; font-weight:800; letter-spacing:.03em; }
 }
+
+/* Roblox app theme: toggled from Profile > App Theme. Uses remote artwork/icons only. */
+body[data-passly-theme-loading="true"]::before { opacity: .35; }
+body[data-passly-theme-loading="true"]::after {
+  content: "Loading theme...";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  color: #111827;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  background: rgba(245, 245, 245, .72);
+  backdrop-filter: blur(8px);
+}
+body[data-passly-theme="roblox"] {
+  --bg: #f2f4f5;
+  --bg-2: #d7dcdf;
+  --surface: rgba(255,255,255,.92);
+  --surface-strong: rgba(255,255,255,.98);
+  --surface-soft: rgba(35,37,39,.07);
+  --line: rgba(35,37,39,.18);
+  --line-strong: rgba(35,37,39,.32);
+  --text: #191b1f;
+  --muted: #4b5563;
+  --muted-2: #6b7280;
+  --primary: #232527;
+  --primary-2: #393b3d;
+  --cyan: #00a2ff;
+  --pink: #e2231a;
+  --green: #00b259;
+  --gold: #ffb000;
+  color: #191b1f !important;
+  background:
+    linear-gradient(45deg, rgba(0,0,0,.035) 25%, transparent 25%, transparent 75%, rgba(0,0,0,.035) 75%),
+    linear-gradient(45deg, rgba(0,0,0,.035) 25%, transparent 25%, transparent 75%, rgba(0,0,0,.035) 75%),
+    linear-gradient(135deg, #f5f5f5, #e3e7ea 58%, #cfd6da) !important;
+  background-position: 0 0, 26px 26px, 0 0 !important;
+  background-size: 52px 52px, 52px 52px, cover !important;
+  font-family: Builder Sans, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+body[data-passly-theme="roblox"]::before { background-image: none; mask-image: none; }
+body[data-passly-theme="roblox"] .navbar,
+body[data-passly-theme="roblox"] .mobile-menu {
+  background: rgba(35,37,39,.96) !important;
+  border-color: rgba(255,255,255,.14) !important;
+  box-shadow: 0 12px 0 rgba(0,0,0,.12) !important;
+}
+body[data-passly-theme="roblox"] .nav-logo,
+body[data-passly-theme="roblox"] .logo-text {
+  background: none !important;
+  -webkit-text-fill-color: #fff !important;
+  color: #fff !important;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+body[data-passly-theme="roblox"] .nav-logo::after { content: "Roblox mode"; background: #e2231a; border-color: #fff; color: #fff; -webkit-text-fill-color: #fff; }
+body[data-passly-theme="roblox"] .nav-links,
+body[data-passly-theme="roblox"] .user-box { background: rgba(255,255,255,.08) !important; border-color: rgba(255,255,255,.16) !important; }
+body[data-passly-theme="roblox"] .nav-links a,
+body[data-passly-theme="roblox"] .mobile-menu a { color: #e8eaed !important; border-radius: 6px !important; }
+body[data-passly-theme="roblox"] .nav-links a:hover,
+body[data-passly-theme="roblox"] .nav-links a[aria-current="page"],
+body[data-passly-theme="roblox"] .passly-nav-group.has-current-page > .passly-nav-parent,
+body[data-passly-theme="roblox"] .mobile-menu a:hover,
+body[data-passly-theme="roblox"] .mobile-menu a[aria-current="page"] {
+  color: #fff !important;
+  background: #e2231a !important;
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,.2) !important;
+}
+body[data-passly-theme="roblox"] .mobile-menu::before { content: "Roblox Navigation"; color: #fff; }
+body[data-passly-theme="roblox"] h1,
+body[data-passly-theme="roblox"] h2,
+body[data-passly-theme="roblox"] h3,
+body[data-passly-theme="roblox"] p,
+body[data-passly-theme="roblox"] li,
+body[data-passly-theme="roblox"] .description,
+body[data-passly-theme="roblox"] .stat-label,
+body[data-passly-theme="roblox"] .settings-help { color: #191b1f !important; }
+body[data-passly-theme="roblox"] .card,
+body[data-passly-theme="roblox"] .section-card,
+body[data-passly-theme="roblox"] .stat-card,
+body[data-passly-theme="roblox"] .profile-card,
+body[data-passly-theme="roblox"] .board-section,
+body[data-passly-theme="roblox"] .settings-section,
+body[data-passly-theme="roblox"] .leaderboard-card,
+body[data-passly-theme="roblox"] .friend-card,
+body[data-passly-theme="roblox"] .room-card,
+body[data-passly-theme="roblox"] .room-item,
+body[data-passly-theme="roblox"] .chat-container,
+body[data-passly-theme="roblox"] .members-panel,
+body[data-passly-theme="roblox"] .login-prompt,
+body[data-passly-theme="roblox"] .modal,
+body[data-passly-theme="roblox"] .donation-list,
+body[data-passly-theme="roblox"] .donation-item,
+body[data-passly-theme="roblox"] .history-item {
+  background: rgba(255,255,255,.94) !important;
+  color: #191b1f !important;
+  border: 2px solid rgba(35,37,39,.18) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 0 rgba(35,37,39,.12) !important;
+}
+body[data-passly-theme="roblox"] button,
+body[data-passly-theme="roblox"] .save-btn,
+body[data-passly-theme="roblox"] .search-btn,
+body[data-passly-theme="roblox"] .fetch-gamepasses-btn {
+  background: #393b3d !important;
+  color: #fff !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,.24) !important;
+  text-transform: none;
+}
+body[data-passly-theme="roblox"] input,
+body[data-passly-theme="roblox"] select,
+body[data-passly-theme="roblox"] textarea,
+body[data-passly-theme="roblox"] .settings-select,
+body[data-passly-theme="roblox"] .custom-name-input {
+  background: #fff !important;
+  color: #191b1f !important;
+  border: 2px solid #b8b8b8 !important;
+  border-radius: 6px !important;
+}
+body[data-passly-theme="roblox"] .donation-party { background: #f2f4f5 !important; border: 2px solid #d4d4d4 !important; border-radius: 8px !important; }
+body[data-passly-theme="roblox"] .donation-verb,
+body[data-passly-theme="roblox"] .amount,
+body[data-passly-theme="roblox"] .donor-name,
+body[data-passly-theme="roblox"] .user-name,
+body[data-passly-theme="roblox"] .settings-label { color: #191b1f !important; }
+body[data-passly-theme="roblox"] .profile-avatar,
+body[data-passly-theme="roblox"] .user-avatar,
+body[data-passly-theme="roblox"] .donation-avatar { border-radius: 10px !important; border-color: #393b3d !important; box-shadow: none !important; }
