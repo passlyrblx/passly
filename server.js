@@ -66,7 +66,7 @@ const userSchema = new mongoose.Schema({
   authProviders: { type: [String], default: [] },
   role: { type: String, default: 'user', enum: ['guest', 'user', 'vip', 'admin', 'owner'] },
   isGuest: { type: Boolean, default: false },
-  profile: { showBooth: { type: Boolean, default: true }, showFindPlayerDetails: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null }, showDiscordIdentity: { type: Boolean, default: false }, appTheme: { type: String, enum: ['passly', 'roblox'], default: 'passly' } },
+  profile: { showBooth: { type: Boolean, default: true }, showFindPlayerDetails: { type: Boolean, default: true }, statusDot: { type: String, default: 'online' }, showRoomId: { type: Boolean, default: true }, displayTag: { type: String, default: null }, showDiscordIdentity: { type: Boolean, default: false }, appTheme: { type: String, enum: ['passly'], default: 'passly' } },
   notificationPreferences: { offlineDonations: { type: Boolean, default: true }, friendRequests: { type: Boolean, default: true }, friendMessages: { type: Boolean, default: true }, friendAccepted: { type: Boolean, default: true } },
   roomId: String, inQueue: Boolean,
   donations: { received: Number, given: Number },
@@ -1071,7 +1071,7 @@ app.post('/api/profile/update', authenticateToken, async (req, res) => {
   if (showRoomId !== undefined) update['profile.showRoomId'] = showRoomId;
   if (showDiscordIdentity !== undefined) update['profile.showDiscordIdentity'] = !!showDiscordIdentity && !!user.discord?.id;
   if (customDisplayName !== undefined) update.customDisplayName = customDisplayName.trim().substring(0,20) || null;
-  if (appTheme !== undefined) update['profile.appTheme'] = String(appTheme).toLowerCase() === 'roblox' ? 'roblox' : 'passly';
+  if (appTheme !== undefined) update['profile.appTheme'] = 'passly';
   if (displayTag !== undefined) {
     const requestedTag = String(displayTag || '').toLowerCase();
     const availableTags = getAvailableTags(user);

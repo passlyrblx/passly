@@ -1,7 +1,6 @@
 (() => {
   const PASSLY_LOGO_URL = 'https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png';
   const ROBUX_LOGO_URL = 'https://i.ibb.co/fYdkfkYY/Robux-2019-Logo.png';
-  const THEME_STORAGE_KEY = 'passly_app_theme';
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const pageKey = (path.replace(/^\//, '') || 'home').replace(/[^a-z0-9-]/gi, '-');
   document.body.dataset.passlyPage = pageKey;
@@ -12,22 +11,19 @@
   ]);
 
 
-  const applyAppTheme = (theme = 'passly', { loading = false } = {}) => {
-    const normalized = theme === 'roblox' ? 'roblox' : 'passly';
+  const applyAppTheme = (_theme = 'passly', { loading = false } = {}) => {
+    const normalized = 'passly';
     document.documentElement.dataset.passlyTheme = normalized;
     document.body.dataset.passlyTheme = normalized;
-    document.querySelectorAll('meta[name=\"theme-color\"]').forEach((meta) => { meta.content = normalized === 'roblox' ? '#191b1f' : '#8b5cf6'; });
-    localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    document.querySelectorAll('meta[name=\"theme-color\"]').forEach((meta) => { meta.content = '#8b5cf6'; });
+    localStorage.removeItem('passly_app_theme');
     if (loading) {
       document.body.dataset.passlyThemeLoading = 'true';
       setTimeout(() => { delete document.body.dataset.passlyThemeLoading; }, 520);
     }
     window.dispatchEvent(new CustomEvent('passly:theme-changed', { detail: { theme: normalized } }));
   };
-  applyAppTheme(localStorage.getItem(THEME_STORAGE_KEY) || 'passly');
-  window.addEventListener('storage', (event) => {
-    if (event.key === THEME_STORAGE_KEY) applyAppTheme(event.newValue || 'passly');
-  });
+  applyAppTheme();
   const syncAppThemeFromProfile = async () => {
     const token = localStorage.getItem('passly_token');
     if (!token) return;
@@ -35,7 +31,7 @@
       const res = await fetch('/api/user', { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
       const data = await res.json();
-      if (data?.profile?.appTheme) applyAppTheme(data.profile.appTheme);
+      applyAppTheme();
     } catch (e) {}
   };
 
