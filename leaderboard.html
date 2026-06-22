@@ -166,7 +166,7 @@
   <div class="nav-links">
     <a href="/dashboard">🏠 Home</a>
     <a href="/rooms">🚪 Donation Rooms</a>
-    <a href="/leaderboard">🏆 Leaderboard</a>
+    <a href="/leaderboard">Leaderboard</a>
     <a href="/profile">👤 Profile</a>
     <a href="/livedonations">💸 Live Donations</a>
   </div>
@@ -179,39 +179,39 @@
   <button class="close-menu" id="closeMenuBtn">&times;</button>
   <a href="/dashboard">🏠 Home</a>
   <a href="/rooms">🚪 Donation Rooms</a>
-  <a href="/leaderboard">🏆 Leaderboard</a>
+  <a href="/leaderboard">Leaderboard</a>
   <a href="/profile">👤 Profile</a>
   <a href="/livedonations">💸 Live Donations</a>
 </div>
 <div class="menu-overlay" id="menuOverlay"></div>
 <div class="main-content">
-  <h1>🏆 Leaderboard</h1>
+  <h1>Leaderboard</h1>
   <div class="tabs">
-    <button class="tab-btn active" data-period="daily" onclick="switchTab('daily')">📅 Daily</button>
-    <button class="tab-btn" data-period="weekly" onclick="switchTab('weekly')">📆 Weekly</button>
-    <button class="tab-btn" data-period="total" onclick="switchTab('total')">🌐 Total</button>
+    <button class="tab-btn active" data-period="daily" onclick="switchTab('daily')">Daily</button>
+    <button class="tab-btn" data-period="weekly" onclick="switchTab('weekly')">Weekly</button>
+    <button class="tab-btn" data-period="total" onclick="switchTab('total')">All time</button>
   </div>
   <div class="swipe-hint">Swipe tables sideways on mobile to see every column.</div>
   <div class="leaderboard-section">
     <div class="section-title">🪙 Top Passly Coins</div>
     <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Passly Coins</th></tr></thead><tbody id="coinsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table></div>
-    <div class="rank-summary" id="coinsRank">Your rank: <span>Login to see your rank</span></div>
+    <div class="rank-summary" id="coinsRank">Your rank: <span>Sign in to view your rank</span></div>
   </div>
   <div class="leaderboard-section">
     <div class="section-title">💰 Top Receivers</div>
-    <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Received</th></tr></thead><tbody id="receiversTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table></div>
-    <div class="rank-summary" id="receiversRank">Your rank: <span>Login to see your rank</span></div>
+    <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux received</th></tr></thead><tbody id="receiversTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table></div>
+    <div class="rank-summary" id="receiversRank">Your rank: <span>Sign in to view your rank</span></div>
   </div>
   <div class="leaderboard-section streak-card">
     <div class="section-title">🔥 Top Streaks</div>
     <div class="swipe-hint">Swipe sideways to view full leaderboard details.</div>
     <div class="streak-leader-list" id="streakList"><div class="empty-state">Loading...</div></div>
-    <div class="rank-summary" id="streaksRank">Your rank: <span>Login to see your rank</span></div>
+    <div class="rank-summary" id="streaksRank">Your rank: <span>Sign in to view your rank</span></div>
   </div>
   <div class="leaderboard-section">
     <div class="section-title">💸 Top Donors</div>
-    <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux Donated</th></tr></thead><tbody id="donorsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table></div>
-    <div class="rank-summary" id="donorsRank">Your rank: <span>Login to see your rank</span></div>
+    <div class="leaderboard-table-wrap"><table class="leaderboard-table"><thead><tr><th>Rank</th><th>Player</th><th>Robux donated</th></tr></thead><tbody id="donorsTable"><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody></table></div>
+    <div class="rank-summary" id="donorsRank">Your rank: <span>Sign in to view your rank</span></div>
   </div>
 </div>
   <script>
@@ -303,7 +303,7 @@
         const el = document.getElementById(`${key}Rank`);
         if (!el) return;
         const rank = ranks?.[key];
-        el.innerHTML = `Your rank: <span>${rank || (token ? 'Unranked' : 'Login to see your rank')}</span>`;
+        el.innerHTML = `Your rank: <span>${rank || (token ? 'Unranked' : 'Sign in to view your rank')}</span>`;
       });
     }
     function renderTable(tableId, players, unit) {

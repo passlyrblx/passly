@@ -181,10 +181,10 @@
 </div>
 <div class="menu-overlay" id="menuOverlay"></div>
 <div class="main-content">
-  <h1>👤 Profile Settings</h1>
+  <h1>Profile settings</h1>
   <div class="profile-page-nav"><a class="active" href="/profile">Profile</a><a href="/find-player">Find Player</a><a href="/booths">Booths</a></div>
   <div class="notification-bar" id="notificationBar">
-    <div><strong>🔔 Notifications</strong><br><span class="settings-help">Edit alerts and see latest friend, message, and offline donation updates.</span></div>
+    <div><strong>🔔 Notifications</strong><br><span class="settings-help">Manage alerts for friends, messages, and donation activity while you are away.</span></div>
     <button class="save-btn notification-toggle" onclick="toggleNotificationPanel()">Edit</button>
     <div class="notification-panel" id="notificationPanel">
       <h3 style="color:#c4b5fd; margin-bottom:8px;">Notification settings</h3>
@@ -209,8 +209,8 @@
     </div>
     <div id="loginPrompt" class="login-prompt">
       <p>🔐 <strong>Log in with Roblox or Discord</strong> to edit your profile.</p>
-      <button class="save-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
-      <button class="save-btn" onclick="window.location.href='/auth/discord'" style="background:#5865f2; margin-top:8px;">Login through Discord</button>
+      <button class="save-btn" onclick="window.location.href='/auth/roblox'">Continue with Roblox</button>
+      <button class="save-btn" onclick="window.location.href='/auth/discord'" style="background:#5865f2; margin-top:8px;">Continue with Discord</button>
     </div>
     <div class="discord-link-card" id="discordLinkCard">
       <div>
@@ -231,28 +231,28 @@
     <div class="settings-group"><label class="settings-label">Show Room ID on Profile</label><select class="settings-select" id="showRoomId"><option value="true">✅ Yes</option><option value="false">❌ No</option></select></div>
     <div class="settings-group"><label class="settings-label">Show Discord Picture & Username</label><select class="settings-select" id="showDiscordIdentity"><option value="true">✅ Yes - use Discord profile publicly</option><option value="false">❌ No - use Roblox profile</option></select><div class="settings-help">Link Discord first, then choose whether your Discord pfp and username can appear on your profile.</div></div>
     <div class="settings-group" id="tagSettingsGroup" style="display:none;"><label class="settings-label">Public Tag</label><select class="settings-select" id="displayTagSelect"></select><div class="settings-help">Choose which available badge appears next to your name across Passly.</div><div class="available-tags" id="availableTags"></div></div>
-    <button class="save-btn" onclick="requireLogin(() => saveProfile())">💾 Save Changes</button>
+    <button class="save-btn" onclick="requireLogin(() => saveProfile())">Save changes</button>
     <div class="save-message" id="saveMessage">✅ Profile saved!</div>
   </div>
 
   <div class="section-card">
-    <h3 style="color:#c4b5fd; margin-bottom:10px;">🎁 Gamepass Board</h3>
+    <h3 style="color:#c4b5fd; margin-bottom:10px;">Gamepass board</h3>
     <p class="settings-help">Add gamepasses manually, or let Passly automatically scan your Roblox experiences and add every on-sale gamepass it can price.</p>
     <button class="save-btn fetch-gamepasses-btn" id="fetchGamepassesBtn" onclick="requireLogin(() => fetchGamepassesToBoard())">🔄 Fetch Gamepasses</button>
     <div class="fetch-status" id="fetchGamepassesStatus"></div>
     <div class="board-tools">
       <input type="text" class="custom-name-input" id="newGamepassId" placeholder="Gamepass ID">
       <input type="number" class="custom-name-input" id="newGamepassPrice" placeholder="Robux (auto)" min="1">
-      <button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())" style="width:auto; margin:0;">Add Manually</button>
+      <button class="save-btn" onclick="requireLogin(() => addGamepassToBoard())" style="width:auto; margin:0;">Add manually</button>
       <button class="save-btn" onclick="viewBoardGamepassIds()" style="width:auto; margin:0; background:#334155;">🧾 View GP</button>
       <button class="save-btn" onclick="viewBoardAsBooth()" style="width:auto; margin:0; background:#16a34a;">🏪 View as Booth</button>
     </div>
     <div class="board-gamepass-grid" id="boardGamepassGrid"><p>No gamepasses added yet.</p></div>
   </div>
   <div class="section-card vip-upgrade-card" id="vipUpgradeCard" style="display:none;">
-    <h3 style="color:#fbbf24; margin-bottom:12px;">⭐ Buy VIP</h3>
+    <h3 style="color:#fbbf24; margin-bottom:12px;">VIP access</h3>
     <p style="color:#fef3c7; margin-bottom:8px;"><strong>VIP costs 1,000 Robux.</strong> Buy the VIP gamepass, then return here and verify ownership to unlock VIP.</p>
-    <p class="settings-help">VIP unlocks the VIP badge/tag and VIP room access. Gamepass ID: <strong id="vipGamepassId">Loading...</strong></p>
+    <p class="settings-help">VIP unlocks a premium badge, public tag, and VIP room access. Gamepass ID: <strong id="vipGamepassId">Loading...</strong></p>
     <div class="vip-upgrade-actions">
       <button class="save-btn" onclick="requireLogin(() => buyVipGamepass())" style="background:linear-gradient(135deg,#f59e0b,#fbbf24); color:#0a0a14;">Buy 1K VIP Gamepass</button>
       <button class="save-btn" onclick="requireLogin(() => verifyVipGamepass())" style="background:#22c55e;">Verify VIP</button>
@@ -267,7 +267,7 @@
   <!-- Friends button (hidden for guests) -->
   <div id="friendsButtonContainer" class="section-card" style="text-align:center; display:none;">
     <h3>👥 Friends</h3>
-    <button class="save-btn" onclick="window.location.href='/friends'" style="background:#22c55e;">Go to Friends</button>
+    <button class="save-btn" onclick="window.location.href='/friends'" style="background:#22c55e;">Open friends</button>
   </div>
 </div>
 </div>
