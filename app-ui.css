@@ -2102,3 +2102,137 @@ body.login-page .showcase-avatar {
   body.login-page .tagline { font-size: clamp(2.25rem, 12vw, 3.25rem) !important; letter-spacing: -0.07em !important; text-transform: none !important; }
   body.login-page .tagline::before { display: block !important; }
 }
+
+/* Neon motion layer for the login page */
+body.login-page .login-stage::before,
+body.login-page .login-stage::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+}
+body.login-page .login-stage::before {
+  background:
+    conic-gradient(from 120deg at 50% 50%, transparent 0 18%, rgba(34,211,238,0.12) 24%, transparent 32% 58%, rgba(244,114,182,0.12) 66%, transparent 76% 100%);
+  filter: blur(22px);
+  opacity: 0.65;
+  animation: neonAuroraSpin 24s linear infinite;
+}
+body.login-page .login-stage::after {
+  background: radial-gradient(circle, rgba(255,255,255,0.11) 0 1px, transparent 1.6px);
+  background-size: 92px 92px;
+  opacity: 0.24;
+  animation: neonStarDrift 18s linear infinite;
+}
+body.login-page .neon-grid {
+  position: absolute;
+  left: -10vw;
+  right: -10vw;
+  bottom: -18vh;
+  height: 48vh;
+  transform: perspective(620px) rotateX(64deg);
+  transform-origin: center bottom;
+  background-image:
+    linear-gradient(rgba(34,211,238,0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167,139,250,0.24) 1px, transparent 1px);
+  background-size: 56px 56px;
+  border-top: 1px solid rgba(34,211,238,0.4);
+  box-shadow: 0 -20px 80px rgba(34,211,238,0.18);
+  mask-image: linear-gradient(to top, black 18%, transparent 92%);
+  animation: neonGridRun 1.9s linear infinite;
+}
+body.login-page .neon-scanline {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 0 46%, rgba(34,211,238,0.13) 50%, transparent 54% 100%);
+  mix-blend-mode: screen;
+  opacity: 0.42;
+  animation: neonScan 5.6s ease-in-out infinite;
+}
+body.login-page .neon-ring {
+  position: absolute;
+  width: clamp(170px, 24vw, 360px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(34,211,238,0.46);
+  box-shadow: 0 0 28px rgba(34,211,238,0.22), inset 0 0 28px rgba(167,139,250,0.14);
+  opacity: 0.42;
+  animation: neonRingPulse 4.8s ease-in-out infinite;
+}
+body.login-page .neon-ring-one { left: 9vw; bottom: 14vh; }
+body.login-page .neon-ring-two { right: 10vw; top: 9vh; width: clamp(120px, 18vw, 260px); border-color: rgba(244,114,182,0.42); animation-delay: -2.2s; }
+body.login-page .neon-beam {
+  position: absolute;
+  width: 42vw;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(34,211,238,0.86), rgba(244,114,182,0.62), transparent);
+  filter: drop-shadow(0 0 14px rgba(34,211,238,0.7));
+  opacity: 0;
+  animation: neonBeamSweep 6.5s ease-in-out infinite;
+}
+body.login-page .neon-beam-one { left: -14vw; top: 26vh; transform: rotate(-14deg); }
+body.login-page .neon-beam-two { right: -16vw; top: 62vh; transform: rotate(13deg); animation-delay: -3.1s; }
+body.login-page .neon-particle {
+  position: absolute;
+  width: 7px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #a5f3fc;
+  box-shadow: 0 0 14px #22d3ee, 0 0 30px rgba(167,139,250,0.65);
+  animation: neonParticleFloat 8s ease-in-out infinite;
+}
+body.login-page .particle-one { left: 15vw; top: 23vh; }
+body.login-page .particle-two { left: 32vw; top: 72vh; animation-delay: -1.4s; background: #f9a8d4; }
+body.login-page .particle-three { right: 20vw; top: 18vh; animation-delay: -2.7s; }
+body.login-page .particle-four { right: 13vw; bottom: 21vh; animation-delay: -4.2s; background: #c4b5fd; }
+body.login-page .particle-five { left: 54vw; top: 12vh; animation-delay: -5.1s; }
+body.login-page .particle-six { left: 7vw; bottom: 15vh; animation-delay: -6s; background: #86efac; }
+body.login-page .container::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 0 28%, rgba(34,211,238,0.16) 36%, rgba(255,255,255,0.28) 42%, transparent 52% 100%);
+  transform: translateX(-130%);
+  animation: neonCardShine 7s ease-in-out infinite;
+}
+body.login-page .btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 0 34%, rgba(255,255,255,0.36) 48%, transparent 62% 100%);
+  transform: translateX(-120%);
+  animation: neonButtonGlint 3.8s ease-in-out infinite;
+}
+body.login-page .feature-icon { animation: neonIconPulse 2.8s ease-in-out infinite; }
+body.login-page .feature:nth-child(2) .feature-icon { animation-delay: -0.9s; }
+body.login-page .feature:nth-child(3) .feature-icon { animation-delay: -1.8s; }
+@keyframes neonAuroraSpin { to { transform: rotate(360deg); } }
+@keyframes neonStarDrift { to { transform: translate3d(-92px, 92px, 0); } }
+@keyframes neonGridRun { to { background-position: 0 56px, 56px 0; } }
+@keyframes neonScan { 0%, 100% { transform: translateY(-58vh); opacity: 0; } 18%, 72% { opacity: 0.42; } 50% { transform: translateY(58vh); } }
+@keyframes neonRingPulse { 0%, 100% { transform: scale(0.92) rotate(0deg); opacity: 0.22; } 50% { transform: scale(1.08) rotate(24deg); opacity: 0.58; } }
+@keyframes neonBeamSweep { 0%, 100% { opacity: 0; translate: -18vw 0; } 18%, 42% { opacity: 0.72; } 58% { opacity: 0; translate: 80vw 0; } }
+@keyframes neonParticleFloat { 0%, 100% { transform: translate3d(0, 0, 0) scale(0.75); opacity: 0.28; } 50% { transform: translate3d(24px, -52px, 0) scale(1.35); opacity: 0.95; } }
+@keyframes neonCardShine { 0%, 62%, 100% { transform: translateX(-130%); } 78% { transform: translateX(130%); } }
+@keyframes neonButtonGlint { 0%, 52%, 100% { transform: translateX(-120%); } 70% { transform: translateX(120%); } }
+@keyframes neonIconPulse { 0%, 100% { box-shadow: 0 0 0 rgba(34,211,238,0); transform: translateY(0) scale(1); } 50% { box-shadow: 0 0 22px rgba(34,211,238,0.38); transform: translateY(-2px) scale(1.06); } }
+@media (prefers-reduced-motion: reduce) {
+  body.login-page .login-stage::before,
+  body.login-page .login-stage::after,
+  body.login-page .neon-grid,
+  body.login-page .neon-scanline,
+  body.login-page .neon-ring,
+  body.login-page .neon-beam,
+  body.login-page .neon-particle,
+  body.login-page .container::after,
+  body.login-page .btn::after,
+  body.login-page .feature-icon { animation: none !important; }
+}
+@media (max-width: 760px) {
+  body.login-page .neon-grid { height: 34vh; bottom: -14vh; }
+  body.login-page .neon-ring { opacity: 0.24; }
+  body.login-page .neon-beam { width: 70vw; }
+}
