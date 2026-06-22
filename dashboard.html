@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>Passly - Dashboard</title>
+  <title>Passly - Home</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="https://i.ibb.co/XrDM8by8/file-00000000993871f8a74fdfa489ebf218-3.png">
   <meta name="theme-color" content="#8b5cf6">
@@ -192,53 +192,53 @@
 <div class="menu-overlay" id="menuOverlay"></div>
 <div class="main-content">
   <div class="welcome-section">
-    <h1>Welcome, <span class="username-highlight" id="dashUsername">Player</span>! 👋</h1>
+    <h1>Welcome back, <span class="username-highlight" id="dashUsername">Player</span>.</h1>
     <span id="guestBadge" class="guest-badge">Guest</span>
-    <p style="color:#a0a0b0; margin-top:5px;">Your donation hub is ready</p>
+    <p style="color:#a0a0b0; margin-top:5px;">Your workspace is organized and ready.</p>
   </div>
   <div class="current-room">
-    <h3>📍 Current Room</h3>
-    <p id="currentRoomDisplay" style="color:#b0b0c0;">Not in any room</p>
+    <h3>Current room</h3>
+    <p id="currentRoomDisplay" style="color:#b0b0c0;">You are not in a room yet.</p>
     <p id="queueStatus" style="color:#fbbf24; margin-top:5px; display:none;"></p>
   </div>
   <div class="stats-grid">
-    <div class="stat-card"><div class="stat-value" id="totalReceived">0</div><div class="stat-label">💰 Total Robux Received</div></div>
-    <div class="stat-card"><div class="stat-value" id="totalGiven">0</div><div class="stat-label">💸 Total Robux Given</div></div>
+    <div class="stat-card"><div class="stat-value" id="totalReceived">0</div><div class="stat-label">Robux received</div></div>
+    <div class="stat-card"><div class="stat-value" id="totalGiven">0</div><div class="stat-label">Robux given</div></div>
     <div class="stat-card"><div class="stat-value" data-passly-coins data-coin-size="medium">0</div><div class="stat-label">Coin Balance</div></div>
   </div>
   <section class="economy-grid" aria-label="Coin rewards">
     <div class="economy-card">
       <div data-passly-coins data-coin-size="large">0</div>
-      <p style="margin-top:10px;">Earn coins from daily rewards and verified donations.</p>
+      <p style="margin-top:10px;">Build your coin balance with daily rewards and verified donation activity.</p>
     </div>
     <div class="economy-card">
-      <h3>🎁 Daily Reward</h3>
+      <h3>Daily reward</h3>
       <p id="dailyRewardText">Loading reward...</p>
       <button class="reward-button" id="claimDailyBtn" onclick="claimDailyReward()">Claim</button>
     </div>
     <div class="economy-card">
-      <h3>🔥 Your Streak</h3>
+      <h3>Your streak</h3>
       <div class="stat-value" id="dailyStreakValue">0</div>
-      <p>Claim once every 24 hours. Miss a day and your streak resets.</p>
+      <p>Claim every 24 hours to keep your progress consistent.</p>
     </div>
   </section>
   <div class="home-choice-grid" aria-label="Choose where to go">
     <a href="/rooms" class="home-choice-card">
       <h2>💜 Passly</h2>
-      <p>Donation rooms, boards, booths, live donation chat, and creator tools stay here.</p>
+      <p>Open focused donation rooms with boards, booths, live activity, and creator tools in one place.</p>
     </a>
     <a href="/game-rooms" class="home-choice-card">
       <h2>🎮 Game Rooms</h2>
-      <p>Create named chat rooms for playing and hanging out. No boards, booths, or donation buttons.</p>
+      <p>Create relaxed rooms for planning, playing, and talking without donation controls.</p>
     </a>
   </div>
   <div class="quick-actions">
-    <a href="/profile" class="action-btn">👤 Edit Profile</a>
-    <button class="action-btn logout-btn" onclick="logout()">🚪 Logout</button>
+    <a href="/profile" class="action-btn">Edit profile</a>
+    <button class="action-btn logout-btn" onclick="logout()">Sign out</button>
   </div>
   <div id="loginPrompt" class="login-prompt">
-    <p>🔐 <strong>Log in with Roblox</strong> to donate and create rooms.</p>
-    <button class="action-btn" onclick="window.location.href='/auth/roblox'">Login with Roblox</button>
+    <p><strong>Connect Roblox</strong> to donate, receive support, and create rooms.</p>
+    <button class="action-btn" onclick="window.location.href='/auth/roblox'">Continue with Roblox</button>
   </div>
 </div>
   <script>
