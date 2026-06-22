@@ -10,6 +10,54 @@
     ['/livedonations', ['/livedonations']], ['/redeem', ['/redeem']], ['/admin', ['/admin']], ['/privacy', ['/privacy']], ['/terms', ['/terms']]
   ]);
 
+  const passlyInteractionSound = (() => {
+    let audioContext = null;
+    let lastPlayedAt = 0;
+    const getAudioContext = () => {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return null;
+      audioContext ||= new AudioContext();
+      return audioContext;
+    };
+    return () => {
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+      const now = Date.now();
+      if (now - lastPlayedAt < 70) return;
+      lastPlayedAt = now;
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      const start = ctx.currentTime;
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(660, start);
+      oscillator.frequency.exponentialRampToValueAtTime(920, start + 0.045);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.055, start + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.095);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 0.1);
+    };
+  })();
+
+  const isSoundEligibleInteraction = (target) => {
+    const interactive = target?.closest?.('button, a[href], input, select, textarea, summary, [role="button"], [role="menuitem"], [tabindex]');
+    if (!interactive || interactive.dataset.passlyNoSound === 'true') return false;
+    if (interactive.matches('[disabled], [aria-disabled="true"], .passly-nav-disabled')) return false;
+    if (interactive.matches('input, textarea') && !interactive.matches('input[type="button"], input[type="submit"], input[type="reset"], input[type="checkbox"], input[type="radio"], input[type="range"], input[type="file"]')) return false;
+    return true;
+  };
+
+  document.addEventListener('click', (event) => {
+    if (isSoundEligibleInteraction(event.target)) passlyInteractionSound();
+  }, true);
+  document.addEventListener('change', (event) => {
+    if (event.target?.matches?.('select, input[type="checkbox"], input[type="radio"], input[type="range"], input[type="file"]')) passlyInteractionSound();
+  }, true);
+
 
   const applyAppTheme = (_theme = 'passly', { loading = false } = {}) => {
     const normalized = 'passly';
