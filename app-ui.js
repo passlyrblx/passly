@@ -353,6 +353,14 @@
       community: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a4 4 0 1 0-3.7-5.5A5 5 0 0 1 14 9c0 .7-.1 1.4-.4 2H16Zm-8 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-6 1.8-6 4v2h12v-2c0-2.2-2.7-4-6-4Zm8 0c-.5 0-1 .1-1.5.2 1 .9 1.5 2.2 1.5 3.8v2h6v-2c0-2.2-2.7-4-6-4Z"/></svg>',
       settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 2.5A8 8 0 0 0 7 6L4.6 5l-2 3.5 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5L10 22h4l.4-2.5A8 8 0 0 0 17 18l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>',
       admin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm1 6v3h3v2h-3v3h-2v-3H8v-2h3V8h2Z"/></svg>',
+      trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v2h4v3a5 5 0 0 1-4.5 5A6 6 0 0 1 13 16.9V20h4v2H7v-2h4v-3.1A6 6 0 0 1 7.5 13 5 5 0 0 1 3 8V5h4V3Zm2 2v5a3 3 0 0 0 6 0V5H9ZM5 7v1a3 3 0 0 0 2.1 2.9C7 10.6 7 10.3 7 10V7H5Zm12 0v3c0 .3 0 .6-.1.9A3 3 0 0 0 19 8V7h-2Z"/></svg>',
+      friends: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-6 1.8-6 4v2h12v-2c0-2.2-2.7-4-6-4Zm7.5-1a3.5 3.5 0 1 0-2.7-5.7A5.8 5.8 0 0 1 14 8a5.8 5.8 0 0 1-1.2 3.5c.9.3 1.7.8 2.4 1.5.4-.1.8-.1 1.3-.1 2.5 0 4.5 1.3 4.5 3v2h-4v-1c0-1.9-.9-3.5-2.4-4.7.6-.2 1.2-.2 1.9-.2Z"/></svg>',
+      live: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9h-2a7 7 0 1 0-2.1 5l1.4 1.4A9 9 0 1 1 12 3Zm0 4a5 5 0 0 1 5 5h-2a3 3 0 1 0-3 3v2a5 5 0 0 1 0-10Zm0 3a2 2 0 0 1 1.7 3l3.6 3.6-1.4 1.4-3.6-3.6A2 2 0 1 1 12 10Z"/></svg>',
+      profile: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Zm4.7-7.7-1.4-1.4-4.4 4.4-2.2-2.2-1.4 1.4 3.6 3.6 5.8-5.8Z"/></svg>',
+      booth: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16l2 6v2h-2v8H4v-8H2v-2l2-6Zm2 9v5h4v-5H6Zm6 0v5h6v-5h-6ZM5.5 6l-.8 4h14.6l-.8-4h-13Z"/></svg>',
+      search: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 4.1 11.5l4 4 1.4-1.4-4-4A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"/></svg>',
+      rewards: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-2.2A3 3 0 0 0 12 5.8 3 3 0 0 0 6.2 7H4a2 2 0 0 0-2 2v3h20V9a2 2 0 0 0-2-2ZM9 7a1 1 0 1 1 2 0H9Zm4 0a1 1 0 1 1 2 0h-2ZM3 14v6a2 2 0 0 0 2 2h6v-8H3Zm10 0v8h6a2 2 0 0 0 2-2v-6h-8Z"/></svg>',
+      redeem: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16a2 2 0 0 1 2 2v3a2 2 0 1 0 0 4v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7a2 2 0 0 1 2-2Zm5 4v2h6V9H9Zm0 4v2h4v-2H9Z"/></svg>',
       support: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8 8 0 0 0-8 8v3a3 3 0 0 0 3 3h1v-7H6.1A6 6 0 0 1 18 10h-2v7h1.7A5 5 0 0 1 13 20h-2v2h2a7 7 0 0 0 7-7v-4a8 8 0 0 0-8-8Z"/></svg>',
       terms: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6V2Zm8 1.5V8h4.5L14 3.5ZM9 11v2h8v-2H9Zm0 4v2h8v-2H9Zm0 4h5v-2H9v2Z"/></svg>',
       privacy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 5 5v6c0 4.5 2.9 8.7 7 10 4.1-1.3 7-5.5 7-10V5l-7-3Zm0 4a3 3 0 0 1 3 3v2h1v6H8v-6h1V9a3 3 0 0 1 3-3Zm-1 5h2V9a1 1 0 0 0-2 0v2Z"/></svg>',
@@ -364,16 +372,16 @@
       { label: 'Game Rooms', href: '/game-rooms', icon: 'game' },
       { label: 'Minecraft (coming soon)', href: '#', navTheme: 'minecraft', disabled: true },
       { label: 'Community', href: '/leaderboard', icon: 'community', children: [
-        { label: 'Leaderboard', href: '/leaderboard', navTheme: 'trophy' },
-        { label: 'Friends', href: '/friends', navTheme: 'social' },
-        { label: 'Live donations', href: '/livedonations', navTheme: 'live' }
+        { label: 'Leaderboard', href: '/leaderboard', icon: 'trophy', navTheme: 'trophy', description: 'Track the top donors, receivers, streaks, and Passly earners.' },
+        { label: 'Friends', href: '/friends', icon: 'friends', navTheme: 'social', description: 'Find your community crew and manage friend connections.' },
+        { label: 'Live donations', href: '/livedonations', icon: 'live', navTheme: 'live', description: 'Watch fresh gifts and room activity as they happen.' }
       ]},
       { label: 'Settings', href: '/profile', icon: 'settings', children: [
-        { label: 'Profile settings', href: '/profile', navTheme: 'profile' },
-        { label: 'Booth settings', href: '/booths', navTheme: 'booth' },
-        { label: 'Find player', href: '/find-player', navTheme: 'search' },
-        { label: 'Passly rewards', href: '/booths#earn-passly', navTheme: 'rewards' },
-        { label: 'Redeem coupon', href: '/redeem', navTheme: 'redeem' }
+        { label: 'Profile settings', href: '/profile', icon: 'profile', navTheme: 'profile', description: 'Update your identity, badges, privacy, and account details.' },
+        { label: 'Booth settings', href: '/booths', icon: 'booth', navTheme: 'booth', description: 'Customize your donation booth with matching premium themes.' },
+        { label: 'Find player', href: '/find-player', icon: 'search', navTheme: 'search', description: 'Search players and preview their public Passly board.' },
+        { label: 'Passly rewards', href: '/booths#earn-passly', icon: 'rewards', navTheme: 'rewards', description: 'Claim earning perks, streak bonuses, and supporter rewards.' },
+        { label: 'Redeem coupon', href: '/redeem', icon: 'redeem', navTheme: 'redeem', description: 'Use promo codes for coins and special Passly boosts.' }
       ]}
     ];
     if (isAdmin) groups.push({ label: 'Admin', href: '/admin', icon: 'admin', children: [
