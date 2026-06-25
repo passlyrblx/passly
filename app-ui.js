@@ -353,6 +353,9 @@
       community: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11a4 4 0 1 0-3.7-5.5A5 5 0 0 1 14 9c0 .7-.1 1.4-.4 2H16Zm-8 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-6 1.8-6 4v2h12v-2c0-2.2-2.7-4-6-4Zm8 0c-.5 0-1 .1-1.5.2 1 .9 1.5 2.2 1.5 3.8v2h6v-2c0-2.2-2.7-4-6-4Z"/></svg>',
       settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 2.5A8 8 0 0 0 7 6L4.6 5l-2 3.5 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 2.6 1.5L10 22h4l.4-2.5A8 8 0 0 0 17 18l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>',
       admin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm1 6v3h3v2h-3v3h-2v-3H8v-2h3V8h2Z"/></svg>',
+      adminDashboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm1 3v4h6V7H5Zm8 0v4h6V7h-6ZM5 13v4h3v-4H5Zm5 0v4h9v-4h-9Z"/></svg>',
+      adminChat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-5.2L9 21v-4H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Zm3 5v2h8V9H8Zm0 4v2h5v-2H8Z"/></svg>',
+      coupon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16a2 2 0 0 1 2 2v3a2 2 0 1 0 0 4v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7a2 2 0 0 1 2-2Zm4 3v2h3V8H8Zm5 0v2h3V8h-3Zm-5 4v2h3v-2H8Zm5 0v2h3v-2h-3Zm-5 4v2h3v-2H8Zm5 0v2h3v-2h-3Z"/></svg>',
       trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v2h4v3a5 5 0 0 1-4.5 5A6 6 0 0 1 13 16.9V20h4v2H7v-2h4v-3.1A6 6 0 0 1 7.5 13 5 5 0 0 1 3 8V5h4V3Zm2 2v5a3 3 0 0 0 6 0V5H9ZM5 7v1a3 3 0 0 0 2.1 2.9C7 10.6 7 10.3 7 10V7H5Zm12 0v3c0 .3 0 .6-.1.9A3 3 0 0 0 19 8V7h-2Z"/></svg>',
       friends: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-6 1.8-6 4v2h12v-2c0-2.2-2.7-4-6-4Zm7.5-1a3.5 3.5 0 1 0-2.7-5.7A5.8 5.8 0 0 1 14 8a5.8 5.8 0 0 1-1.2 3.5c.9.3 1.7.8 2.4 1.5.4-.1.8-.1 1.3-.1 2.5 0 4.5 1.3 4.5 3v2h-4v-1c0-1.9-.9-3.5-2.4-4.7.6-.2 1.2-.2 1.9-.2Z"/></svg>',
       live: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9h-2a7 7 0 1 0-2.1 5l1.4 1.4A9 9 0 1 1 12 3Zm0 4a5 5 0 0 1 5 5h-2a3 3 0 1 0-3 3v2a5 5 0 0 1 0-10Zm0 3a2 2 0 0 1 1.7 3l3.6 3.6-1.4 1.4-3.6-3.6A2 2 0 1 1 12 10Z"/></svg>',
@@ -385,9 +388,9 @@
       ]}
     ];
     if (isAdmin) groups.push({ label: 'Admin', href: '/admin', icon: 'admin', children: [
-      { label: 'Dashboard', href: '/admin', navTheme: 'admin' },
-      { label: 'Admin Chat', href: '/admin#admin-chat-card', navTheme: 'chat' },
-      { label: 'Coupons', href: '/admin#coupon-card', navTheme: 'coupon' }
+      { label: 'Dashboard', href: '/admin', icon: 'adminDashboard', navTheme: 'admin' },
+      { label: 'Admin Chat', href: '/admin#admin-chat-card', icon: 'adminChat', navTheme: 'chat' },
+      { label: 'Coupons', href: '/admin#coupon-card', icon: 'coupon', navTheme: 'coupon' }
     ]});
     groups.push({ label: 'Support', href: '/terms', icon: 'support', children: [
       {
