@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Russo+One&display=swap');
 :root {
   color-scheme: dark;
   --bg: #070712;
@@ -23,10 +22,15 @@
   --radius: 22px;
   --radius-sm: 14px;
   --nav-height: 72px;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-default: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-default);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+
+html, body, button, input, textarea, select {
+  font-family: var(--font-default) !important;
+}
 * { scrollbar-width: thin; scrollbar-color: rgba(167, 139, 250, 0.55) rgba(255, 255, 255, 0.06); }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
@@ -2350,12 +2354,11 @@ body.login-page .btn:disabled {
   --green: #00ff88;
   --gold: #ffaa00;
   --shadow: 0 26px 90px rgba(0, 0, 0, 0.56), 0 0 42px rgba(0, 255, 255, 0.08);
-  font-family: 'Chakra Petch', Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-default);
 }
 
 h1, h2, h3, .nav-logo, .logo, .logo-text, body.login-page .tagline, body.login-page .login-title {
-  font-family: 'Russo One', 'Chakra Petch', ui-sans-serif, system-ui, sans-serif !important;
-  text-transform: uppercase;
+  font-family: var(--font-default) !important;
 }
 
 body::before {
@@ -2410,7 +2413,10 @@ body.login-page .container::after {
   right: 18px;
   top: 14px;
   color: rgba(165,243,252,0.58);
-  font: 700 0.68rem/1 'Chakra Petch', monospace;
+  font-family: var(--font-default);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
   letter-spacing: 0.16em;
   pointer-events: none;
 }
@@ -2434,7 +2440,7 @@ body.login-page .description {
 }
 body.login-page .feature-icon {
   color: #06111a;
-  font-family: 'Russo One', sans-serif;
+  font-family: var(--font-default);
   background: linear-gradient(135deg, #00ffff, #00ff88) !important;
 }
 body.login-page .install-hint::before {
