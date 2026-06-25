@@ -4,6 +4,17 @@
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const pageKey = (path.replace(/^\//, '') || 'home').replace(/[^a-z0-9-]/gi, '-');
   document.body.dataset.passlyPage = pageKey;
+
+  const syncTokenFromUrl = () => {
+    const hash = window.location.hash || '';
+    if (!hash.includes('token=')) return localStorage.getItem('passly_token');
+    const tokenPart = new URLSearchParams(hash.replace(/^#/, '')).get('token');
+    if (!tokenPart) return localStorage.getItem('passly_token');
+    localStorage.setItem('passly_token', tokenPart);
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    return tokenPart;
+  };
+  syncTokenFromUrl();
   const aliases = new Map([
     ['/', ['/']], ['/dashboard', ['/dashboard']], ['/rooms', ['/rooms']], ['/game-rooms', ['/game-rooms']], ['/leaderboard', ['/leaderboard']],
     ['/profile', ['/profile']], ['/friends', ['/friends']], ['/find-player', ['/find-player']], ['/booths', ['/booths']],
@@ -169,8 +180,19 @@
   };
   const ensureNavbarCoins = async () => {
     const box = document.querySelector('.user-box');
-    if (!box || box.querySelector('[data-passly-navbar-coins]')) return;
+    if (!box || box.querySelector('[data-passly-navbar-coins]') || box.querySelector('[data-passly-login-link]')) return;
     const avatar = box.querySelector('.user-avatar');
+    const token = localStorage.getItem('passly_token');
+    if (!token) {
+      const loginLink = document.createElement('a');
+      loginLink.href = '/auth/roblox';
+      loginLink.className = 'passly-login-link';
+      loginLink.dataset.passlyLoginLink = 'true';
+      loginLink.textContent = 'Login';
+      box.appendChild(loginLink);
+      if (avatar) box.appendChild(avatar);
+      return;
+    }
     const balance = document.createElement('span');
     balance.dataset.passlyCoins = 'true';
     balance.dataset.passlyNavbarCoins = 'true';
@@ -185,8 +207,6 @@
     box.appendChild(notificationLink);
     box.appendChild(balance);
     if (avatar) box.appendChild(avatar);
-    const token = localStorage.getItem('passly_token');
-    if (!token) return;
     try {
       const res = await fetch('/api/economy', { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
