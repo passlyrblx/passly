@@ -727,6 +727,10 @@ body.login-page .btn { margin-top: 10px; }
   box-shadow: 0 10px 24px rgba(139,92,246,0.18);
 }
 .passly-notification-link:hover { transform: translateY(-2px); background: rgba(139,92,246,0.22); }
+.passly-login-link { display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:8px 14px; border-radius:999px; background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff !important; text-decoration:none; font-weight:900; font-size:.88rem; letter-spacing:.01em; box-shadow:0 8px 20px rgba(139,92,246,.22); white-space:nowrap; }
+.passly-login-link:hover { transform:translateY(-1px); box-shadow:0 12px 26px rgba(139,92,246,.34); }
+.redirect-shell { min-height:100vh; display:grid; place-content:center; gap:12px; text-align:center; color:#fff; padding:24px; }
+.redirect-shell a { color:#c4b5fd; font-weight:900; }
 .passly-notification-count {
   position: absolute;
   right: -4px;
