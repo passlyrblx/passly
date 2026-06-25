@@ -1796,14 +1796,28 @@ body::before {
   pointer-events: none;
 }
 
-[data-passly-nav-theme="trophy"] { background: linear-gradient(135deg, rgba(251,191,36,.22), rgba(139,92,246,.12)) !important; }
-[data-passly-nav-theme="social"] { background: linear-gradient(135deg, rgba(34,197,94,.20), rgba(34,211,238,.10)) !important; }
-[data-passly-nav-theme="live"] { background: linear-gradient(135deg, rgba(244,63,94,.22), rgba(251,113,133,.10)) !important; }
-[data-passly-nav-theme="profile"] { background: linear-gradient(135deg, rgba(99,102,241,.22), rgba(167,139,250,.12)) !important; }
-[data-passly-nav-theme="booth"] { background: linear-gradient(135deg, rgba(236,72,153,.20), rgba(139,92,246,.12)) !important; }
-[data-passly-nav-theme="search"] { background: linear-gradient(135deg, rgba(14,165,233,.22), rgba(45,212,191,.12)) !important; }
-[data-passly-nav-theme="rewards"] { background: linear-gradient(135deg, rgba(250,204,21,.22), rgba(52,211,153,.12)) !important; }
-[data-passly-nav-theme="redeem"] { background: linear-gradient(135deg, rgba(34,211,238,.20), rgba(250,204,21,.12)) !important; }
+[data-passly-nav-theme="trophy"],
+[data-passly-nav-theme="social"],
+[data-passly-nav-theme="live"],
+[data-passly-nav-theme="profile"],
+[data-passly-nav-theme="booth"],
+[data-passly-nav-theme="search"],
+[data-passly-nav-theme="rewards"],
+[data-passly-nav-theme="redeem"] {
+  background:
+    radial-gradient(circle at 14% 16%, rgba(34,211,238,.18), transparent 32%),
+    linear-gradient(135deg, rgba(88,28,135,.78), rgba(15,23,42,.86) 58%, rgba(30,41,59,.82)) !important;
+  border-color: rgba(167,139,250,.28) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 10px 28px rgba(2,6,23,.20);
+}
+[data-passly-nav-theme="trophy"] .passly-nav-icon { color: #fde68a; }
+[data-passly-nav-theme="social"] .passly-nav-icon { color: #86efac; }
+[data-passly-nav-theme="live"] .passly-nav-icon { color: #fda4af; }
+[data-passly-nav-theme="profile"] .passly-nav-icon { color: #c4b5fd; }
+[data-passly-nav-theme="booth"] .passly-nav-icon { color: #f0abfc; }
+[data-passly-nav-theme="search"] .passly-nav-icon { color: #7dd3fc; }
+[data-passly-nav-theme="rewards"] .passly-nav-icon { color: #fde68a; }
+[data-passly-nav-theme="redeem"] .passly-nav-icon { color: #67e8f9; }
 [data-passly-nav-theme="admin"] { background: linear-gradient(135deg, rgba(248,113,113,.20), rgba(168,85,247,.12)) !important; }
 [data-passly-nav-theme="chat"] { background: linear-gradient(135deg, rgba(59,130,246,.20), rgba(34,211,238,.12)) !important; }
 [data-passly-nav-theme="coupon"] { background: linear-gradient(135deg, rgba(245,158,11,.22), rgba(244,114,182,.12)) !important; }
